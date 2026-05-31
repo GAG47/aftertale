@@ -1,0 +1,12 @@
+{
+  "id": "packed_snack",
+  "display_name": "Packed Snack",
+  "item_type": "consumable",
+  "stackable": true,
+  "max_stack": 10,
+  "base_value": 9,
+  "sellable": true,
+  "is_usable": true,
+  "use_feedback": "The snack is practical, if not exciting.",
+  "description": "A wrapped apple-and-stick trail ration. Mostly a test output for the crafting system."
+}

@@ -1,0 +1,34 @@
+{
+  "character_relations": [
+    {
+      "source_id": "debug_villager",
+      "target_id": "debug_player",
+      "affinity": 5,
+      "trust": 0,
+      "hostility": 0
+    },
+    {
+      "source_id": "debug_guard",
+      "target_id": "debug_player",
+      "affinity": 0,
+      "trust": 0,
+      "hostility": 0
+    }
+  ],
+  "faction_relations": [
+    {
+      "source_id": "player",
+      "target_id": "field_neutral",
+      "affinity": 0,
+      "trust": 0,
+      "hostility": 0
+    },
+    {
+      "source_id": "field_neutral",
+      "target_id": "player",
+      "affinity": 0,
+      "trust": 0,
+      "hostility": 0
+    }
+  ]
+}

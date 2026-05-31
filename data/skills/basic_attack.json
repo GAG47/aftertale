@@ -1,0 +1,20 @@
+{
+  "id": "basic_attack",
+  "display_name": "普通攻击",
+  "description": "可靠的近身攻击。",
+  "skill_type": "battle",
+  "target_type": "enemy",
+  "range": 1,
+  "area": "single",
+  "ap_cost": 1,
+  "cooldown": 0,
+  "ends_turn": false,
+  "effects": [
+    {
+      "type": "damage",
+      "formula": "strength",
+      "power": 0
+    }
+  ],
+  "feedback": "{actor}攻击了{target}。"
+}

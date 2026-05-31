@@ -1,0 +1,107 @@
+{
+  "id": "test_field",
+  "display_name": "Test Field",
+  "size": { "width": 12, "height": 8 },
+  "tile_size": 32,
+  "default_entrance": "start",
+  "tiles": [
+    "gggggggggggg",
+    "gggggggggggg",
+    "gggpppppgggg",
+    "gggpgwwpggge",
+    "gggppwwppggg",
+    "ggpfffggpggg",
+    "ggpgggggpggg",
+    "gggggggggggg"
+  ],
+  "terrain": {
+    "g": { "id": "grass", "label": "Grass", "walkable": true, "color": "#5fa35f" },
+    "p": { "id": "path", "label": "Path", "walkable": true, "color": "#b5975d" },
+    "w": { "id": "water", "label": "Water", "walkable": false, "color": "#3d78b5" },
+    "e": { "id": "exit", "label": "Exit", "walkable": true, "color": "#c8b642" },
+    "f": { "id": "field_plot", "label": "Field Plot", "walkable": true, "plantable": true, "color": "#6f8f4d" }
+  },
+  "entrances": [
+    { "id": "start", "grid_position": { "x": 2, "y": 5 }, "facing": "right" },
+    { "id": "from_clearing", "grid_position": { "x": 10, "y": 3 }, "facing": "left" }
+  ],
+  "exits": [
+    {
+      "id": "east_gate",
+      "grid_position": { "x": 11, "y": 3 },
+      "target_scene_path": "res://scenes/locations/test_clearing.tscn",
+      "target_entrance_id": "west_gate"
+    }
+  ],
+  "shops": [
+    { "id": "field_stall" }
+  ],
+  "objects": [
+    {
+      "id": "field_sign",
+      "display_name": "Field Sign",
+      "grid_position": { "x": 4, "y": 5 },
+      "blocks_movement": true,
+      "kind": "inspectable",
+      "is_inspectable": true,
+      "inspect_text": "A rough wooden sign reads: Test Field. The rules are watching."
+    },
+    {
+      "id": "loose_crate",
+      "display_name": "Loose Crate",
+      "grid_position": { "x": 8, "y": 6 },
+      "blocks_movement": true,
+      "kind": "usable",
+      "is_inspectable": true,
+      "is_usable": true,
+      "inspect_text": "A scuffed crate sits here. It looks sturdy enough.",
+      "use_feedback": "The crate creaks, but it does not open yet."
+    },
+    {
+      "id": "field_apple",
+      "display_name": "Field Apple",
+      "grid_position": { "x": 5, "y": 5 },
+      "blocks_movement": false,
+      "kind": "drop",
+      "is_inspectable": true,
+      "is_pickable": true,
+      "inspect_text": "A clean apple rests on the grass.",
+      "item": {
+        "source": "res://data/items/debug_apple.json",
+        "quantity": 1
+      }
+    },
+    {
+      "id": "seed_pouch",
+      "display_name": "Seed Pouch",
+      "grid_position": { "x": 3, "y": 6 },
+      "blocks_movement": false,
+      "kind": "drop",
+      "is_inspectable": true,
+      "is_pickable": true,
+      "inspect_text": "A small pouch of test seeds lies on the soil.",
+      "item": {
+        "source": "res://data/items/debug_seed.json",
+        "quantity": 3
+      }
+    }
+  ],
+  "characters": [
+    {
+      "id": "debug_player",
+      "source": "res://data/characters/debug_player.json",
+      "spawn_at_entrance": true,
+      "facing": "right"
+    },
+    {
+      "id": "debug_villager",
+      "source": "res://data/characters/debug_villager.json",
+      "grid_position": { "x": 6, "y": 5 },
+      "facing": "down"
+    }
+  ],
+  "state": {
+    "danger_level": 0,
+    "owner_faction": "none"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "id": "guard",
+  "display_name": "防御",
+  "description": "进入防御姿态，在下次行动前降低受到的伤害。",
+  "skill_type": "battle",
+  "target_type": "self",
+  "range": 0,
+  "area": "single",
+  "ap_cost": 1,
+  "cooldown": 0,
+  "ends_turn": true,
+  "effects": [
+    {
+      "type": "status",
+      "status_id": "guard",
+      "display_name": "防御",
+      "defense_bonus": 2,
+      "expires": "turn_start"
+    }
+  ],
+  "feedback": "{actor}进入了防御姿态。"
+}

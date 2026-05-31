@@ -1,0 +1,12 @@
+{
+  "id": "debug_tool",
+  "display_name": "Debug Tool",
+  "category": "tools",
+  "description": "Bind two sticks into a crude tool.",
+  "ingredients": [
+    { "item_id": "debug_stick", "quantity": 2 }
+  ],
+  "outputs": [
+    { "source": "res://data/items/debug_tool.json", "quantity": 1 }
+  ]
+}

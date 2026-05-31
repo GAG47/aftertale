@@ -1,0 +1,88 @@
+{
+  "id": "test_clearing",
+  "display_name": "Test Clearing",
+  "size": { "width": 10, "height": 8 },
+  "tile_size": 32,
+  "default_entrance": "west_gate",
+  "tiles": [
+    "gggggggggg",
+    "gmmmmmmggg",
+    "gmpgggmpgg",
+    "epggggmpgg",
+    "gmpgggmpgg",
+    "gmmmmmmggg",
+    "gggggggggg",
+    "gggggggggg"
+  ],
+  "terrain": {
+    "g": { "id": "grass", "label": "Grass", "walkable": true, "color": "#5fa35f" },
+    "p": { "id": "path", "label": "Path", "walkable": true, "color": "#b5975d" },
+    "m": { "id": "stone", "label": "Stone", "walkable": false, "color": "#777777" },
+    "e": { "id": "exit", "label": "Exit", "walkable": true, "color": "#c8b642" }
+  },
+  "entrances": [
+    { "id": "west_gate", "grid_position": { "x": 1, "y": 3 }, "facing": "right" }
+  ],
+  "exits": [
+    {
+      "id": "west_gate",
+      "grid_position": { "x": 0, "y": 3 },
+      "target_scene_path": "res://scenes/locations/test_field.tscn",
+      "target_entrance_id": "from_clearing"
+    }
+  ],
+  "objects": [
+    {
+      "id": "clearing_marker",
+      "display_name": "Clearing Marker",
+      "grid_position": { "x": 5, "y": 3 },
+      "blocks_movement": true,
+      "kind": "inspectable",
+      "is_inspectable": true,
+      "inspect_text": "A stone marker points back toward the test field."
+    },
+    {
+      "id": "fallen_stick",
+      "display_name": "Fallen Stick",
+      "grid_position": { "x": 4, "y": 3 },
+      "blocks_movement": false,
+      "kind": "drop",
+      "is_inspectable": true,
+      "is_pickable": true,
+      "inspect_text": "A dry stick lies beside the path.",
+      "item": {
+        "source": "res://data/items/debug_stick.json",
+        "quantity": 2
+      }
+    },
+    {
+      "id": "old_switch",
+      "display_name": "Old Switch",
+      "grid_position": { "x": 7, "y": 3 },
+      "blocks_movement": true,
+      "kind": "usable",
+      "is_inspectable": true,
+      "is_usable": true,
+      "inspect_text": "An old switch is mounted on a stone post.",
+      "use_feedback": "The old switch clicks. No connected mechanism exists yet."
+    }
+  ],
+  "characters": [
+    {
+      "id": "debug_player",
+      "source": "res://data/characters/debug_player.json",
+      "spawn_at_entrance": true,
+      "facing": "right"
+    },
+    {
+      "id": "debug_guard",
+      "source": "res://data/characters/debug_guard.json",
+      "grid_position": { "x": 6, "y": 3 },
+      "facing": "left"
+    }
+  ],
+  "state": {
+    "danger_level": 0,
+    "owner_faction": "none"
+  }
+}

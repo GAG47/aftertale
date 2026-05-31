@@ -1,0 +1,12 @@
+{
+  "id": "debug_tool",
+  "display_name": "Debug Tool",
+  "item_type": "tool",
+  "stackable": false,
+  "max_stack": 1,
+  "base_value": 8,
+  "sellable": true,
+  "is_usable": false,
+  "use_feedback": "",
+  "description": "A simple test tool assembled from sticks. It proves crafting can create equipment-like items."
+}

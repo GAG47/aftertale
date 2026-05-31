@@ -1,0 +1,12 @@
+{
+  "id": "debug_key",
+  "display_name": "Debug Key",
+  "item_type": "key_item",
+  "stackable": false,
+  "max_stack": 1,
+  "base_value": 0,
+  "sellable": false,
+  "is_usable": true,
+  "use_feedback": "The key turns in your hand, waiting for a matching lock.",
+  "description": "A simple key item for testing non-stackable inventory entries."
+}

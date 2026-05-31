@@ -1,0 +1,20 @@
+{
+  "id": "quick_shot",
+  "display_name": "速射",
+  "description": "短距离远程攻击。",
+  "skill_type": "battle",
+  "target_type": "enemy",
+  "range": 3,
+  "area": "single",
+  "ap_cost": 1,
+  "cooldown": 0,
+  "ends_turn": false,
+  "effects": [
+    {
+      "type": "damage",
+      "formula": "agility",
+      "power": 1
+    }
+  ],
+  "feedback": "{actor}向{target}快速射击。"
+}

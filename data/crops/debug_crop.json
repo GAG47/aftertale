@@ -1,0 +1,16 @@
+{
+  "id": "debug_crop",
+  "display_name": "Debug Crop",
+  "seed_item_id": "debug_seed",
+  "growth_minutes": 180,
+  "requires_water": true,
+  "stages": [
+    { "id": "seeded", "display_name": "Seeded", "threshold": 0, "color": "#8c6b3f" },
+    { "id": "sprout", "display_name": "Sprout", "threshold": 60, "color": "#8ccf5a" },
+    { "id": "grown", "display_name": "Grown", "threshold": 120, "color": "#4fa24f" },
+    { "id": "mature", "display_name": "Mature", "threshold": 180, "color": "#d8d05a" }
+  ],
+  "harvest_outputs": [
+    { "source": "res://data/items/debug_herb.json", "quantity": 1 }
+  ]
+}

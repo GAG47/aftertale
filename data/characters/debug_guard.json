@@ -1,0 +1,57 @@
+{
+  "id": "debug_guard",
+  "display_name": "测试守卫",
+  "character_kind": "npc",
+  "attributes": {
+    "level": 2,
+    "strength": 6,
+    "agility": 4,
+    "intellect": 3,
+    "vitality": 6
+  },
+  "identity": {
+    "age": 28,
+    "species": "human",
+    "gender": "unspecified",
+    "origin": "test_clearing",
+    "occupation": "guard",
+    "personality": "watchful"
+  },
+  "faction_id": "field_neutral",
+  "relation_slots": {
+    "personal": {},
+    "faction": {}
+  },
+  "skills": [
+    "basic_attack",
+    "power_strike",
+    "quick_shot",
+    "first_aid",
+    "guard"
+  ],
+  "dialogue_source": "res://data/dialogues/debug_guard_dialogue.json",
+  "is_player_controlled": false,
+  "is_interactable": true,
+  "is_combatable": true,
+  "blocks_movement": true,
+  "schedule": [
+    {
+      "id": "day_guard_post",
+      "start": "06:00",
+      "end": "17:59",
+      "location_id": "test_clearing",
+      "grid_position": { "x": 3, "y": 3 },
+      "facing": "left",
+      "activity": "guarding the marker"
+    },
+    {
+      "id": "night_patrol",
+      "start": "18:00",
+      "end": "05:59",
+      "location_id": "test_clearing",
+      "grid_position": { "x": 2, "y": 3 },
+      "facing": "right",
+      "activity": "patrolling at night"
+    }
+  ]
+}

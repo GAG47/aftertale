@@ -1,0 +1,59 @@
+{
+  "id": "debug_apple_request",
+  "display_name": "一个苹果请求",
+  "description": "村民想确认你能不能捡到一个苹果，并把结果告诉他。",
+  "source": {
+    "type": "character",
+    "id": "debug_villager"
+  },
+  "requirements": [
+    {
+      "type": "relation_at_least",
+      "source": "debug_villager",
+      "target": "actor",
+      "metric": "affinity",
+      "value": 0,
+      "failure_text": "Debug Villager does not trust you enough to ask for help."
+    }
+  ],
+  "objectives": [
+    {
+      "id": "pick_apple",
+      "type": "has_item",
+      "item_id": "debug_apple",
+      "quantity": 1,
+      "description": "取得一个 Debug Apple。"
+    },
+    {
+      "id": "report_to_villager",
+      "type": "dialogue_option_selected",
+      "dialogue_id": "debug_villager_dialogue",
+      "option_id": "apple",
+      "description": "告诉村民你捡到了苹果。"
+    }
+  ],
+  "rewards": [
+    {
+      "type": "item",
+      "source": "res://data/items/debug_key.json",
+      "quantity": 1
+    },
+    {
+      "type": "flag",
+      "key": "debug_apple_request_completed",
+      "value": true
+    },
+    {
+      "type": "relation",
+      "scope": "character",
+      "source_id": "debug_villager",
+      "target_actor": true,
+      "delta": {
+        "affinity": 25,
+        "trust": 15,
+        "hostility": 0
+      },
+      "reason": "completed_debug_apple_request"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "id": "debug_stick",
+  "display_name": "Debug Stick",
+  "item_type": "material",
+  "stackable": true,
+  "max_stack": 10,
+  "base_value": 1,
+  "sellable": true,
+  "is_usable": false,
+  "use_feedback": "",
+  "description": "A plain stick. It is useful mostly because rules can count it."
+}

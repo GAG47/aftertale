@@ -1,0 +1,21 @@
+{
+  "id": "shockwave",
+  "display_name": "震荡波",
+  "description": "攻击一个敌人，并伤害目标周围的敌人。",
+  "skill_type": "battle",
+  "target_type": "enemy",
+  "range": 2,
+  "area": "radius",
+  "radius": 1,
+  "ap_cost": 2,
+  "cooldown": 1,
+  "ends_turn": false,
+  "effects": [
+    {
+      "type": "damage",
+      "formula": "intellect",
+      "power": 2
+    }
+  ],
+  "feedback": "{actor}在{target}周围释放了震荡波。"
+}

@@ -1,0 +1,909 @@
+extends Node
+
+signal battle_started(battle_id: String)
+signal battle_turn_started(character_id: String, round_number: int)
+signal battle_ended(battle_id: String, result_status: String)
+signal battle_state_changed()
+
+const MOVE_AP_COST := 1
+const FLEE_AP_COST := 1
+
+var active_state: BattleState
+var last_result: ActionResult
+var selected_skill_id: String = "basic_attack"
+var _battle_counter: int = 0
+
+
+func start_battle(location_root: Node, initiator: CharacterEntity, opponent: CharacterEntity) -> ActionResult:
+	var initiator_id: String = initiator.character_id if initiator != null and is_instance_valid(initiator) else ""
+	if active_state != null and active_state.active:
+		return ActionResult.failed("BattleStart", initiator_id, "已经处于战斗中。")
+
+	if location_root == null or not is_instance_valid(location_root) or not location_root.has_method("get_location_grid"):
+		return ActionResult.failed("BattleStart", initiator_id, "战斗需要有效的场景。")
+	if initiator == null or not is_instance_valid(initiator):
+		return ActionResult.failed("BattleStart", "", "战斗需要发起者。")
+	if opponent == null or not is_instance_valid(opponent):
+		return ActionResult.failed("BattleStart", initiator.character_id, "战斗需要目标。")
+	if not opponent.is_combatable:
+		return ActionResult.failed("BattleStart", initiator.character_id, "%s 不能被攻击。" % opponent.display_name)
+
+	var grid: LocationGrid = location_root.get_location_grid() as LocationGrid
+	if grid == null:
+		return ActionResult.failed("BattleStart", initiator.character_id, "战斗需要有效的格子地图。")
+
+	_battle_counter += 1
+	var battle_id: String = "battle_%03d" % _battle_counter
+	var units: Array[BattleUnitState] = []
+	units.append(BattleUnitState.from_character(initiator, BattleUnitState.TEAM_PLAYER))
+	units.append(BattleUnitState.from_character(opponent, BattleUnitState.TEAM_ENEMY))
+	active_state = BattleState.new()
+	active_state.configure(battle_id, location_root, grid, units)
+	selected_skill_id = "basic_attack"
+	GameState.set_mode(GameState.GameMode.COMBAT)
+
+	var result: ActionResult = ActionResult.succeeded("BattleStart", initiator.character_id, {
+		"battle_id": battle_id,
+		"opponent_id": opponent.character_id,
+	})
+	result.add_world_change({
+		"type": "battle_started",
+		"battle_id": battle_id,
+		"location_id": grid.location_id,
+		"participants": _participant_ids(),
+	})
+	result.add_world_change({
+		"type": "relation_delta",
+		"scope": "character",
+		"source_id": opponent.character_id,
+		"target_id": initiator.character_id,
+		"delta": { "affinity": -10, "trust": -5, "hostility": 25 },
+		"reason": "battle_started",
+	})
+	result.add_feedback("战斗开始：%s 对阵 %s。" % [initiator.display_name, opponent.display_name])
+	last_result = result
+	ActionSystem.publish_result(result)
+	battle_started.emit(battle_id)
+	battle_state_changed.emit()
+	_emit_turn_started()
+	var first_unit: BattleUnitState = active_state.get_current_unit()
+	if first_unit != null and first_unit.team == BattleUnitState.TEAM_ENEMY:
+		_run_enemy_turn(first_unit)
+	return result
+
+
+func request_move_current_unit(direction: Vector2i) -> ActionResult:
+	var unit: BattleUnitState = _get_player_current_unit()
+	if unit == null:
+		return _fail("BattleMove", "还没有轮到玩家行动。")
+	if direction == Vector2i.ZERO:
+		return _fail("BattleMove", "移动需要方向。")
+
+	var character: CharacterEntity = unit.character
+	var target_cell: Vector2i = character.grid_position + direction
+	character.face_direction(direction)
+	return _move_unit_to(unit, target_cell, MOVE_AP_COST)
+
+
+func request_move_current_unit_to(target_cell: Vector2i) -> ActionResult:
+	var unit: BattleUnitState = _get_player_current_unit()
+	if unit == null:
+		return _fail("BattleMove", "还没有轮到玩家行动。")
+	if active_state == null or active_state.grid == null:
+		return _fail("BattleMove", "移动需要有效的格子地图。")
+
+	var distances: Dictionary = _get_reachable_cell_distances(unit)
+	var target_key: String = active_state.grid.cell_key(target_cell)
+	if not distances.has(target_key):
+		return _fail("BattleMove", "%s 本回合无法移动到 %s。" % [unit.display_name, target_cell])
+
+	var move_cost: int = int(distances[target_key])
+	if move_cost <= 0:
+		return _fail("BattleMove", "%s 已经在这里。" % unit.display_name)
+
+	unit.character.face_direction(_direction_toward(unit.character.grid_position, target_cell))
+	return _move_unit_to(unit, target_cell, move_cost)
+
+
+func request_attack_current_unit() -> ActionResult:
+	var unit: BattleUnitState = _get_player_current_unit()
+	if unit == null:
+		return _fail("BattleAttack", "还没有轮到玩家行动。")
+
+	return request_use_skill_current_unit("basic_attack", unit.character.get_facing_cell())
+
+
+func request_attack_current_unit_at(target_cell: Vector2i) -> ActionResult:
+	return request_use_skill_current_unit(selected_skill_id, target_cell)
+
+
+func request_use_skill_current_unit(skill_id: String, target_cell: Vector2i) -> ActionResult:
+	var unit: BattleUnitState = _get_player_current_unit()
+	if unit == null:
+		return _fail("UseSkillAction", "还没有轮到玩家行动。")
+
+	var action: GameAction = ActionSystem.create_action("UseSkillAction", unit.character, {
+		"skill_id": skill_id,
+		"target_cell": target_cell,
+	}, {
+		"source": "battle",
+	})
+	return ActionSystem.submit(action)
+
+
+func select_skill_for_current_unit(skill_id: String) -> bool:
+	var unit: BattleUnitState = _get_player_current_unit()
+	if unit == null:
+		return false
+	if not unit.skills.has(skill_id):
+		return false
+	if SkillSystem.get_skill(skill_id).is_empty():
+		return false
+
+	selected_skill_id = skill_id
+	battle_state_changed.emit()
+	return true
+
+
+func get_selected_skill_id() -> String:
+	return selected_skill_id
+
+
+func get_current_unit_skill_summaries() -> Array[Dictionary]:
+	var unit: BattleUnitState = _get_player_current_unit()
+	if unit == null or active_state == null:
+		return []
+
+	return SkillSystem.get_skill_summaries_for_unit(unit, active_state)
+
+
+func get_skill_failure_for_actor(actor: CharacterEntity, skill_id: String, target_cell: Vector2i) -> String:
+	var unit: BattleUnitState = _get_player_current_unit()
+	if unit == null:
+		return "还没有轮到玩家行动。"
+	if actor == null or not is_instance_valid(actor) or actor.character_id != unit.character_id:
+		return "只有当前行动单位可以使用技能。"
+
+	return SkillSystem.get_skill_failure(unit, skill_id, target_cell, active_state)
+
+
+func execute_skill_for_actor(actor: CharacterEntity, skill_id: String, target_cell: Vector2i) -> ActionResult:
+	var failed_requirement: String = get_skill_failure_for_actor(actor, skill_id, target_cell)
+	if not failed_requirement.is_empty():
+		var actor_id: String = ""
+		if actor != null and is_instance_valid(actor):
+			actor_id = actor.character_id
+		return ActionResult.failed("UseSkillAction", actor_id, failed_requirement, {
+			"skill_id": skill_id,
+			"target_cell": target_cell,
+		})
+
+	var unit: BattleUnitState = _get_player_current_unit()
+	return _execute_skill_for_unit(unit, skill_id, target_cell)
+
+
+func get_player_tactical_preview() -> Dictionary:
+	var unit: BattleUnitState = _get_player_current_unit()
+	if unit == null:
+		return {
+			"active": is_active(),
+			"can_control": false,
+			"move_cells": [],
+			"attack_cells": [],
+			"current_cell": Vector2i.ZERO,
+		}
+
+	return {
+		"active": true,
+		"can_control": true,
+		"move_cells": get_reachable_cells_for_current_unit(),
+		"attack_cells": get_target_cells_for_current_skill(),
+		"current_cell": unit.character.grid_position,
+		"selected_skill_id": selected_skill_id,
+	}
+
+
+func get_reachable_cells_for_current_unit() -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	var unit: BattleUnitState = _get_player_current_unit()
+	if unit == null or active_state == null or active_state.grid == null:
+		return result
+
+	var distances: Dictionary = _get_reachable_cell_distances(unit)
+	for key_value in distances.keys():
+		var distance: int = int(distances[key_value])
+		if distance <= 0:
+			continue
+		result.append(_cell_from_key(str(key_value)))
+
+	return result
+
+
+func get_attackable_cells_for_current_unit() -> Array[Vector2i]:
+	return get_target_cells_for_current_skill()
+
+
+func get_target_cells_for_current_skill() -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	var unit: BattleUnitState = _get_player_current_unit()
+	if unit == null or active_state == null:
+		return result
+
+	return SkillSystem.get_target_cells(unit, selected_skill_id, active_state)
+
+
+func get_area_cells_for_current_skill(target_cell: Vector2i) -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	var unit: BattleUnitState = _get_player_current_unit()
+	if unit == null or active_state == null:
+		return result
+
+	var failed_requirement: String = SkillSystem.get_skill_failure(unit, selected_skill_id, target_cell, active_state)
+	if not failed_requirement.is_empty():
+		return result
+
+	return SkillSystem.get_area_cells(selected_skill_id, target_cell, active_state)
+
+
+func is_player_turn() -> bool:
+	return _get_player_current_unit() != null
+
+
+func wait_current_unit() -> ActionResult:
+	var unit: BattleUnitState = _get_current_active_unit()
+	if unit == null:
+		return _fail("BattleWait", "没有可以等待的行动单位。")
+
+	unit.action_points = 0
+	var result: ActionResult = ActionResult.succeeded("BattleWait", unit.character_id, {
+		"battle_id": active_state.battle_id,
+	})
+	result.add_world_change({
+		"type": "battle_unit_waited",
+		"battle_id": active_state.battle_id,
+		"character_id": unit.character_id,
+	})
+	result.add_feedback("%s 选择等待。" % unit.display_name)
+	_publish_result(result)
+	_after_unit_action(unit, true)
+	return result
+
+
+func flee_current_unit() -> ActionResult:
+	var unit: BattleUnitState = _get_player_current_unit()
+	if unit == null:
+		return _fail("BattleFlee", "只有当前玩家单位可以逃跑。")
+	if unit.action_points < FLEE_AP_COST:
+		return _fail("BattleFlee", "%s 没有足够行动点逃跑。" % unit.display_name)
+
+	unit.spend_action_points(FLEE_AP_COST)
+	unit.fled = true
+	var result: ActionResult = ActionResult.succeeded("BattleFlee", unit.character_id, {
+		"battle_id": active_state.battle_id,
+	})
+	result.add_world_change({
+		"type": "battle_unit_fled",
+		"battle_id": active_state.battle_id,
+		"character_id": unit.character_id,
+	})
+	result.add_feedback("%s 逃离了战斗。" % unit.display_name)
+	_publish_result(result)
+	_end_battle("fled")
+	return result
+
+
+func get_summary() -> Dictionary:
+	if active_state == null:
+		return {}
+
+	return active_state.get_summary()
+
+
+func is_active() -> bool:
+	return active_state != null and active_state.active
+
+
+func clear_battle_state() -> void:
+	active_state = null
+	battle_state_changed.emit()
+
+
+func _move_unit_to(unit: BattleUnitState, target_cell: Vector2i, move_cost: int) -> ActionResult:
+	var character: CharacterEntity = unit.character
+	if unit.action_points < MOVE_AP_COST:
+		return _fail("BattleMove", "%s 没有足够行动点移动。" % unit.display_name)
+	if active_state.grid == null or not active_state.grid.can_enter(target_cell):
+		return _publish_simple_result("BattleMove", unit.character_id, {
+			"type": "battle_unit_faced_blocked_cell",
+			"battle_id": active_state.battle_id,
+			"character_id": unit.character_id,
+			"target": target_cell,
+			"facing": character.facing,
+		}, "%s 转向了%s，但无法移动。" % [unit.display_name, _translate_facing(character.facing)])
+
+	var from_cell: Vector2i = character.grid_position
+	if from_cell == target_cell:
+		return _fail("BattleMove", "%s 已经在这里。" % unit.display_name)
+
+	var final_cost: int = max(MOVE_AP_COST, move_cost)
+	if unit.action_points < final_cost:
+		return _fail("BattleMove", "%s 没有足够行动点完成这次移动。" % unit.display_name)
+	if not active_state.grid.move_character(unit.character_id, from_cell, target_cell, character.blocks_movement):
+		return _fail("BattleMove", "移动失败：格子占用更新失败。")
+
+	unit.spend_action_points(final_cost)
+	character.set_grid_position(target_cell)
+	var result: ActionResult = ActionResult.succeeded("BattleMove", unit.character_id, {
+		"battle_id": active_state.battle_id,
+		"target_cell": target_cell,
+	})
+	result.add_world_change({
+		"type": "battle_unit_moved",
+		"battle_id": active_state.battle_id,
+		"character_id": unit.character_id,
+		"from": from_cell,
+		"to": target_cell,
+		"cost": final_cost,
+		"remaining_ap": unit.action_points,
+	})
+	result.add_feedback("%s 移动到 %s。" % [unit.display_name, target_cell])
+	_publish_result(result)
+	_after_unit_action(unit, false)
+	return result
+
+
+func _attack_facing_target(unit: BattleUnitState) -> ActionResult:
+	var attacker: CharacterEntity = unit.character
+	var target_cell: Vector2i = attacker.get_facing_cell()
+	return _execute_skill_for_unit(unit, "basic_attack", target_cell)
+
+
+func _execute_skill_for_unit(unit: BattleUnitState, skill_id: String, target_cell: Vector2i) -> ActionResult:
+	var skill: Dictionary = SkillSystem.get_skill(skill_id)
+	var failed_requirement: String = SkillSystem.get_skill_failure(unit, skill_id, target_cell, active_state)
+	if not failed_requirement.is_empty():
+		return _fail("UseSkillAction", failed_requirement)
+
+	var ap_cost: int = max(0, int(skill.get("ap_cost", 0)))
+	unit.spend_action_points(ap_cost)
+	var cooldown: int = max(0, int(skill.get("cooldown", 0)))
+	if cooldown > 0:
+		unit.set_skill_cooldown(skill_id, cooldown)
+	if target_cell != unit.character.grid_position:
+		unit.character.face_direction(_direction_toward(unit.character.grid_position, target_cell))
+
+	var affected_units: Array[BattleUnitState] = SkillSystem.get_affected_units(unit, skill_id, target_cell, active_state)
+	var target_name: String = _get_skill_target_name(unit, affected_units)
+
+	var result: ActionResult = ActionResult.succeeded("UseSkillAction", unit.character_id, {
+		"battle_id": active_state.battle_id,
+		"skill_id": skill_id,
+		"target_cell": target_cell,
+		"target_id": str(affected_units[0].character_id) if not affected_units.is_empty() else unit.character_id,
+	})
+	result.add_world_change({
+		"type": "battle_skill_used",
+		"battle_id": active_state.battle_id,
+		"character_id": unit.character_id,
+		"skill_id": skill_id,
+		"target_cell": target_cell,
+		"remaining_ap": unit.action_points,
+	})
+
+	var effects: Array = skill.get("effects", []) as Array
+	for effect_value in effects:
+		var effect: Dictionary = effect_value as Dictionary
+		_apply_skill_effect(unit, affected_units, skill, effect, result)
+
+	var feedback_template: String = str(skill.get("feedback", ""))
+	if feedback_template.is_empty():
+		feedback_template = "%s used %s." % [unit.display_name, str(skill.get("display_name", skill_id))]
+		result.add_feedback(feedback_template)
+	else:
+		result.add_feedback(SkillSystem.format_feedback(feedback_template, unit.display_name, target_name))
+
+	_publish_result(result)
+	_after_unit_action(unit, unit.team == BattleUnitState.TEAM_ENEMY or bool(skill.get("ends_turn", false)))
+	return result
+
+
+func _get_skill_target_name(unit: BattleUnitState, affected_units: Array[BattleUnitState]) -> String:
+	if affected_units.is_empty():
+		return unit.display_name
+	if affected_units.size() == 1:
+		return affected_units[0].display_name
+
+	return "%d targets" % affected_units.size()
+
+
+func _apply_skill_effect(unit: BattleUnitState, affected_units: Array[BattleUnitState], skill: Dictionary, effect: Dictionary, result: ActionResult) -> void:
+	var effect_type: String = str(effect.get("type", ""))
+	match effect_type:
+		"damage":
+			for target_unit in affected_units:
+				_apply_damage_effect(unit, target_unit, skill, effect, result)
+		"heal":
+			for target_unit in affected_units:
+				_apply_heal_effect(unit, target_unit, skill, effect, result)
+		"status":
+			for target_unit in affected_units:
+				_apply_status_effect(unit, target_unit, skill, effect, result)
+		_:
+			result.add_world_change({
+				"type": "battle_skill_effect_ignored",
+				"battle_id": active_state.battle_id,
+				"character_id": unit.character_id,
+				"skill_id": str(skill.get("id", "")),
+				"effect_type": effect_type,
+			})
+
+
+func _apply_damage_effect(unit: BattleUnitState, target_unit: BattleUnitState, skill: Dictionary, effect: Dictionary, result: ActionResult) -> void:
+	if target_unit == null:
+		return
+
+	var damage: int = SkillSystem.calculate_damage(unit, target_unit, effect)
+	var actual_damage: int = target_unit.apply_damage(damage)
+	result.add_world_change({
+		"type": "battle_unit_damaged",
+		"battle_id": active_state.battle_id,
+		"skill_id": str(skill.get("id", "")),
+		"attacker_id": unit.character_id,
+		"target_id": target_unit.character_id,
+		"damage": actual_damage,
+		"hp": target_unit.hp,
+		"max_hp": target_unit.max_hp,
+		"remaining_ap": unit.action_points,
+	})
+	result.add_world_change({
+		"type": "relation_delta",
+		"scope": "character",
+		"source_id": target_unit.character_id,
+		"target_id": unit.character_id,
+		"delta": { "affinity": -15, "trust": -10, "hostility": 35 },
+		"reason": "attacked",
+	})
+	result.add_feedback("%s 对 %s 造成 %d 点伤害。" % [unit.display_name, target_unit.display_name, actual_damage])
+
+	if target_unit.defeated:
+		result.add_world_change({
+			"type": "battle_unit_defeated",
+			"battle_id": active_state.battle_id,
+			"character_id": target_unit.character_id,
+			"defeated_by": unit.character_id,
+		})
+		result.add_feedback("%s 被击败了。" % target_unit.display_name)
+
+
+func _apply_heal_effect(unit: BattleUnitState, target_unit: BattleUnitState, skill: Dictionary, effect: Dictionary, result: ActionResult) -> void:
+	if target_unit == null:
+		return
+
+	var heal_amount: int = SkillSystem.calculate_heal(unit, effect)
+	var actual_heal: int = target_unit.apply_heal(heal_amount)
+	result.add_world_change({
+		"type": "battle_unit_healed",
+		"battle_id": active_state.battle_id,
+		"skill_id": str(skill.get("id", "")),
+		"source_id": unit.character_id,
+		"target_id": target_unit.character_id,
+		"healing": actual_heal,
+		"hp": target_unit.hp,
+		"max_hp": target_unit.max_hp,
+		"remaining_ap": unit.action_points,
+	})
+	result.add_feedback("%s 恢复了 %d 点生命。" % [target_unit.display_name, actual_heal])
+
+
+func _apply_status_effect(unit: BattleUnitState, target_unit: BattleUnitState, skill: Dictionary, effect: Dictionary, result: ActionResult) -> void:
+	var status_target: BattleUnitState = target_unit
+	if status_target == null:
+		status_target = unit
+
+	status_target.add_status_effect(effect)
+	result.add_world_change({
+		"type": "battle_status_applied",
+		"battle_id": active_state.battle_id,
+		"skill_id": str(skill.get("id", "")),
+		"source_id": unit.character_id,
+		"target_id": status_target.character_id,
+		"status_id": str(effect.get("status_id", effect.get("id", ""))),
+		"status": effect.duplicate(true),
+	})
+	result.add_feedback("%s 获得了状态：%s。" % [
+		status_target.display_name,
+		str(effect.get("display_name", effect.get("status_id", "a status"))),
+	])
+
+
+func _after_unit_action(unit: BattleUnitState, force_end_turn: bool) -> void:
+	if active_state == null or not active_state.active:
+		return
+
+	if not active_state.has_active_team(BattleUnitState.TEAM_ENEMY):
+		_end_battle("won")
+		return
+	if not active_state.has_active_team(BattleUnitState.TEAM_PLAYER):
+		_end_battle("lost")
+		return
+
+	if not force_end_turn and unit.is_active() and unit.action_points > 0:
+		return
+
+	_advance_turn_or_finish()
+
+
+func _advance_turn_or_finish() -> void:
+	if active_state == null or not active_state.active:
+		return
+
+	var next_unit: BattleUnitState = active_state.advance_turn()
+	if next_unit == null:
+		_end_battle("ended")
+		return
+
+	_emit_turn_started()
+	if next_unit.team == BattleUnitState.TEAM_ENEMY:
+		_run_enemy_turn(next_unit)
+
+
+func _run_enemy_turn(unit: BattleUnitState) -> void:
+	if active_state == null or not active_state.active or not unit.is_active():
+		return
+
+	var target: BattleUnitState = _get_first_active_player_unit()
+	if target == null:
+		_end_battle("lost")
+		return
+
+	var direction: Vector2i = _direction_toward(unit.character.grid_position, target.character.grid_position)
+	unit.character.face_direction(direction)
+
+	if _try_enemy_survival_skill(unit):
+		return
+
+	var skill_choice: Dictionary = _choose_enemy_offensive_skill(unit)
+	if not skill_choice.is_empty():
+		_execute_skill_for_unit(unit, str(skill_choice.get("skill_id", "")), skill_choice.get("target_cell", unit.character.grid_position) as Vector2i)
+		return
+
+	if unit.action_points >= MOVE_AP_COST:
+		var target_cell: Vector2i = _choose_enemy_step_toward(unit, target)
+		if target_cell != unit.character.grid_position and active_state.grid.can_enter(target_cell):
+			var from_cell: Vector2i = unit.character.grid_position
+			if active_state.grid.move_character(unit.character_id, from_cell, target_cell, unit.character.blocks_movement):
+				unit.spend_action_points(MOVE_AP_COST)
+				unit.character.set_grid_position(target_cell)
+				var result: ActionResult = ActionResult.succeeded("BattleMove", unit.character_id, {
+					"battle_id": active_state.battle_id,
+					"ai": true,
+				})
+				result.add_world_change({
+					"type": "battle_unit_moved",
+					"battle_id": active_state.battle_id,
+					"character_id": unit.character_id,
+					"from": from_cell,
+					"to": target_cell,
+					"remaining_ap": unit.action_points,
+				})
+				result.add_feedback("%s 向目标靠近。" % unit.display_name)
+				_publish_result(result)
+
+	if active_state == null or not active_state.active or not unit.is_active():
+		return
+
+	skill_choice = _choose_enemy_offensive_skill(unit)
+	if not skill_choice.is_empty():
+		_execute_skill_for_unit(unit, str(skill_choice.get("skill_id", "")), skill_choice.get("target_cell", unit.character.grid_position) as Vector2i)
+		return
+
+	if _try_enemy_survival_skill(unit):
+		return
+
+	wait_current_unit()
+
+
+func _try_enemy_survival_skill(unit: BattleUnitState) -> bool:
+	if unit == null or not unit.is_active():
+		return false
+
+	var low_hp: bool = unit.hp <= int(ceil(float(unit.max_hp) * 0.5))
+	if low_hp and unit.skills.has("first_aid"):
+		var heal_cell: Vector2i = unit.character.grid_position
+		if SkillSystem.get_skill_failure(unit, "first_aid", heal_cell, active_state).is_empty():
+			_execute_skill_for_unit(unit, "first_aid", heal_cell)
+			return true
+
+	if low_hp and unit.skills.has("guard") and not unit.has_status_effect("guard"):
+		var guard_cell: Vector2i = unit.character.grid_position
+		if SkillSystem.get_skill_failure(unit, "guard", guard_cell, active_state).is_empty():
+			_execute_skill_for_unit(unit, "guard", guard_cell)
+			return true
+
+	return false
+
+
+func _choose_enemy_offensive_skill(unit: BattleUnitState) -> Dictionary:
+	var best_choice: Dictionary = {}
+	var best_score: int = 0
+	for skill_id in unit.skills:
+		if not SkillSystem.skill_has_effect(str(skill_id), "damage"):
+			continue
+
+		var target_cells: Array[Vector2i] = SkillSystem.get_target_cells(unit, str(skill_id), active_state)
+		for target_cell in target_cells:
+			var failure: String = SkillSystem.get_skill_failure(unit, str(skill_id), target_cell, active_state)
+			if not failure.is_empty():
+				continue
+
+			var score: int = _score_enemy_skill_target(unit, str(skill_id), target_cell)
+			if score > best_score:
+				best_score = score
+				best_choice = {
+					"skill_id": str(skill_id),
+					"target_cell": target_cell,
+					"score": score,
+				}
+
+	return best_choice
+
+
+func _score_enemy_skill_target(unit: BattleUnitState, skill_id: String, target_cell: Vector2i) -> int:
+	var score: int = 0
+	var affected_units: Array[BattleUnitState] = SkillSystem.get_affected_units(unit, skill_id, target_cell, active_state)
+	for affected_unit in affected_units:
+		if affected_unit.team == unit.team:
+			continue
+		score += SkillSystem.estimate_damage(unit, affected_unit, skill_id)
+		if affected_unit.hp <= score:
+			score += 5
+
+	var skill: Dictionary = SkillSystem.get_skill(skill_id)
+	score -= max(0, int(skill.get("ap_cost", 0)) - 1)
+	return score
+
+
+func _choose_enemy_step_toward(unit: BattleUnitState, target: BattleUnitState) -> Vector2i:
+	var directions: Array[Vector2i] = [
+		_direction_toward(unit.character.grid_position, target.character.grid_position),
+		Vector2i.UP,
+		Vector2i.DOWN,
+		Vector2i.LEFT,
+		Vector2i.RIGHT,
+	]
+	var best_cell: Vector2i = unit.character.grid_position
+	var best_distance: int = _manhattan(unit.character.grid_position, target.character.grid_position)
+	for direction in directions:
+		if direction == Vector2i.ZERO:
+			continue
+		var candidate: Vector2i = unit.character.grid_position + direction
+		if not active_state.grid.can_enter(candidate):
+			continue
+		var distance: int = _manhattan(candidate, target.character.grid_position)
+		if distance < best_distance:
+			best_distance = distance
+			best_cell = candidate
+
+	return best_cell
+
+
+func _end_battle(status: String) -> void:
+	if active_state == null or not active_state.active:
+		return
+
+	active_state.active = false
+	active_state.result_status = status
+	var result: ActionResult = ActionResult.succeeded("BattleEnd", "", {
+		"battle_id": active_state.battle_id,
+		"status": status,
+	})
+	result.add_world_change({
+		"type": "battle_ended",
+		"battle_id": active_state.battle_id,
+		"status": status,
+		"participants": _participant_ids(),
+	})
+
+	for unit in active_state.units:
+		if unit.defeated and unit.character != null and unit.team == BattleUnitState.TEAM_ENEMY:
+			unit.character.is_combatable = false
+			unit.character.is_interactable = false
+			if active_state.location_root != null and is_instance_valid(active_state.location_root) and active_state.location_root.has_method("mark_character_defeated"):
+				active_state.location_root.mark_character_defeated(unit.character_id)
+			result.add_world_change({
+				"type": "world_character_defeated",
+				"battle_id": active_state.battle_id,
+				"character_id": unit.character_id,
+				"location_id": active_state.grid.location_id,
+			})
+		elif unit.defeated and unit.team == BattleUnitState.TEAM_PLAYER:
+			GameState.set_flag("player_defeated", true)
+			result.add_world_change({
+				"type": "player_defeated",
+				"battle_id": active_state.battle_id,
+				"character_id": unit.character_id,
+			})
+
+	result.add_feedback("战斗结束：%s。" % _translate_battle_status(status))
+	_publish_result(result)
+	GameState.set_mode(GameState.GameMode.EXPLORATION)
+	battle_ended.emit(active_state.battle_id, status)
+	battle_state_changed.emit()
+
+
+func _get_player_current_unit() -> BattleUnitState:
+	var unit: BattleUnitState = _get_current_active_unit()
+	if unit == null or unit.team != BattleUnitState.TEAM_PLAYER:
+		return null
+
+	return unit
+
+
+func _get_current_active_unit() -> BattleUnitState:
+	if active_state == null or not active_state.active:
+		return null
+
+	var unit: BattleUnitState = active_state.get_current_unit()
+	if unit == null or not unit.is_active():
+		return null
+
+	return unit
+
+
+func _get_first_active_player_unit() -> BattleUnitState:
+	var player_units: Array[BattleUnitState] = active_state.get_active_units_for_team(BattleUnitState.TEAM_PLAYER)
+	if player_units.is_empty():
+		return null
+
+	return player_units[0]
+
+
+func _direction_toward(from_cell: Vector2i, to_cell: Vector2i) -> Vector2i:
+	var delta: Vector2i = to_cell - from_cell
+	if abs(delta.x) >= abs(delta.y):
+		return Vector2i.RIGHT if delta.x > 0 else Vector2i.LEFT
+
+	return Vector2i.DOWN if delta.y > 0 else Vector2i.UP
+
+
+func _translate_facing(facing: String) -> String:
+	match facing:
+		"up":
+			return "上方"
+		"down":
+			return "下方"
+		"left":
+			return "左侧"
+		"right":
+			return "右侧"
+		_:
+			return facing
+
+
+func _translate_battle_status(status: String) -> String:
+	match status:
+		"won":
+			return "胜利"
+		"lost":
+			return "失败"
+		"fled":
+			return "逃跑"
+		"ended":
+			return "结束"
+		_:
+			return status
+
+
+func _manhattan(a: Vector2i, b: Vector2i) -> int:
+	return abs(a.x - b.x) + abs(a.y - b.y)
+
+
+func _get_reachable_cell_distances(unit: BattleUnitState) -> Dictionary:
+	var distances: Dictionary = {}
+	if unit == null or not unit.is_active() or active_state == null or active_state.grid == null:
+		return distances
+
+	var start_cell: Vector2i = unit.character.grid_position
+	var start_key: String = active_state.grid.cell_key(start_cell)
+	distances[start_key] = 0
+	var queue: Array[Vector2i] = [start_cell]
+	var directions: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
+
+	while not queue.is_empty():
+		var current_cell: Vector2i = queue.pop_front()
+		var current_distance: int = int(distances[active_state.grid.cell_key(current_cell)])
+		if current_distance >= unit.action_points:
+			continue
+
+		for direction in directions:
+			var next_cell: Vector2i = current_cell + direction
+			var next_key: String = active_state.grid.cell_key(next_cell)
+			if distances.has(next_key):
+				continue
+			if not active_state.grid.can_enter(next_cell):
+				continue
+
+			distances[next_key] = current_distance + 1
+			queue.append(next_cell)
+
+	return distances
+
+
+func _cell_from_key(key: String) -> Vector2i:
+	var parts: PackedStringArray = key.split(",")
+	if parts.size() != 2:
+		return Vector2i.ZERO
+
+	return Vector2i(int(parts[0]), int(parts[1]))
+
+
+func _participant_ids() -> Array[String]:
+	var ids: Array[String] = []
+	if active_state == null:
+		return ids
+
+	for unit in active_state.units:
+		ids.append(unit.character_id)
+
+	return ids
+
+
+func _emit_turn_started() -> void:
+	var unit: BattleUnitState = active_state.get_current_unit() if active_state != null else null
+	if unit == null:
+		return
+	if unit.team == BattleUnitState.TEAM_PLAYER:
+		_select_default_skill_for_unit(unit)
+
+	var result: ActionResult = ActionResult.succeeded("BattleTurnStart", unit.character_id, {
+		"battle_id": active_state.battle_id,
+		"round": active_state.round_number,
+	})
+	result.add_world_change({
+		"type": "battle_turn_started",
+		"battle_id": active_state.battle_id,
+		"character_id": unit.character_id,
+		"round": active_state.round_number,
+		"action_points": unit.action_points,
+	})
+	result.add_feedback("轮到 %s 行动。" % unit.display_name)
+	_publish_result(result)
+	battle_turn_started.emit(unit.character_id, active_state.round_number)
+
+
+func _select_default_skill_for_unit(unit: BattleUnitState) -> void:
+	if unit.skills.has(selected_skill_id) and not SkillSystem.get_skill(selected_skill_id).is_empty():
+		return
+	if unit.skills.has("basic_attack"):
+		selected_skill_id = "basic_attack"
+		return
+	if not unit.skills.is_empty():
+		selected_skill_id = str(unit.skills[0])
+
+
+func _publish_simple_result(action_type: String, actor_id: String, change: Dictionary, feedback: String) -> ActionResult:
+	var result: ActionResult = ActionResult.succeeded(action_type, actor_id, {
+		"battle_id": active_state.battle_id if active_state != null else "",
+	})
+	result.add_world_change(change)
+	result.add_feedback(feedback)
+	return _publish_result(result)
+
+
+func _publish_result(result: ActionResult) -> ActionResult:
+	last_result = result
+	result.already_published = true
+	ActionSystem.publish_result(result)
+	battle_state_changed.emit()
+	return result
+
+
+func _fail(action_type: String, reason: String) -> ActionResult:
+	var actor_id: String = ""
+	var unit: BattleUnitState = _get_current_active_unit()
+	if unit != null:
+		actor_id = unit.character_id
+	var result: ActionResult = ActionResult.failed(action_type, actor_id, reason)
+	last_result = result
+	ActionSystem.publish_result(result)
+	return result

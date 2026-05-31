@@ -1,0 +1,12 @@
+{
+  "id": "debug_herb",
+  "display_name": "Debug Herb",
+  "item_type": "material",
+  "stackable": true,
+  "max_stack": 20,
+  "base_value": 5,
+  "sellable": true,
+  "is_usable": false,
+  "use_feedback": "",
+  "description": "A small harvested herb used to prove crops can create items."
+}

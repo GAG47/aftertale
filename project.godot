@@ -1,0 +1,43 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
+config_version=5
+
+[application]
+
+config/name="Aftertale"
+run/main_scene="res://scenes/boot/main.tscn"
+config/features=PackedStringArray("4.6", "Forward Plus")
+config/icon="res://icon.svg"
+
+[autoload]
+
+GameState="*res://scripts/core/game_state.gd"
+SceneLoader="*res://scripts/core/scene_loader.gd"
+DefinitionLoader="*res://scripts/core/definition_loader.gd"
+TimeManager="*res://scripts/systems/time/time_manager.gd"
+InputManager="*res://scripts/core/input_manager.gd"
+CropSystem="*res://scripts/systems/crops/crop_system.gd"
+SkillSystem="*res://scripts/systems/skills/skill_system.gd"
+ActionSystem="*res://scripts/systems/actions/action_system.gd"
+CraftSystem="*res://scripts/systems/crafting/craft_system.gd"
+BusinessSystem="*res://scripts/systems/business/business_system.gd"
+DialogueRunner="*res://scripts/systems/dialogues/dialogue_runner.gd"
+QuestSystem="*res://scripts/systems/quests/quest_system.gd"
+NpcScheduleSystem="*res://scripts/systems/schedules/npc_schedule_system.gd"
+RelationSystem="*res://scripts/systems/relations/relation_system.gd"
+BattleSystem="*res://scripts/systems/battle/battle_system.gd"
+SaveManager="*res://scripts/systems/save/save_manager.gd"
+
+[physics]
+
+3d/physics_engine="Jolt Physics"
+
+[rendering]
+
+rendering_device/driver.windows="d3d12"

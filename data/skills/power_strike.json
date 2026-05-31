@@ -1,0 +1,20 @@
+{
+  "id": "power_strike",
+  "display_name": "重击",
+  "description": "消耗更多行动点，造成更高伤害的近身攻击。",
+  "skill_type": "battle",
+  "target_type": "enemy",
+  "range": 1,
+  "area": "single",
+  "ap_cost": 2,
+  "cooldown": 0,
+  "ends_turn": false,
+  "effects": [
+    {
+      "type": "damage",
+      "formula": "strength",
+      "power": 3
+    }
+  ],
+  "feedback": "{actor}对{target}使出了重击。"
+}

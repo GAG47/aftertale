@@ -1,0 +1,13 @@
+{
+  "id": "packed_snack",
+  "display_name": "Packed Snack",
+  "category": "consumables",
+  "description": "Pack an apple with a stick as a tiny trail ration.",
+  "ingredients": [
+    { "item_id": "debug_apple", "quantity": 1 },
+    { "item_id": "debug_stick", "quantity": 1 }
+  ],
+  "outputs": [
+    { "source": "res://data/items/packed_snack.json", "quantity": 1 }
+  ]
+}

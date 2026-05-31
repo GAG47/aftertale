@@ -1,0 +1,77 @@
+{
+  "id": "debug_villager",
+  "display_name": "测试村民",
+  "character_kind": "npc",
+  "attributes": {
+    "level": 1,
+    "strength": 3,
+    "agility": 3,
+    "intellect": 4,
+    "vitality": 4
+  },
+  "identity": {
+    "age": 32,
+    "species": "human",
+    "gender": "unspecified",
+    "origin": "test_field",
+    "occupation": "villager",
+    "personality": "calm"
+  },
+  "faction_id": "field_neutral",
+  "relation_slots": {
+    "personal": {},
+    "faction": {}
+  },
+  "dialogue_source": "res://data/dialogues/debug_villager_dialogue.json",
+  "is_player_controlled": false,
+  "is_interactable": true,
+  "is_combatable": false,
+  "blocks_movement": true,
+  "schedule": [
+    {
+      "id": "morning_field_check",
+      "start": "06:00",
+      "end": "08:59",
+      "location_id": "test_field",
+      "grid_position": { "x": 6, "y": 5 },
+      "facing": "down",
+      "activity": "checking the field"
+    },
+    {
+      "id": "day_path_watch",
+      "start": "09:00",
+      "end": "11:59",
+      "location_id": "test_field",
+      "grid_position": { "x": 7, "y": 5 },
+      "facing": "left",
+      "activity": "watching the path"
+    },
+    {
+      "id": "afternoon_pond_walk",
+      "start": "12:00",
+      "end": "16:59",
+      "location_id": "test_field",
+      "grid_position": { "x": 6, "y": 6 },
+      "facing": "up",
+      "activity": "walking near the pond"
+    },
+    {
+      "id": "evening_west_path",
+      "start": "17:00",
+      "end": "20:59",
+      "location_id": "test_field",
+      "grid_position": { "x": 5, "y": 6 },
+      "facing": "right",
+      "activity": "heading home"
+    },
+    {
+      "id": "night_rest",
+      "start": "21:00",
+      "end": "05:59",
+      "location_id": "test_field",
+      "grid_position": { "x": 2, "y": 6 },
+      "facing": "right",
+      "activity": "resting"
+    }
+  ]
+}

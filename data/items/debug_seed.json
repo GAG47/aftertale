@@ -1,0 +1,14 @@
+{
+  "id": "debug_seed",
+  "display_name": "Debug Seed",
+  "item_type": "seed",
+  "stackable": true,
+  "max_stack": 20,
+  "base_value": 2,
+  "sellable": true,
+  "is_usable": false,
+  "crop_id": "debug_crop",
+  "crop_source": "res://data/crops/debug_crop.json",
+  "use_feedback": "",
+  "description": "A test seed that can be planted on prepared soil."
+}

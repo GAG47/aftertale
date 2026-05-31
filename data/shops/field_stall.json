@@ -1,0 +1,25 @@
+{
+  "id": "field_stall",
+  "display_name": "Field Stall",
+  "description": "A simple public stall used for early selling and buying rules.",
+  "sell_offers": [
+    { "item_id": "debug_apple", "price": 3 },
+    { "item_id": "debug_stick", "price": 1 },
+    { "item_id": "debug_seed", "price": 1 },
+    { "item_id": "debug_herb", "price": 5 },
+    { "item_id": "debug_tool", "price": 8 },
+    { "item_id": "packed_snack", "price": 6 }
+  ],
+  "buy_offers": [
+    {
+      "item_id": "debug_seed",
+      "source": "res://data/items/debug_seed.json",
+      "price": 2
+    },
+    {
+      "item_id": "packed_snack",
+      "source": "res://data/items/packed_snack.json",
+      "price": 9
+    }
+  ]
+}

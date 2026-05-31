@@ -1,0 +1,27 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/debug/debug_panel.gd" id="1_debug_panel"]
+
+[node name="DebugPanel" type="PanelContainer"]
+visible = false
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -448.0
+offset_top = 52.0
+offset_right = -16.0
+offset_bottom = 628.0
+grow_horizontal = 0
+script = ExtResource("1_debug_panel")
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
+
+[node name="StatusLabel" type="Label" parent="MarginContainer"]
+layout_mode = 2
+text = "Debug Panel"
+autowrap_mode = 3

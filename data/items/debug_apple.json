@@ -1,0 +1,12 @@
+{
+  "id": "debug_apple",
+  "display_name": "Debug Apple",
+  "item_type": "consumable",
+  "stackable": true,
+  "max_stack": 20,
+  "base_value": 3,
+  "sellable": true,
+  "is_usable": true,
+  "use_feedback": "The apple is crisp. Attribute effects are not connected yet.",
+  "description": "A bright test apple used to verify pickup and inventory rules."
+}

@@ -1,0 +1,20 @@
+{
+  "id": "first_aid",
+  "display_name": "急救",
+  "description": "为自己或友方恢复少量生命。",
+  "skill_type": "battle",
+  "target_type": "ally_or_self",
+  "range": 2,
+  "area": "single",
+  "ap_cost": 1,
+  "cooldown": 1,
+  "ends_turn": false,
+  "effects": [
+    {
+      "type": "heal",
+      "formula": "intellect",
+      "power": 2
+    }
+  ],
+  "feedback": "{actor}为{target}进行了急救。"
+}

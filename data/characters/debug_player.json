@@ -1,0 +1,37 @@
+{
+  "id": "debug_player",
+  "display_name": "测试玩家",
+  "character_kind": "player",
+  "attributes": {
+    "level": 1,
+    "strength": 6,
+    "agility": 5,
+    "intellect": 5,
+    "vitality": 5
+  },
+  "identity": {
+    "age": 18,
+    "species": "human",
+    "gender": "unspecified",
+    "origin": "unknown",
+    "occupation": "wanderer",
+    "personality": "undefined"
+  },
+  "faction_id": "player",
+  "relation_slots": {
+    "personal": {},
+    "faction": {}
+  },
+  "skills": [
+    "basic_attack",
+    "power_strike",
+    "quick_shot",
+    "first_aid",
+    "shockwave",
+    "guard"
+  ],
+  "is_player_controlled": true,
+  "is_interactable": false,
+  "is_combatable": true,
+  "blocks_movement": true
+}
