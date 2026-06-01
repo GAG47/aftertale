@@ -13,15 +13,15 @@ func check() -> ActionResult:
 
 	var direction: Vector2i = target.get("direction", Vector2i.ZERO) as Vector2i
 	if direction == Vector2i.ZERO:
-		return _failure("MoveAction requires a non-zero direction.")
+		return _failure("移动需要指定方向。")
 
 	var location_root: Node = _get_location_root()
 	if location_root == null or not location_root.has_method("get_location_grid"):
-		return _failure("MoveAction requires a location root with a grid.")
+		return _failure("移动需要带格子地图的当前地点。")
 
 	var grid: LocationGrid = location_root.get_location_grid() as LocationGrid
 	if grid == null:
-		return _failure("MoveAction requires an active location grid.")
+		return _failure("移动需要有效的当前格子地图。")
 
 	return _success()
 
@@ -51,12 +51,12 @@ func execute() -> ActionResult:
 			"facing": actor.facing,
 			"location_id": grid.location_id,
 		})
-		blocked_result.add_feedback("%s faced %s but could not move." % [actor.display_name, actor.facing])
+		blocked_result.add_feedback("%s 朝向%s，但无法移动。" % [actor.display_name, _facing_label(actor.facing)])
 		return blocked_result
 
 	var moved: bool = grid.move_character(actor.character_id, from_cell, target_cell, actor.blocks_movement)
 	if not moved:
-		return _failure("MoveAction failed while updating grid occupancy.")
+		return _failure("移动失败：格子占用状态更新失败。")
 
 	actor.set_grid_position(target_cell)
 
@@ -68,7 +68,7 @@ func execute() -> ActionResult:
 		"to": target_cell,
 		"location_id": grid.location_id,
 	})
-	result.add_feedback("%s moved to %s." % [actor.display_name, target_cell])
+	result.add_feedback("%s 移动到 %s。" % [actor.display_name, target_cell])
 
 	var exit_data: Dictionary = grid.get_exit_at(target_cell)
 	if not exit_data.is_empty():
@@ -80,12 +80,26 @@ func execute() -> ActionResult:
 			"target_scene_path": str(exit_data.get("target_scene_path", "")),
 			"target_entrance_id": str(exit_data.get("target_entrance_id", "")),
 		})
-		result.add_feedback("%s left through %s." % [actor.display_name, str(exit_data.get("id", "an exit"))])
+		result.add_feedback("%s 通过 %s 离开。" % [actor.display_name, str(exit_data.get("id", "出口"))])
 
 		if location_root.has_method("request_exit_transition"):
 			location_root.request_exit_transition(exit_data)
 
 	return result
+
+
+func _facing_label(facing: String) -> String:
+	match facing:
+		"up":
+			return "上方"
+		"down":
+			return "下方"
+		"left":
+			return "左侧"
+		"right":
+			return "右侧"
+		_:
+			return facing
 
 
 func _get_location_root() -> Node:

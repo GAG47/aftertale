@@ -46,6 +46,33 @@ text = "模式：启动"
 layout_mode = 2
 text = "场景：boot"
 
+[node name="InteractionPanel" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 12
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 16.0
+offset_top = -56.0
+offset_right = -16.0
+offset_bottom = -16.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="InteractionPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 6
+
+[node name="InteractionLabel" type="Label" parent="InteractionPanel/MarginContainer"]
+layout_mode = 2
+text = "WASD/方向键移动  E/Enter 互动  Tab/I 菜单"
+horizontal_alignment = 1
+autowrap_mode = 3
+
 [node name="MessageLogPanel" type="PanelContainer" parent="."]
 layout_mode = 1
 anchors_preset = 0
@@ -85,62 +112,135 @@ script = ExtResource("5_game_menu")
 [node name="BattleHudPanel" type="PanelContainer" parent="."]
 visible = false
 layout_mode = 1
-anchors_preset = 1
-anchor_left = 1.0
+anchors_preset = 12
+anchor_top = 1.0
 anchor_right = 1.0
-offset_left = -360.0
-offset_top = 52.0
-offset_right = -16.0
-offset_bottom = 300.0
-grow_horizontal = 0
+anchor_bottom = 1.0
+offset_left = 28.0
+offset_top = -188.0
+offset_right = -28.0
+offset_bottom = -24.0
+grow_horizontal = 2
+grow_vertical = 0
 mouse_filter = 0
 script = ExtResource("6_battle_hud")
 
 [node name="MarginContainer" type="MarginContainer" parent="BattleHudPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 10
+
+[node name="RootRow" type="HBoxContainer" parent="BattleHudPanel/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="UnitPanel" type="PanelContainer" parent="BattleHudPanel/MarginContainer/RootRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(220, 0)
+
+[node name="UnitMargin" type="MarginContainer" parent="BattleHudPanel/MarginContainer/RootRow/UnitPanel"]
 layout_mode = 2
 theme_override_constants/margin_left = 10
 theme_override_constants/margin_top = 8
 theme_override_constants/margin_right = 10
 theme_override_constants/margin_bottom = 8
 
-[node name="VBoxContainer" type="VBoxContainer" parent="BattleHudPanel/MarginContainer"]
+[node name="UnitBox" type="VBoxContainer" parent="BattleHudPanel/MarginContainer/RootRow/UnitPanel/UnitMargin"]
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 6
 
-[node name="TitleLabel" type="Label" parent="BattleHudPanel/MarginContainer/VBoxContainer"]
+[node name="TitleLabel" type="Label" parent="BattleHudPanel/MarginContainer/RootRow/UnitPanel/UnitMargin/UnitBox"]
 layout_mode = 2
 text = "战斗"
 
-[node name="CurrentLabel" type="Label" parent="BattleHudPanel/MarginContainer/VBoxContainer"]
+[node name="CurrentLabel" type="Label" parent="BattleHudPanel/MarginContainer/RootRow/UnitPanel/UnitMargin/UnitBox"]
 layout_mode = 2
 text = "当前单位"
 autowrap_mode = 3
 
-[node name="SkillLabel" type="Label" parent="BattleHudPanel/MarginContainer/VBoxContainer"]
+[node name="CurrentVitals" type="VBoxContainer" parent="BattleHudPanel/MarginContainer/RootRow/UnitPanel/UnitMargin/UnitBox"]
 layout_mode = 2
-text = "技能"
+theme_override_constants/separation = 4
 
-[node name="SkillList" type="VBoxContainer" parent="BattleHudPanel/MarginContainer/VBoxContainer"]
+[node name="HPBar" type="ProgressBar" parent="BattleHudPanel/MarginContainer/RootRow/UnitPanel/UnitMargin/UnitBox/CurrentVitals"]
 layout_mode = 2
-theme_override_constants/separation = 8
+custom_minimum_size = Vector2(0, 18)
+max_value = 20.0
+value = 20.0
+show_percentage = false
 
-[node name="UnitsLabel" type="Label" parent="BattleHudPanel/MarginContainer/VBoxContainer"]
+[node name="APBar" type="ProgressBar" parent="BattleHudPanel/MarginContainer/RootRow/UnitPanel/UnitMargin/UnitBox/CurrentVitals"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 16)
+max_value = 2.0
+value = 2.0
+show_percentage = false
+
+[node name="UnitsLabel" type="Label" parent="BattleHudPanel/MarginContainer/RootRow/UnitPanel/UnitMargin/UnitBox"]
 layout_mode = 2
 text = "单位"
 autowrap_mode = 3
 
-[node name="ButtonRow" type="HBoxContainer" parent="BattleHudPanel/MarginContainer/VBoxContainer"]
+[node name="SkillPanel" type="PanelContainer" parent="BattleHudPanel/MarginContainer/RootRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="SkillMargin" type="MarginContainer" parent="BattleHudPanel/MarginContainer/RootRow/SkillPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 8
+
+[node name="SkillBox" type="VBoxContainer" parent="BattleHudPanel/MarginContainer/RootRow/SkillPanel/SkillMargin"]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="WaitButton" type="Button" parent="BattleHudPanel/MarginContainer/VBoxContainer/ButtonRow"]
+[node name="HintLabel" type="Label" parent="BattleHudPanel/MarginContainer/RootRow/SkillPanel/SkillMargin/SkillBox"]
 layout_mode = 2
-custom_minimum_size = Vector2(120, 34)
-text = "等待"
+text = "点击高亮格行动"
+autowrap_mode = 3
 
-[node name="FleeButton" type="Button" parent="BattleHudPanel/MarginContainer/VBoxContainer/ButtonRow"]
+[node name="SkillDetailLabel" type="Label" parent="BattleHudPanel/MarginContainer/RootRow/SkillPanel/SkillMargin/SkillBox"]
 layout_mode = 2
-custom_minimum_size = Vector2(120, 34)
+custom_minimum_size = Vector2(0, 32)
+text = "技能说明"
+autowrap_mode = 3
+
+[node name="SkillScroll" type="ScrollContainer" parent="BattleHudPanel/MarginContainer/RootRow/SkillPanel/SkillMargin/SkillBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="SkillList" type="HBoxContainer" parent="BattleHudPanel/MarginContainer/RootRow/SkillPanel/SkillMargin/SkillBox/SkillScroll"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="CommandPanel" type="PanelContainer" parent="BattleHudPanel/MarginContainer/RootRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(150, 0)
+
+[node name="CommandMargin" type="MarginContainer" parent="BattleHudPanel/MarginContainer/RootRow/CommandPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 8
+
+[node name="CommandBox" type="VBoxContainer" parent="BattleHudPanel/MarginContainer/RootRow/CommandPanel/CommandMargin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="WaitButton" type="Button" parent="BattleHudPanel/MarginContainer/RootRow/CommandPanel/CommandMargin/CommandBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(128, 48)
+text = "结束行动"
+
+[node name="FleeButton" type="Button" parent="BattleHudPanel/MarginContainer/RootRow/CommandPanel/CommandMargin/CommandBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(128, 48)
 text = "逃跑"
 
 [node name="MarginContainer" type="MarginContainer" parent="GameMenuPanel"]
@@ -160,12 +260,12 @@ layout_mode = 2
 [node name="TitleLabel" type="Label" parent="GameMenuPanel/MarginContainer/VBoxContainer/HeaderRow"]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "Player Menu"
+text = "玩家菜单"
 
 [node name="CloseButton" type="Button" parent="GameMenuPanel/MarginContainer/VBoxContainer/HeaderRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(88, 32)
-text = "Close"
+text = "关闭"
 
 [node name="Tabs" type="TabContainer" parent="GameMenuPanel/MarginContainer/VBoxContainer"]
 layout_mode = 2
@@ -173,6 +273,7 @@ size_flags_vertical = 3
 
 [node name="Inventory" type="Control" parent="GameMenuPanel/MarginContainer/VBoxContainer/Tabs"]
 layout_mode = 2
+metadata/_tab_title = "背包"
 
 [node name="InventoryMargin" type="MarginContainer" parent="GameMenuPanel/MarginContainer/VBoxContainer/Tabs/Inventory"]
 layout_mode = 1
@@ -194,6 +295,7 @@ theme_override_constants/separation = 8
 
 [node name="Craft" type="Control" parent="GameMenuPanel/MarginContainer/VBoxContainer/Tabs"]
 layout_mode = 2
+metadata/_tab_title = "制作"
 
 [node name="CraftMargin" type="MarginContainer" parent="GameMenuPanel/MarginContainer/VBoxContainer/Tabs/Craft"]
 layout_mode = 1
@@ -215,6 +317,7 @@ theme_override_constants/separation = 8
 
 [node name="Business" type="Control" parent="GameMenuPanel/MarginContainer/VBoxContainer/Tabs"]
 layout_mode = 2
+metadata/_tab_title = "经营"
 
 [node name="BusinessMargin" type="MarginContainer" parent="GameMenuPanel/MarginContainer/VBoxContainer/Tabs/Business"]
 layout_mode = 1
@@ -236,6 +339,7 @@ theme_override_constants/separation = 8
 
 [node name="Quests" type="Control" parent="GameMenuPanel/MarginContainer/VBoxContainer/Tabs"]
 layout_mode = 2
+metadata/_tab_title = "任务"
 
 [node name="QuestMargin" type="MarginContainer" parent="GameMenuPanel/MarginContainer/VBoxContainer/Tabs/Quests"]
 layout_mode = 1
@@ -257,6 +361,7 @@ theme_override_constants/separation = 8
 
 [node name="Character" type="Control" parent="GameMenuPanel/MarginContainer/VBoxContainer/Tabs"]
 layout_mode = 2
+metadata/_tab_title = "角色"
 
 [node name="CharacterMargin" type="MarginContainer" parent="GameMenuPanel/MarginContainer/VBoxContainer/Tabs/Character"]
 layout_mode = 1
@@ -278,6 +383,7 @@ theme_override_constants/separation = 8
 
 [node name="System" type="Control" parent="GameMenuPanel/MarginContainer/VBoxContainer/Tabs"]
 layout_mode = 2
+metadata/_tab_title = "系统"
 
 [node name="SystemMargin" type="MarginContainer" parent="GameMenuPanel/MarginContainer/VBoxContainer/Tabs/System"]
 layout_mode = 1
@@ -300,26 +406,26 @@ theme_override_constants/separation = 8
 [node name="ResumeButton" type="Button" parent="GameMenuPanel/MarginContainer/VBoxContainer/Tabs/System/SystemMargin/SystemBox/ActionRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(120, 36)
-text = "Resume"
+text = "继续"
 
 [node name="SaveButton" type="Button" parent="GameMenuPanel/MarginContainer/VBoxContainer/Tabs/System/SystemMargin/SystemBox/ActionRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(120, 36)
-text = "Save"
+text = "保存"
 
 [node name="LoadButton" type="Button" parent="GameMenuPanel/MarginContainer/VBoxContainer/Tabs/System/SystemMargin/SystemBox/ActionRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(120, 36)
-text = "Load"
+text = "读取"
 
 [node name="SaveStatusLabel" type="Label" parent="GameMenuPanel/MarginContainer/VBoxContainer/Tabs/System/SystemMargin/SystemBox"]
 layout_mode = 2
-text = "No save file yet."
+text = "还没有存档。"
 autowrap_mode = 3
 
 [node name="ControlsLabel" type="Label" parent="GameMenuPanel/MarginContainer/VBoxContainer/Tabs/System/SystemMargin/SystemBox"]
 layout_mode = 2
-text = "Move: WASD / Arrow Keys"
+text = "移动：WASD / 方向键"
 autowrap_mode = 3
 
 [node name="DialoguePanel" parent="." instance=ExtResource("3_dialogue_panel")]

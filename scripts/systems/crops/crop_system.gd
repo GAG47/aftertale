@@ -62,66 +62,66 @@ func get_seed_item_id(actor: CharacterEntity) -> String:
 
 func get_plant_failure(actor: CharacterEntity, location_root: Node, cell: Vector2i, seed_item_id: String = "") -> String:
 	if actor == null or not is_instance_valid(actor):
-		return "Planting requires an actor."
+		return "种植需要有效的角色。"
 	if actor.inventory == null:
-		return "%s has no inventory." % actor.display_name
+		return "%s 没有背包。" % actor.display_name
 	if not _location_can_use_crops(location_root):
-		return "Planting requires an active location."
+		return "种植需要有效的当前地点。"
 	if not bool(location_root.is_cell_plantable(cell)):
-		return "This cell cannot be planted."
+		return "这个格子不能种植。"
 
 	var location_id: String = str(location_root.get_location_grid().location_id)
 	if has_crop_at(location_id, cell):
-		return "There is already a crop here."
+		return "这里已经有作物了。"
 
 	var resolved_seed_item_id: String = seed_item_id
 	if resolved_seed_item_id.is_empty():
 		resolved_seed_item_id = get_seed_item_id(actor)
 	if resolved_seed_item_id.is_empty():
-		return "%s has no seeds." % actor.display_name
+		return "%s 没有种子。" % actor.display_name
 
 	var crop_definition: Dictionary = _get_crop_definition_for_seed(resolved_seed_item_id)
 	if crop_definition.is_empty():
-		return "No crop is known for %s." % resolved_seed_item_id
+		return "没有可由 %s 种出的已知作物。" % resolved_seed_item_id
 
 	if actor.inventory.count_item(resolved_seed_item_id) <= 0:
-		return "%s does not have %s." % [actor.display_name, resolved_seed_item_id]
+		return "%s 没有 %s。" % [actor.display_name, resolved_seed_item_id]
 
 	return ""
 
 
 func get_water_failure(actor: CharacterEntity, location_root: Node, cell: Vector2i) -> String:
 	if actor == null or not is_instance_valid(actor):
-		return "Watering requires an actor."
+		return "浇水需要有效的角色。"
 	if not _location_can_use_crops(location_root):
-		return "Watering requires an active location."
+		return "浇水需要有效的当前地点。"
 
 	var location_id: String = str(location_root.get_location_grid().location_id)
 	var crop_state: Dictionary = get_crop_at(location_id, cell)
 	if crop_state.is_empty():
-		return "There is no crop here."
+		return "这里没有作物。"
 	if bool(crop_state.get("watered", false)):
-		return "%s is already watered." % str(crop_state.get("display_name", "The crop"))
+		return "%s 已经浇过水了。" % str(crop_state.get("display_name", "作物"))
 	if bool(crop_state.get("mature", false)):
-		return "%s is already mature." % str(crop_state.get("display_name", "The crop"))
+		return "%s 已经成熟了。" % str(crop_state.get("display_name", "作物"))
 
 	return ""
 
 
 func get_harvest_failure(actor: CharacterEntity, location_root: Node, cell: Vector2i) -> String:
 	if actor == null or not is_instance_valid(actor):
-		return "Harvesting requires an actor."
+		return "收获需要有效的角色。"
 	if actor.inventory == null:
-		return "%s has no inventory." % actor.display_name
+		return "%s 没有背包。" % actor.display_name
 	if not _location_can_use_crops(location_root):
-		return "Harvesting requires an active location."
+		return "收获需要有效的当前地点。"
 
 	var location_id: String = str(location_root.get_location_grid().location_id)
 	var crop_state: Dictionary = get_crop_at(location_id, cell)
 	if crop_state.is_empty():
-		return "There is no crop here."
+		return "这里没有作物。"
 	if not bool(crop_state.get("mature", false)):
-		return "%s is not ready to harvest." % str(crop_state.get("display_name", "The crop"))
+		return "%s 还不能收获。" % str(crop_state.get("display_name", "作物"))
 
 	var crop_definition: Dictionary = get_crop_definition(str(crop_state.get("crop_id", "")))
 	var outputs: Array = crop_definition.get("harvest_outputs", []) as Array
@@ -129,9 +129,9 @@ func get_harvest_failure(actor: CharacterEntity, location_root: Node, cell: Vect
 		var output: Dictionary = output_value as Dictionary
 		var item_definition: Dictionary = _load_output_definition(output)
 		if item_definition.is_empty():
-			return "Harvest output could not be loaded."
+			return "无法加载收获产物。"
 		if not actor.inventory.can_add_item(item_definition, int(output.get("quantity", 1))):
-			return "%s cannot carry the harvest." % actor.display_name
+			return "%s 装不下这次收获。" % actor.display_name
 
 	return ""
 
@@ -186,7 +186,7 @@ func execute_plant(actor: CharacterEntity, location_root: Node, cell: Vector2i, 
 		"item_id": resolved_seed_item_id,
 		"quantity": 1,
 	})
-	result.add_feedback("%s planted %s." % [actor.display_name, str(crop_definition.get("display_name", crop_id))])
+	result.add_feedback("%s 种下了 %s。" % [actor.display_name, str(crop_definition.get("display_name", crop_id))])
 	crop_planted.emit(location_id, cell, crop_id)
 	return result
 
@@ -215,7 +215,7 @@ func execute_water(actor: CharacterEntity, location_root: Node, cell: Vector2i) 
 		"cell": cell,
 		"crop_id": str(crop_state.get("crop_id", "")),
 	})
-	result.add_feedback("%s watered %s." % [actor.display_name, str(crop_state.get("display_name", "the crop"))])
+	result.add_feedback("%s 给 %s 浇了水。" % [actor.display_name, str(crop_state.get("display_name", "作物"))])
 	crop_watered.emit(location_id, cell, str(crop_state.get("crop_id", "")))
 	return result
 
@@ -266,7 +266,7 @@ func execute_harvest(actor: CharacterEntity, location_root: Node, cell: Vector2i
 			"item_id": str(output.get("item_id", "")),
 			"quantity": int(output.get("quantity", 1)),
 		})
-	result.add_feedback("%s harvested %s." % [actor.display_name, str(crop_definition.get("display_name", crop_id))])
+	result.add_feedback("%s 收获了 %s。" % [actor.display_name, str(crop_definition.get("display_name", crop_id))])
 	crop_harvested.emit(location_id, cell, crop_id)
 	return result
 

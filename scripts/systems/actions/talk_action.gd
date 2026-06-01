@@ -13,21 +13,21 @@ func check() -> ActionResult:
 
 	var speaker: CharacterEntity = _get_speaker()
 	if speaker == null:
-		return _failure("TalkAction requires a speaker.")
+		return _failure("对话需要指定说话对象。")
 
 	if not speaker.is_interactable:
-		return _failure("%s is not interactable." % speaker.display_name)
+		return _failure("%s 不能互动。" % speaker.display_name)
 
 	if speaker.dialogue_source.is_empty():
-		return _failure("%s has no dialogue source." % speaker.display_name)
+		return _failure("%s 没有对话资源。" % speaker.display_name)
 
 	var location_root: Node = _get_location_root()
 	if location_root == null or not location_root.has_method("get_location_grid"):
-		return _failure("TalkAction requires a location root.")
+		return _failure("对话需要有效的当前地点。")
 
 	var distance: int = abs(actor.grid_position.x - speaker.grid_position.x) + abs(actor.grid_position.y - speaker.grid_position.y)
 	if distance > 1:
-		return _failure("%s is too far away." % speaker.display_name)
+		return _failure("%s 离得太远了。" % speaker.display_name)
 
 	return _success()
 

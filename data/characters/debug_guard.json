@@ -32,7 +32,7 @@
   "dialogue_source": "res://data/dialogues/debug_guard_dialogue.json",
   "is_player_controlled": false,
   "is_interactable": true,
-  "is_combatable": true,
+  "is_combatable": false,
   "blocks_movement": true,
   "schedule": [
     {
@@ -40,7 +40,7 @@
       "start": "06:00",
       "end": "17:59",
       "location_id": "test_clearing",
-      "grid_position": { "x": 3, "y": 3 },
+      "grid_position": { "x": 6, "y": 3 },
       "facing": "left",
       "activity": "guarding the marker"
     },
@@ -49,7 +49,7 @@
       "start": "18:00",
       "end": "05:59",
       "location_id": "test_clearing",
-      "grid_position": { "x": 2, "y": 3 },
+      "grid_position": { "x": 6, "y": 4 },
       "facing": "right",
       "activity": "patrolling at night"
     }

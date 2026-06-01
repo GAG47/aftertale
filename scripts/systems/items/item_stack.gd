@@ -68,6 +68,9 @@ func to_dictionary() -> Dictionary:
 		"stackable": stackable,
 		"max_stack": max_stack,
 		"is_usable": is_usable,
+		"equippable": bool(definition.get("equippable", false)),
+		"equipment_slot": str(definition.get("equipment_slot", "")),
+		"attribute_bonuses": (definition.get("attribute_bonuses", {}) as Dictionary).duplicate(true),
 		"description": str(definition.get("description", "")),
 		"use_feedback": use_feedback,
 	}

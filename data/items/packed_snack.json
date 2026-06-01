@@ -1,12 +1,12 @@
 {
   "id": "packed_snack",
-  "display_name": "Packed Snack",
+  "display_name": "简易干粮",
   "item_type": "consumable",
   "stackable": true,
   "max_stack": 10,
   "base_value": 9,
   "sellable": true,
   "is_usable": true,
-  "use_feedback": "The snack is practical, if not exciting.",
-  "description": "A wrapped apple-and-stick trail ration. Mostly a test output for the crafting system."
+  "use_feedback": "这份干粮很实用，虽然谈不上好吃。",
+  "description": "用苹果和木枝打包成的小份路粮，主要用于验证制作系统的产出。"
 }

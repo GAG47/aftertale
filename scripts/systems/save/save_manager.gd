@@ -15,11 +15,11 @@ var last_message: String = ""
 
 func save_game(save_path: String = DEFAULT_SAVE_PATH) -> ActionResult:
 	if not _can_save_in_current_mode():
-		return _fail_save(save_path, "Save is only available outside dialogue and combat.")
+		return _fail_save(save_path, "只能在对话和战斗之外保存。")
 
 	var active_scene: Node = _get_active_scene()
 	if active_scene == null:
-		return _fail_save(save_path, "No active scene to save.")
+		return _fail_save(save_path, "没有可保存的当前场景。")
 
 	_persist_current_controlled_character()
 
@@ -37,15 +37,15 @@ func save_game(save_path: String = DEFAULT_SAVE_PATH) -> ActionResult:
 
 	var dir_error: Error = DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(SAVE_DIR))
 	if dir_error != OK:
-		return _fail_save(save_path, "Could not create save directory.")
+		return _fail_save(save_path, "无法创建存档目录。")
 
 	var file: FileAccess = FileAccess.open(save_path, FileAccess.WRITE)
 	if file == null:
-		return _fail_save(save_path, "Could not open save file for writing.")
+		return _fail_save(save_path, "无法打开存档文件进行写入。")
 
 	file.store_string(JSON.stringify(save_data, "\t"))
 	last_save_path = save_path
-	last_message = "Saved game."
+	last_message = "游戏已保存。"
 	game_saved.emit(save_path)
 
 	var result: ActionResult = ActionResult.succeeded("SaveGame", GameState.player_id, {
@@ -56,27 +56,27 @@ func save_game(save_path: String = DEFAULT_SAVE_PATH) -> ActionResult:
 		"save_path": save_path,
 		"version": SAVE_VERSION,
 	})
-	result.add_feedback("Game saved.")
+	result.add_feedback("游戏已保存。")
 	ActionSystem.publish_result(result)
 	return result
 
 
 func load_game(save_path: String = DEFAULT_SAVE_PATH) -> ActionResult:
 	if not FileAccess.file_exists(save_path):
-		return _fail_load(save_path, "Save file does not exist.")
+		return _fail_load(save_path, "存档文件不存在。")
 
 	var file: FileAccess = FileAccess.open(save_path, FileAccess.READ)
 	if file == null:
-		return _fail_load(save_path, "Could not open save file.")
+		return _fail_load(save_path, "无法打开存档文件。")
 
 	var parsed: Variant = JSON.parse_string(file.get_as_text())
 	if typeof(parsed) != TYPE_DICTIONARY:
-		return _fail_load(save_path, "Save file is not valid JSON.")
+		return _fail_load(save_path, "存档文件不是有效的 JSON。")
 
 	var save_data: Dictionary = parsed as Dictionary
 	var version: int = int(save_data.get("version", 0))
 	if version != SAVE_VERSION:
-		return _fail_load(save_path, "Unsupported save version: %d." % version)
+		return _fail_load(save_path, "不支持的存档版本：%d。" % version)
 
 	DialogueRunner.clear_dialogue_state()
 	BattleSystem.clear_battle_state()
@@ -90,19 +90,19 @@ func load_game(save_path: String = DEFAULT_SAVE_PATH) -> ActionResult:
 	var scene_state: Dictionary = save_data.get("scene", {}) as Dictionary
 	var scene_path: String = str(scene_state.get("scene_path", ""))
 	if scene_path.is_empty():
-		return _fail_load(save_path, "Save file has no scene path.")
+		return _fail_load(save_path, "存档缺少场景路径。")
 
 	var entrance_id: String = str(scene_state.get("entrance_id", ""))
 	SceneLoader.set_save_runtime_on_next_unload(false)
 	var load_error: Error = SceneLoader.load_location(scene_path, entrance_id)
 	if load_error != OK:
 		SceneLoader.set_save_runtime_on_next_unload(true)
-		return _fail_load(save_path, "Could not load saved scene.")
+		return _fail_load(save_path, "无法加载存档场景。")
 
 	_restore_controlled_character(scene_state)
 	GameState.set_mode(GameState.GameMode.EXPLORATION)
 	last_save_path = save_path
-	last_message = "Loaded game."
+	last_message = "游戏已读取。"
 	game_loaded.emit(save_path)
 
 	var result: ActionResult = ActionResult.succeeded("LoadGame", GameState.player_id, {
@@ -113,7 +113,7 @@ func load_game(save_path: String = DEFAULT_SAVE_PATH) -> ActionResult:
 		"save_path": save_path,
 		"version": version,
 	})
-	result.add_feedback("Game loaded.")
+	result.add_feedback("游戏已读取。")
 	ActionSystem.publish_result(result)
 	return result
 

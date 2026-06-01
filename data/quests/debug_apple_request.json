@@ -13,7 +13,7 @@
       "target": "actor",
       "metric": "affinity",
       "value": 0,
-      "failure_text": "Debug Villager does not trust you enough to ask for help."
+      "failure_text": "测试村民还不够信任你，所以暂时不会请求帮助。"
     }
   ],
   "objectives": [
@@ -22,7 +22,7 @@
       "type": "has_item",
       "item_id": "debug_apple",
       "quantity": 1,
-      "description": "取得一个 Debug Apple。"
+      "description": "取得一个测试苹果。"
     },
     {
       "id": "report_to_villager",

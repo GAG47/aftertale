@@ -49,39 +49,39 @@ func get_recipe_summaries(actor: CharacterEntity) -> Array[Dictionary]:
 
 func get_failed_requirement(actor: CharacterEntity, recipe_id: String) -> String:
 	if actor == null or not is_instance_valid(actor):
-		return "Crafting requires an actor."
+		return "制作需要有效的角色。"
 	if actor.inventory == null:
-		return "%s has no inventory." % actor.display_name
+		return "%s 没有背包。" % actor.display_name
 
 	var recipe: Dictionary = get_recipe(recipe_id)
 	if recipe.is_empty():
-		return "Unknown recipe: %s" % recipe_id
+		return "未知配方：%s" % recipe_id
 
 	var ingredients: Array = recipe.get("ingredients", []) as Array
 	if ingredients.is_empty():
-		return "Recipe has no ingredients: %s" % recipe_id
+		return "配方没有材料：%s" % recipe_id
 
 	var outputs: Array = recipe.get("outputs", []) as Array
 	if outputs.is_empty():
-		return "Recipe has no outputs: %s" % recipe_id
+		return "配方没有产出：%s" % recipe_id
 
 	for ingredient_value in ingredients:
 		var ingredient: Dictionary = ingredient_value as Dictionary
 		var item_id: String = str(ingredient.get("item_id", ""))
 		var quantity: int = int(ingredient.get("quantity", 1))
 		if item_id.is_empty() or quantity <= 0:
-			return "Recipe has an invalid ingredient: %s" % recipe_id
+			return "配方包含无效材料：%s" % recipe_id
 		if actor.inventory.count_item(item_id) < quantity:
-			return "Missing %d x %s." % [quantity, item_id]
+			return "缺少 %d 个 %s。" % [quantity, item_id]
 
 	for output_value in outputs:
 		var output: Dictionary = output_value as Dictionary
 		var output_definition: Dictionary = _load_output_definition(output)
 		if output_definition.is_empty():
-			return "Recipe output could not be loaded: %s" % recipe_id
+			return "无法加载配方产出：%s" % recipe_id
 
 	if not _inventory_accepts_outputs_after_inputs(actor.inventory, ingredients, outputs):
-		return "%s cannot carry the crafted items." % actor.display_name
+		return "%s 装不下制作产物。" % actor.display_name
 
 	return ""
 
@@ -143,7 +143,7 @@ func execute_craft(actor: CharacterEntity, recipe_id: String) -> ActionResult:
 			"item_id": str(output.get("item_id", "")),
 			"quantity": int(output.get("quantity", 1)),
 		})
-	result.add_feedback("%s crafted %s." % [actor.display_name, str(recipe.get("display_name", recipe_id))])
+	result.add_feedback("%s 制作了 %s。" % [actor.display_name, str(recipe.get("display_name", recipe_id))])
 	recipe_crafted.emit(actor.character_id, recipe_id)
 	return result
 
@@ -200,7 +200,7 @@ func _format_stack_entries(entries: Array, use_source: bool) -> String:
 		if use_source:
 			var definition: Dictionary = _load_output_definition(entry)
 			item_label = str(definition.get("display_name", definition.get("id", "unknown")))
-		parts.append("%d x %s" % [
+		parts.append("%d 个 %s" % [
 			int(entry.get("quantity", 1)),
 			item_label,
 		])

@@ -13,7 +13,7 @@ func check() -> ActionResult:
 
 	var minutes: int = int(target.get("minutes", 60))
 	if minutes <= 0:
-		return _failure("RestAction requires a positive minute amount.")
+		return _failure("休息时间必须大于 0。")
 
 	return _success()
 
@@ -37,5 +37,5 @@ func execute() -> ActionResult:
 		"to_absolute_minutes": to_time,
 		"day_period": TimeManager.day_period,
 	})
-	result.add_feedback("%s rested for %d minutes." % [actor.display_name, minutes])
+	result.add_feedback("%s 休息了 %d 分钟。" % [actor.display_name, minutes])
 	return result

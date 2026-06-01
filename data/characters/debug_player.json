@@ -30,6 +30,9 @@
     "shockwave",
     "guard"
   ],
+  "inventory": [
+    { "source": "res://data/items/debug_training_sword.json", "quantity": 1 }
+  ],
   "is_player_controlled": true,
   "is_interactable": false,
   "is_combatable": true,

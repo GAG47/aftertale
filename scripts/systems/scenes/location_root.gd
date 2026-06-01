@@ -15,6 +15,8 @@ signal exit_requested(exit_data: Dictionary)
 var grid: LocationGrid
 var crops_root: Node2D
 var battle_overlay: BattleGridOverlay
+var battle_feedback_root: Node2D
+var interaction_overlay: InteractionTargetOverlay
 var current_grid_position: Vector2i = Vector2i.ZERO
 var controlled_character: CharacterEntity
 var _location_data_cache: Dictionary = {}
@@ -30,13 +32,18 @@ func _ready() -> void:
 
 	_spawn_objects_from_data()
 	_setup_battle_overlay()
+	_setup_battle_feedback_root()
+	_setup_interaction_overlay()
 	_setup_crops_root()
 	refresh_crop_markers()
 	_spawn_characters_from_data()
+	_refresh_interaction_overlay()
 
 	InputManager.move_requested.connect(_on_move_requested)
 	InputManager.primary_action_requested.connect(_on_primary_action_requested)
 	InputManager.rest_requested.connect(_on_rest_requested)
+	ActionSystem.action_executed.connect(_on_action_result_for_presentation)
+	ActionSystem.action_failed.connect(_on_action_result_for_presentation)
 	CropSystem.crop_changed.connect(_on_crop_changed)
 	BattleSystem.battle_state_changed.connect(_refresh_battle_overlay)
 	NpcScheduleSystem.register_location_root(self)
@@ -54,6 +61,10 @@ func _exit_tree() -> void:
 		InputManager.primary_action_requested.disconnect(_on_primary_action_requested)
 	if InputManager.rest_requested.is_connected(_on_rest_requested):
 		InputManager.rest_requested.disconnect(_on_rest_requested)
+	if ActionSystem.action_executed.is_connected(_on_action_result_for_presentation):
+		ActionSystem.action_executed.disconnect(_on_action_result_for_presentation)
+	if ActionSystem.action_failed.is_connected(_on_action_result_for_presentation):
+		ActionSystem.action_failed.disconnect(_on_action_result_for_presentation)
 	if CropSystem.crop_changed.is_connected(_on_crop_changed):
 		CropSystem.crop_changed.disconnect(_on_crop_changed)
 	if BattleSystem.battle_state_changed.is_connected(_refresh_battle_overlay):
@@ -183,6 +194,42 @@ func get_location_summary() -> Dictionary:
 	}
 
 
+func get_interaction_prompt() -> String:
+	if grid == null or not _has_controlled_character():
+		return ""
+
+	var current_object: LocationObject = grid.get_primary_object_at(controlled_character.grid_position)
+	if current_object != null and current_object.is_pickable:
+		return "E/Enter 拾取：%s" % current_object.display_name
+
+	var crop_prompt: String = _get_crop_interaction_prompt(controlled_character.grid_position)
+	if not crop_prompt.is_empty():
+		return crop_prompt
+
+	var target_cell: Vector2i = controlled_character.get_facing_cell()
+	var target_character: CharacterEntity = grid.get_character_at(target_cell)
+	if target_character != null:
+		if target_character.is_combatable:
+			return "E/Enter 攻击：%s" % target_character.display_name
+		if target_character.is_interactable:
+			return "E/Enter 交谈：%s" % target_character.display_name
+
+	var target_object: LocationObject = grid.get_primary_object_at(target_cell)
+	if target_object != null:
+		if target_object.is_pickable:
+			return "E/Enter 拾取：%s" % target_object.display_name
+		if target_object.is_usable:
+			return "E/Enter 使用：%s" % target_object.display_name
+		if target_object.is_inspectable:
+			return "E/Enter 调查：%s" % target_object.display_name
+
+	var exit_data: Dictionary = grid.get_exit_at(target_cell)
+	if not exit_data.is_empty():
+		return "向前移动：前往 %s" % str(exit_data.get("target_entrance_id", "下一个地点"))
+
+	return "E/Enter 调查前方  Tab/I 打开菜单"
+
+
 func _load_location_data() -> void:
 	_location_data_cache = _read_location_data()
 	if _location_data_cache.is_empty():
@@ -228,6 +275,21 @@ func _setup_battle_overlay() -> void:
 	add_child(battle_overlay)
 	move_child(battle_overlay, tile_renderer.get_index() + 1)
 	battle_overlay.configure(grid)
+
+
+func _setup_battle_feedback_root() -> void:
+	battle_feedback_root = Node2D.new()
+	battle_feedback_root.name = "BattleFeedback"
+	add_child(battle_feedback_root)
+	move_child(battle_feedback_root, characters_root.get_index() + 1)
+
+
+func _setup_interaction_overlay() -> void:
+	interaction_overlay = InteractionTargetOverlay.new()
+	interaction_overlay.name = "InteractionTargetOverlay"
+	add_child(interaction_overlay)
+	move_child(interaction_overlay, tile_renderer.get_index() + 1)
+	interaction_overlay.configure(grid)
 
 
 func _spawn_characters_from_data() -> void:
@@ -367,6 +429,10 @@ func _spawn_character(definition: Dictionary, resolved_spawn_data: Dictionary) -
 		controlled_character = character
 		current_grid_position = character.grid_position
 		GameState.player_id = character.character_id
+		if not character.grid_position_changed.is_connected(_on_controlled_character_grid_position_changed):
+			character.grid_position_changed.connect(_on_controlled_character_grid_position_changed)
+		if not character.facing_changed.is_connected(_on_controlled_character_facing_changed):
+			character.facing_changed.connect(_on_controlled_character_facing_changed)
 
 	return character
 
@@ -491,9 +557,9 @@ func _on_move_requested(direction: Vector2i) -> void:
 	var context: Dictionary = { "location_root": self }
 	var action: GameAction = ActionSystem.create_action("MoveAction", controlled_character, target, context) as GameAction
 	var result: ActionResult = ActionSystem.submit(action) as ActionResult
+	_refresh_interaction_overlay()
 	if result.success and not _result_has_change_type(result, "location_exit_requested") and _has_controlled_character():
 		current_grid_position = controlled_character.grid_position
-		grid_position_changed.emit(current_grid_position)
 
 
 func request_exit_transition(exit_data: Dictionary) -> void:
@@ -530,11 +596,13 @@ func mark_character_defeated(character_id: String) -> bool:
 	if controlled_character == character:
 		controlled_character = null
 	character.queue_free()
+	_refresh_interaction_overlay()
 	return true
 
 
 func _on_primary_action_requested() -> void:
 	if GameState.current_mode == GameState.GameMode.COMBAT:
+		_refresh_interaction_overlay()
 		BattleSystem.request_attack_current_unit()
 		_refresh_battle_overlay()
 		return
@@ -573,6 +641,7 @@ func _on_primary_action_requested() -> void:
 
 func _on_rest_requested() -> void:
 	if GameState.current_mode == GameState.GameMode.COMBAT:
+		_refresh_interaction_overlay()
 		BattleSystem.wait_current_unit()
 		_refresh_battle_overlay()
 		return
@@ -587,6 +656,7 @@ func _on_rest_requested() -> void:
 	var context: Dictionary = { "location_root": self }
 	var action: GameAction = ActionSystem.create_action("RestAction", controlled_character, target, context) as GameAction
 	ActionSystem.submit(action)
+	_refresh_interaction_overlay()
 
 
 func _try_submit_crop_interaction(cell: Vector2i) -> bool:
@@ -603,6 +673,7 @@ func _try_submit_crop_interaction(cell: Vector2i) -> bool:
 			return true
 
 		ActionSystem.publish_result(ActionResult.failed("InspectCrop", controlled_character.character_id, "%s is still growing." % str(crop_state.get("display_name", "The crop"))))
+		_refresh_interaction_overlay()
 		return true
 
 	if is_cell_plantable(cell) and not CropSystem.get_seed_item_id(controlled_character).is_empty():
@@ -610,6 +681,21 @@ func _try_submit_crop_interaction(cell: Vector2i) -> bool:
 		return true
 
 	return false
+
+
+func _get_crop_interaction_prompt(cell: Vector2i) -> String:
+	var crop_state: Dictionary = CropSystem.get_crop_at(grid.location_id, cell)
+	if not crop_state.is_empty():
+		if bool(crop_state.get("mature", false)):
+			return "E/Enter 收获：%s" % str(crop_state.get("display_name", "作物"))
+		if not bool(crop_state.get("watered", false)):
+			return "E/Enter 浇水：%s" % str(crop_state.get("display_name", "作物"))
+		return "作物正在生长：%s" % str(crop_state.get("display_name", "作物"))
+
+	if is_cell_plantable(cell) and not CropSystem.get_seed_item_id(controlled_character).is_empty():
+		return "E/Enter 种植种子"
+
+	return ""
 
 
 func _submit_crop_action(action_type: String, cell: Vector2i) -> void:
@@ -621,6 +707,7 @@ func _submit_crop_action(action_type: String, cell: Vector2i) -> void:
 	}
 	var action: GameAction = ActionSystem.create_action(action_type, controlled_character, target, context) as GameAction
 	ActionSystem.submit(action)
+	_refresh_interaction_overlay()
 
 
 func try_flee_battle() -> bool:
@@ -713,9 +800,13 @@ func _refresh_battle_overlay() -> void:
 
 	if not BattleSystem.is_active():
 		battle_overlay.clear_preview()
+		_clear_battle_character_presentations()
+		_refresh_interaction_overlay()
 		return
 
 	battle_overlay.set_preview(BattleSystem.get_player_tactical_preview())
+	_refresh_battle_character_presentations()
+	_refresh_interaction_overlay()
 
 
 func _mouse_to_grid_cell() -> Vector2i:
@@ -741,6 +832,7 @@ func _submit_object_interaction(target_object: LocationObject, target_cell: Vect
 	var action_type: String = _choose_interaction_action(target_object)
 	var action: GameAction = ActionSystem.create_action(action_type, controlled_character, target, context) as GameAction
 	ActionSystem.submit(action)
+	_refresh_interaction_overlay()
 
 
 func _submit_talk_interaction(target_character: CharacterEntity) -> void:
@@ -748,10 +840,12 @@ func _submit_talk_interaction(target_character: CharacterEntity) -> void:
 	var context: Dictionary = { "location_root": self }
 	var action: GameAction = ActionSystem.create_action("TalkAction", controlled_character, target, context) as GameAction
 	ActionSystem.submit(action)
+	_refresh_interaction_overlay()
 
 
 func _submit_battle_start(target_character: CharacterEntity) -> void:
 	BattleSystem.start_battle(self, controlled_character, target_character)
+	_refresh_interaction_overlay()
 
 
 func _submit_inspect_empty(target_cell: Vector2i) -> void:
@@ -762,6 +856,7 @@ func _submit_inspect_empty(target_cell: Vector2i) -> void:
 	var context: Dictionary = { "location_root": self }
 	var action: GameAction = ActionSystem.create_action("InspectAction", controlled_character, target, context) as GameAction
 	ActionSystem.submit(action)
+	_refresh_interaction_overlay()
 
 
 func _choose_interaction_action(target_object: LocationObject) -> String:
@@ -785,6 +880,20 @@ func _on_crop_changed(location_id: String, _cell: Vector2i, _crop_state: Diction
 		return
 
 	refresh_crop_markers()
+	_refresh_interaction_overlay()
+
+
+func _on_action_result_for_presentation(_action_type: String, _actor_id: String, result: ActionResult) -> void:
+	if result == null:
+		return
+
+	_refresh_battle_character_presentations()
+	if result.success:
+		_spawn_battle_feedback_from_result(result)
+		return
+
+	if GameState.current_mode == GameState.GameMode.COMBAT and _has_controlled_character():
+		_spawn_battle_feedback(controlled_character.character_id, "无效", Color(0.92, 0.92, 0.92, 0.95))
 
 
 func _get_controlled_character_summary() -> Dictionary:
@@ -822,6 +931,159 @@ func _cell_from_dict(value: Dictionary) -> Vector2i:
 
 func _has_controlled_character() -> bool:
 	return controlled_character != null and is_instance_valid(controlled_character)
+
+
+func _refresh_battle_character_presentations() -> void:
+	if grid == null:
+		return
+	if not BattleSystem.is_active():
+		_clear_battle_character_presentations()
+		return
+
+	var summary: Dictionary = BattleSystem.get_summary()
+	var current_unit: Dictionary = summary.get("current_unit", {}) as Dictionary
+	var current_id: String = str(current_unit.get("character_id", ""))
+	_clear_battle_character_presentations()
+
+	var units: Array = summary.get("units", []) as Array
+	for unit_value in units:
+		var unit: Dictionary = unit_value as Dictionary
+		var character_id: String = str(unit.get("character_id", ""))
+		var character: CharacterEntity = grid.get_character_by_id(character_id)
+		if character == null:
+			continue
+		character.set_battle_presentation(unit, character_id == current_id)
+
+
+func _clear_battle_character_presentations() -> void:
+	if grid == null:
+		return
+
+	for character_value in grid.characters_by_id.values():
+		if typeof(character_value) != TYPE_OBJECT or not is_instance_valid(character_value):
+			continue
+		var character: CharacterEntity = character_value as CharacterEntity
+		if character != null:
+			character.clear_battle_presentation()
+
+
+func _spawn_battle_feedback_from_result(result: ActionResult) -> void:
+	for change_value in result.world_changes:
+		var change: Dictionary = change_value as Dictionary
+		match str(change.get("type", "")):
+			"battle_unit_damaged":
+				_spawn_battle_feedback(
+					str(change.get("target_id", "")),
+					"-%d" % int(change.get("damage", 0)),
+					Color(1.0, 0.28, 0.20, 0.98)
+				)
+			"battle_unit_healed":
+				_spawn_battle_feedback(
+					str(change.get("target_id", "")),
+					"+%d" % int(change.get("healing", 0)),
+					Color(0.38, 1.0, 0.45, 0.98)
+				)
+			"battle_status_applied":
+				_spawn_battle_feedback(
+					str(change.get("target_id", "")),
+					str((change.get("status", {}) as Dictionary).get("display_name", "状态")),
+					Color(0.78, 0.60, 1.0, 0.98)
+				)
+			"battle_unit_defeated":
+				_spawn_battle_feedback(
+					str(change.get("character_id", "")),
+					"击败",
+					Color(1.0, 0.88, 0.30, 0.98)
+				)
+
+
+func _spawn_battle_feedback(character_id: String, text: String, color: Color) -> void:
+	if character_id.is_empty() or text.is_empty():
+		return
+	if grid == null or battle_feedback_root == null or not is_instance_valid(battle_feedback_root):
+		return
+
+	var character: CharacterEntity = grid.get_character_by_id(character_id)
+	if character == null:
+		return
+
+	var popup: BattleFeedbackPopup = BattleFeedbackPopup.new()
+	popup.position = character.position + Vector2(0.0, -6.0)
+	battle_feedback_root.add_child(popup)
+	popup.configure(text, color)
+
+
+func _refresh_interaction_overlay() -> void:
+	if interaction_overlay == null or not is_instance_valid(interaction_overlay):
+		return
+	if grid == null or not _has_controlled_character() or GameState.current_mode != GameState.GameMode.EXPLORATION:
+		interaction_overlay.clear_target()
+		return
+
+	var current_cell: Vector2i = controlled_character.grid_position
+	var current_object: LocationObject = grid.get_primary_object_at(current_cell)
+	if current_object != null and current_object.is_pickable:
+		interaction_overlay.set_target(current_cell, "pickup")
+		return
+
+	var crop_kind: String = _get_crop_interaction_kind(current_cell)
+	if not crop_kind.is_empty():
+		interaction_overlay.set_target(current_cell, crop_kind)
+		return
+
+	var target_cell: Vector2i = controlled_character.get_facing_cell()
+	if not grid.in_bounds(target_cell):
+		interaction_overlay.clear_target()
+		return
+
+	var target_character: CharacterEntity = grid.get_character_at(target_cell)
+	if target_character != null:
+		if target_character.is_combatable:
+			interaction_overlay.set_target(target_cell, "attack", current_cell)
+			return
+		if target_character.is_interactable:
+			interaction_overlay.set_target(target_cell, "talk", current_cell)
+			return
+
+	var target_object: LocationObject = grid.get_primary_object_at(target_cell)
+	if target_object != null:
+		if target_object.is_pickable:
+			interaction_overlay.set_target(target_cell, "pickup", current_cell)
+			return
+		if target_object.is_usable:
+			interaction_overlay.set_target(target_cell, "use", current_cell)
+			return
+		if target_object.is_inspectable:
+			interaction_overlay.set_target(target_cell, "inspect", current_cell)
+			return
+
+	var exit_data: Dictionary = grid.get_exit_at(target_cell)
+	if not exit_data.is_empty():
+		interaction_overlay.set_target(target_cell, "exit", current_cell)
+		return
+
+	interaction_overlay.set_target(target_cell, "inspect", current_cell)
+
+
+func _get_crop_interaction_kind(cell: Vector2i) -> String:
+	var crop_state: Dictionary = CropSystem.get_crop_at(grid.location_id, cell)
+	if not crop_state.is_empty():
+		return "crop"
+
+	if is_cell_plantable(cell) and not CropSystem.get_seed_item_id(controlled_character).is_empty():
+		return "crop"
+
+	return ""
+
+
+func _on_controlled_character_grid_position_changed(_character_id: String, _previous_cell: Vector2i, new_cell: Vector2i) -> void:
+	current_grid_position = new_cell
+	grid_position_changed.emit(current_grid_position)
+	_refresh_interaction_overlay()
+
+
+func _on_controlled_character_facing_changed(_character_id: String, _facing: String) -> void:
+	_refresh_interaction_overlay()
 
 
 func _result_has_change_type(result: ActionResult, change_type: String) -> bool:

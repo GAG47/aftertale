@@ -1,6 +1,6 @@
 {
   "id": "debug_herb",
-  "display_name": "Debug Herb",
+  "display_name": "测试草药",
   "item_type": "material",
   "stackable": true,
   "max_stack": 20,
@@ -8,5 +8,5 @@
   "sellable": true,
   "is_usable": false,
   "use_feedback": "",
-  "description": "A small harvested herb used to prove crops can create items."
+  "description": "收获获得的小草药，用来证明作物可以产出物品。"
 }

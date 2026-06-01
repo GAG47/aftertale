@@ -1,8 +1,8 @@
 {
   "id": "debug_tool",
-  "display_name": "Debug Tool",
+  "display_name": "测试工具",
   "category": "tools",
-  "description": "Bind two sticks into a crude tool.",
+  "description": "把两根木枝绑成一个粗糙工具。",
   "ingredients": [
     { "item_id": "debug_stick", "quantity": 2 }
   ],

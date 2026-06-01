@@ -1,0 +1,17 @@
+{
+  "id": "debug_training_sword",
+  "display_name": "测试木剑",
+  "item_type": "equipment",
+  "stackable": false,
+  "max_stack": 1,
+  "base_value": 12,
+  "sellable": true,
+  "is_usable": false,
+  "equippable": true,
+  "equipment_slot": "weapon",
+  "attribute_bonuses": {
+    "strength": 2
+  },
+  "use_feedback": "",
+  "description": "一把用于验证装备系统的木剑。装备后提高力量。"
+}

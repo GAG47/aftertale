@@ -4,6 +4,8 @@ extends Control
 @onready var time_label: Label = $TopBar/TopBarMargin/StatusRow/TimeLabel
 @onready var mode_label: Label = $TopBar/TopBarMargin/StatusRow/ModeLabel
 @onready var scene_label: Label = $TopBar/TopBarMargin/StatusRow/SceneLabel
+@onready var interaction_panel: PanelContainer = $InteractionPanel
+@onready var interaction_label: Label = $InteractionPanel/MarginContainer/InteractionLabel
 @onready var message_log_panel: MessageLogPanel = $MessageLogPanel
 @onready var debug_panel: DebugPanel = $DebugPanel
 @onready var game_menu_panel: GameMenuPanel = $GameMenuPanel
@@ -39,6 +41,7 @@ func bind_managers(game_state: Node, scene_loader: Node, time_manager: Node, inp
 	BattleSystem.battle_state_changed.connect(_refresh_battle_hud)
 	SaveManager.game_loaded.connect(_on_game_loaded)
 	SaveManager.load_failed.connect(_on_load_failed)
+	_scene_loader.scene_changed.connect(_on_scene_changed)
 	dialogue_panel.option_selected.connect(_on_dialogue_option_selected)
 	game_menu_panel.close_requested.connect(_on_game_menu_close_requested)
 	battle_hud_panel.wait_requested.connect(_on_battle_wait_requested)
@@ -50,6 +53,7 @@ func bind_managers(game_state: Node, scene_loader: Node, time_manager: Node, inp
 
 	_refresh_static_labels()
 	_on_time_changed(_time_manager.day, _time_manager.hour, _time_manager.minute)
+	_refresh_interaction_prompt()
 	message_log_panel.add_message("新的冒险开始了。")
 
 
@@ -103,6 +107,7 @@ func clear_transient_ui() -> void:
 	game_menu_panel.close_menu()
 	dialogue_panel.hide_panel()
 	battle_hud_panel.hide_panel()
+	message_log_panel.visible = true
 	_mode_before_menu = GameState.GameMode.EXPLORATION
 	_input_manager.set_input_locked(false)
 
@@ -121,12 +126,19 @@ func _on_time_changed(day: int, hour: int, minute: int) -> void:
 
 func _on_mode_changed(_previous_mode: int, new_mode: int) -> void:
 	mode_label.text = "模式：%s" % _game_state.get_mode_label(new_mode)
+	message_log_panel.visible = new_mode != GameState.GameMode.COMBAT
+	_refresh_interaction_prompt()
 
 
 func _on_scene_context_changed(scene_id: String, _location_id: String) -> void:
 	scene_label.text = "场景：%s" % scene_id
 	if not scene_id.is_empty() and scene_id != "boot":
 		message_log_panel.add_message("进入场景：%s。" % scene_id)
+	_refresh_interaction_prompt()
+
+
+func _on_scene_changed(_scene_path: String, _scene_root: Node) -> void:
+	_refresh_interaction_prompt()
 
 
 func _on_dialogue_node_changed(state: Dictionary) -> void:
@@ -135,6 +147,7 @@ func _on_dialogue_node_changed(state: Dictionary) -> void:
 
 func _on_dialogue_ended(_result: ActionResult) -> void:
 	dialogue_panel.hide_panel()
+	_refresh_interaction_prompt()
 
 
 func _on_dialogue_option_selected(option_id: String) -> void:
@@ -161,6 +174,7 @@ func _on_load_failed(_save_path: String, reason: String) -> void:
 
 func _on_action_result(_action_type: String, _actor_id: String, result: ActionResult) -> void:
 	_refresh_battle_hud()
+	_refresh_interaction_prompt()
 	if not _should_show_result(result):
 		return
 
@@ -177,6 +191,7 @@ func _on_battle_turn_started(_character_id: String, _round_number: int) -> void:
 
 func _on_battle_ended(_battle_id: String, _result_status: String) -> void:
 	_refresh_battle_hud()
+	_refresh_interaction_prompt()
 
 
 func _on_battle_wait_requested() -> void:
@@ -215,6 +230,26 @@ func _refresh_battle_hud() -> void:
 		BattleSystem.get_current_unit_skill_summaries(),
 		BattleSystem.get_selected_skill_id()
 	)
+
+
+func _refresh_interaction_prompt() -> void:
+	if interaction_panel == null or interaction_label == null:
+		return
+
+	if _game_state == null or _game_state.current_mode != GameState.GameMode.EXPLORATION:
+		interaction_panel.visible = false
+		return
+
+	var prompt: String = ""
+	if _scene_loader != null and _scene_loader.current_scene != null and is_instance_valid(_scene_loader.current_scene):
+		if _scene_loader.current_scene.has_method("get_interaction_prompt"):
+			prompt = str(_scene_loader.current_scene.get_interaction_prompt())
+
+	if prompt.is_empty():
+		prompt = "WASD/方向键移动  E/Enter 互动  Tab/I 菜单  R 等待"
+
+	interaction_label.text = prompt
+	interaction_panel.visible = true
 
 
 func _should_show_result(result: ActionResult) -> bool:

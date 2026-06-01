@@ -100,6 +100,39 @@ func can_enter(cell: Vector2i) -> bool:
 	return is_walkable(cell) and not is_occupied(cell)
 
 
+func blocks_line_of_sight(cell: Vector2i, ignore_blocking_occupant: bool = false) -> bool:
+	if not in_bounds(cell):
+		return true
+
+	var terrain_data: Dictionary = terrain_at(cell)
+	if bool(terrain_data.get("blocks_sight", not bool(terrain_data.get("walkable", false)))):
+		return true
+
+	if not ignore_blocking_occupant and blocking_occupants.has(cell_key(cell)):
+		return true
+
+	return false
+
+
+func has_line_of_sight(from_cell: Vector2i, to_cell: Vector2i) -> bool:
+	if not in_bounds(from_cell) or not in_bounds(to_cell):
+		return false
+	if from_cell == to_cell:
+		return true
+
+	var cells: Array[Vector2i] = _line_cells(from_cell, to_cell)
+	for index in range(cells.size()):
+		var cell: Vector2i = cells[index]
+		if cell == from_cell:
+			continue
+
+		var is_target_cell: bool = cell == to_cell
+		if blocks_line_of_sight(cell, is_target_cell):
+			return false
+
+	return true
+
+
 func register_object(object_id: String, cell: Vector2i, object: Node, blocks_movement: bool) -> bool:
 	if object_id.is_empty() or not in_bounds(cell):
 		return false
@@ -316,6 +349,34 @@ func grid_to_world(cell: Vector2i) -> Vector2:
 
 func cell_key(cell: Vector2i) -> String:
 	return "%d,%d" % [cell.x, cell.y]
+
+
+func _line_cells(from_cell: Vector2i, to_cell: Vector2i) -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	var x0: int = from_cell.x
+	var y0: int = from_cell.y
+	var x1: int = to_cell.x
+	var y1: int = to_cell.y
+	var dx: int = absi(x1 - x0)
+	var dy: int = absi(y1 - y0)
+	var sx: int = 1 if x0 < x1 else -1
+	var sy: int = 1 if y0 < y1 else -1
+	var error: int = dx - dy
+
+	while true:
+		result.append(Vector2i(x0, y0))
+		if x0 == x1 and y0 == y1:
+			break
+
+		var doubled_error: int = error * 2
+		if doubled_error > -dy:
+			error -= dy
+			x0 += sx
+		if doubled_error < dx:
+			error += dx
+			y0 += sy
+
+	return result
 
 
 func _cell_from_dict(value: Dictionary) -> Vector2i:

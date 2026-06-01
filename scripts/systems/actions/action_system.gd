@@ -54,6 +54,10 @@ func create_action(action_type: String, actor: CharacterEntity, target: Dictiona
 			action = UseItemAction.new()
 		"UseSkillAction":
 			action = UseSkillAction.new()
+		"EquipItemAction":
+			action = EquipItemAction.new()
+		"UnequipItemAction":
+			action = UnequipItemAction.new()
 		"PlantAction":
 			action = PlantAction.new()
 		"WaterAction":

@@ -105,6 +105,8 @@ func get_skill_failure(unit: BattleUnitState, skill_id: String, target_cell: Vec
 
 	if _manhattan(unit.character.grid_position, target_cell) > skill_range:
 		return "%s 超出射程。" % str(skill.get("display_name", skill_id))
+	if not _has_line_of_sight(unit, target_cell, battle_state):
+		return "%s 的视线被阻挡。" % str(skill.get("display_name", skill_id))
 
 	var target_unit: BattleUnitState = battle_state.get_unit_at(target_cell)
 	if target_type == "enemy":
@@ -189,17 +191,17 @@ func calculate_damage(attacker: BattleUnitState, defender: BattleUnitState, effe
 	var attack_value: int = power
 	match formula:
 		"strength":
-			attack_value += int(attacker.character.attributes.get("strength", 1))
+			attack_value += int(attacker.character.get_effective_attributes().get("strength", 1))
 		"intellect":
-			attack_value += int(attacker.character.attributes.get("intellect", 1))
+			attack_value += int(attacker.character.get_effective_attributes().get("intellect", 1))
 		"agility":
-			attack_value += int(attacker.character.attributes.get("agility", 1))
+			attack_value += int(attacker.character.get_effective_attributes().get("agility", 1))
 		"flat":
 			pass
 		_:
-			attack_value += int(attacker.character.attributes.get("strength", 1))
+			attack_value += int(attacker.character.get_effective_attributes().get("strength", 1))
 
-	var vitality: int = int(defender.character.attributes.get("vitality", 1))
+	var vitality: int = int(defender.character.get_effective_attributes().get("vitality", 1))
 	var raw_damage: int = max(1, attack_value - int(vitality / 2.0))
 	return max(0, raw_damage - defender.get_defense_bonus())
 
@@ -209,9 +211,9 @@ func calculate_heal(source: BattleUnitState, effect: Dictionary) -> int:
 	var power: int = int(effect.get("power", 0))
 	match formula:
 		"intellect":
-			return max(1, power + int(source.character.attributes.get("intellect", 1)))
+			return max(1, power + int(source.character.get_effective_attributes().get("intellect", 1)))
 		"vitality":
-			return max(1, power + int(source.character.attributes.get("vitality", 1)))
+			return max(1, power + int(source.character.get_effective_attributes().get("vitality", 1)))
 		"flat":
 			return max(1, power)
 		_:
@@ -284,7 +286,8 @@ func _append_unit_target_cells(result: Array[Vector2i], unit: BattleUnitState, b
 		if mode == "ally" and target_unit.team != unit.team:
 			continue
 		if _manhattan(unit.character.grid_position, target_unit.character.grid_position) <= skill_range:
-			result.append(target_unit.character.grid_position)
+			if _has_line_of_sight(unit, target_unit.character.grid_position, battle_state):
+				result.append(target_unit.character.grid_position)
 
 
 func _resolve_target_unit(unit: BattleUnitState, target_type: String, target_cell: Vector2i, battle_state: BattleState) -> BattleUnitState:
@@ -308,3 +311,16 @@ func _unit_matches_target_type(unit: BattleUnitState, target_unit: BattleUnitSta
 			return target_unit.team == unit.team
 		_:
 			return false
+
+
+func _has_line_of_sight(unit: BattleUnitState, target_cell: Vector2i, battle_state: BattleState) -> bool:
+	if unit == null or battle_state == null or battle_state.grid == null:
+		return false
+
+	if target_cell == unit.character.grid_position:
+		return true
+
+	if battle_state.grid.has_method("has_line_of_sight"):
+		return bool(battle_state.grid.has_line_of_sight(unit.character.grid_position, target_cell))
+
+	return true

@@ -15,13 +15,13 @@ var last_result: ActionResult
 
 func start_dialogue(action_actor: CharacterEntity, action_speaker: CharacterEntity, dialogue_source: String) -> ActionResult:
 	if action_actor == null or not is_instance_valid(action_actor):
-		return ActionResult.failed("TalkAction", "", "Dialogue requires an actor.")
+		return ActionResult.failed("TalkAction", "", "对话需要有效的角色。")
 	if action_speaker == null or not is_instance_valid(action_speaker):
-		return ActionResult.failed("TalkAction", action_actor.character_id, "Dialogue requires a speaker.")
+		return ActionResult.failed("TalkAction", action_actor.character_id, "对话需要说话对象。")
 
 	var loaded_dialogue: Dictionary = _read_dialogue(dialogue_source)
 	if loaded_dialogue.is_empty():
-		return ActionResult.failed("TalkAction", action_actor.character_id, "Dialogue resource could not be loaded.")
+		return ActionResult.failed("TalkAction", action_actor.character_id, "无法加载对话资源。")
 
 	actor = action_actor
 	speaker = action_speaker
@@ -42,7 +42,7 @@ func start_dialogue(action_actor: CharacterEntity, action_speaker: CharacterEnti
 		"speaker_id": speaker.character_id,
 		"dialogue_id": dialogue_id,
 	})
-	result.add_feedback("Started dialogue with %s." % speaker.display_name)
+	result.add_feedback("开始与 %s 对话。" % speaker.display_name)
 	last_result = result
 
 	dialogue_started.emit(speaker.character_id, speaker.display_name)
@@ -52,9 +52,9 @@ func start_dialogue(action_actor: CharacterEntity, action_speaker: CharacterEnti
 
 func choose_option(option_id: String) -> ActionResult:
 	if not active:
-		return ActionResult.failed("DialogueOption", "", "No dialogue is active.")
+		return ActionResult.failed("DialogueOption", "", "当前没有正在进行的对话。")
 	if not _has_dialogue_participants():
-		var failed_result: ActionResult = ActionResult.failed("DialogueOption", _actor_id(), "Dialogue participants are no longer available.")
+		var failed_result: ActionResult = ActionResult.failed("DialogueOption", _actor_id(), "对话参与者已经不可用。")
 		_end_dialogue(failed_result)
 		return failed_result
 
@@ -81,31 +81,31 @@ func choose_option(option_id: String) -> ActionResult:
 		_apply_option_results(option, result)
 
 		if bool(option.get("end", false)):
-			result.add_feedback("Dialogue ended.")
+			result.add_feedback("对话结束。")
 			ActionSystem.publish_result(result)
 			_end_dialogue(result)
 			return result
 
 		var next_node_id: String = str(option.get("next", ""))
 		if next_node_id.is_empty():
-			result.add_feedback("Dialogue ended.")
+			result.add_feedback("对话结束。")
 			ActionSystem.publish_result(result)
 			_end_dialogue(result)
 			return result
 
 		current_node_id = next_node_id
-		result.add_feedback("Selected: %s" % str(option.get("text", option_id)))
+		result.add_feedback("选择：%s" % str(option.get("text", option_id)))
 		last_result = result
 		ActionSystem.publish_result(result)
 		dialogue_node_changed.emit(get_current_state())
 		return result
 
-	return ActionResult.failed("DialogueOption", actor.character_id, "Dialogue option is not available: %s" % option_id)
+	return ActionResult.failed("DialogueOption", actor.character_id, "对话选项不可用：%s" % option_id)
 
 
 func cancel_dialogue() -> ActionResult:
 	if not active:
-		return ActionResult.failed("DialogueCancel", "", "No dialogue is active.")
+		return ActionResult.failed("DialogueCancel", "", "当前没有正在进行的对话。")
 
 	var result: ActionResult = ActionResult.succeeded("DialogueCancel", _actor_id(), {
 		"speaker_id": _speaker_id(),
@@ -117,7 +117,7 @@ func cancel_dialogue() -> ActionResult:
 		"speaker_id": _speaker_id(),
 		"dialogue_id": dialogue_id,
 	})
-	result.add_feedback("Dialogue cancelled.")
+	result.add_feedback("对话已取消。")
 	_end_dialogue(result)
 	return result
 

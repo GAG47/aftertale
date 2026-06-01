@@ -1,0 +1,33 @@
+{
+  "id": "debug_training_dummy",
+  "display_name": "训练假人",
+  "character_kind": "enemy",
+  "attributes": {
+    "level": 1,
+    "strength": 3,
+    "agility": 2,
+    "intellect": 1,
+    "vitality": 4
+  },
+  "identity": {
+    "age": 0,
+    "species": "construct",
+    "gender": "none",
+    "origin": "test_clearing",
+    "occupation": "training target",
+    "personality": "silent"
+  },
+  "faction_id": "field_neutral",
+  "relation_slots": {
+    "personal": {},
+    "faction": {}
+  },
+  "skills": [
+    "basic_attack",
+    "guard"
+  ],
+  "is_player_controlled": false,
+  "is_interactable": false,
+  "is_combatable": true,
+  "blocks_movement": true
+}

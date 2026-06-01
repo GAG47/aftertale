@@ -16,10 +16,10 @@ func check() -> ActionResult:
 
 	var object: LocationObject = _get_target_object()
 	if object == null:
-		return _failure("InspectAction requires a target object.")
+		return _failure("调查需要指定目标物体。")
 
 	if not object.is_inspectable:
-		return _failure("%s cannot be inspected." % object.display_name)
+		return _failure("%s 不能调查。" % object.display_name)
 
 	return _success()
 
@@ -32,7 +32,7 @@ func execute() -> ActionResult:
 	var result: ActionResult = _success()
 	if bool(target.get("empty", false)):
 		var target_cell: Vector2i = target.get("target_cell", Vector2i.ZERO) as Vector2i
-		result.add_feedback("There is nothing notable at %s." % target_cell)
+		result.add_feedback("%s 没有什么值得注意的东西。" % target_cell)
 		return result
 
 	var object: LocationObject = _get_target_object()

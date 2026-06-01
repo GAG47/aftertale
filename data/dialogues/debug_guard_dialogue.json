@@ -4,7 +4,7 @@
   "start_node": "greeting",
   "nodes": {
     "greeting": {
-      "text": "这里是 Test Clearing。我负责证明不同 NPC 可以挂不同的对话资源。",
+      "text": "这里是测试空地。我负责证明不同 NPC 可以挂不同的对话资源。",
       "conditions": [],
       "options": [
         {
@@ -14,7 +14,7 @@
         },
         {
           "id": "ask_guard",
-          "text": "你会战斗吗？",
+          "text": "现在可以验证战斗吗？",
           "next": "combat"
         },
         {
@@ -35,7 +35,7 @@
       ]
     },
     "combat": {
-      "text": "我的角色标记是可战斗，但战斗系统还没接入。规则比冲动重要。",
+      "text": "可以。空地东南角有训练假人，面对它按下互动键会进入战棋战斗。技能、行动点、视线、装备属性和战斗结果都会走规则层。",
       "options": [
         {
           "id": "back",

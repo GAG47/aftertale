@@ -27,9 +27,10 @@ static func from_character(source_character: CharacterEntity, team_id: String) -
 	unit.display_name = source_character.display_name
 	unit.team = team_id
 	unit.speed = unit._read_speed(source_character)
-	unit.max_hp = max(1, int(source_character.attributes.get("max_hp", int(source_character.attributes.get("vitality", 1)) * 4)))
+	var effective_attributes: Dictionary = source_character.get_effective_attributes()
+	unit.max_hp = max(1, int(effective_attributes.get("max_hp", int(effective_attributes.get("vitality", 1)) * 4)))
 	unit.hp = clampi(int(source_character.attributes.get("hp", unit.max_hp)), 0, unit.max_hp)
-	unit.max_action_points = max(1, int(source_character.attributes.get("action_points", 2)))
+	unit.max_action_points = max(1, int(effective_attributes.get("action_points", 2)))
 	unit.action_points = unit.max_action_points
 	unit.skills.clear()
 	for skill_id in source_character.skills:
@@ -151,10 +152,11 @@ func is_active() -> bool:
 
 
 func _read_speed(source_character: CharacterEntity) -> int:
-	if source_character.attributes.has("speed"):
-		return max(1, int(source_character.attributes.get("speed", 1)))
+	var effective_attributes: Dictionary = source_character.get_effective_attributes()
+	if effective_attributes.has("speed"):
+		return max(1, int(effective_attributes.get("speed", 1)))
 
-	return max(1, int(source_character.attributes.get("agility", 1)))
+	return max(1, int(effective_attributes.get("agility", 1)))
 
 
 func _has_character() -> bool:

@@ -21,20 +21,20 @@ func _ready() -> void:
 
 func accept_quest(quest_id: String, actor: CharacterEntity) -> ActionResult:
 	if quest_id.is_empty():
-		return ActionResult.failed("AcceptQuestAction", _actor_id(actor), "AcceptQuestAction requires a quest_id.")
+		return ActionResult.failed("AcceptQuestAction", _actor_id(actor), "接受任务需要任务 ID。")
 
 	if not _is_live_actor(actor):
-		return ActionResult.failed("AcceptQuestAction", "", "AcceptQuestAction requires an actor.")
+		return ActionResult.failed("AcceptQuestAction", "", "接受任务需要有效的角色。")
 
 	if not quest_definitions.has(quest_id):
-		return ActionResult.failed("AcceptQuestAction", actor.character_id, "Unknown quest: %s" % quest_id)
+		return ActionResult.failed("AcceptQuestAction", actor.character_id, "未知任务：%s" % quest_id)
 
 	if quest_states.has(quest_id):
 		var existing_state: QuestState = quest_states[quest_id] as QuestState
 		if existing_state.status == QuestState.STATUS_ACTIVE:
-			return ActionResult.failed("AcceptQuestAction", actor.character_id, "Quest is already active: %s" % quest_id)
+			return ActionResult.failed("AcceptQuestAction", actor.character_id, "任务已经在进行中：%s" % quest_id)
 		if existing_state.status == QuestState.STATUS_COMPLETED:
-			return ActionResult.failed("AcceptQuestAction", actor.character_id, "Quest is already completed: %s" % quest_id)
+			return ActionResult.failed("AcceptQuestAction", actor.character_id, "任务已经完成：%s" % quest_id)
 
 	var definition: Dictionary = quest_definitions[quest_id] as Dictionary
 	var failed_requirement: String = _get_failed_requirement(definition, actor)
@@ -55,7 +55,7 @@ func accept_quest(quest_id: String, actor: CharacterEntity) -> ActionResult:
 		"quest_id": quest_id,
 		"actor_id": actor.character_id,
 	})
-	result.add_feedback("Accepted quest: %s." % state.display_name)
+	result.add_feedback("接受任务：%s。" % state.display_name)
 
 	quest_accepted.emit(quest_id)
 	return result
@@ -63,11 +63,11 @@ func accept_quest(quest_id: String, actor: CharacterEntity) -> ActionResult:
 
 func fail_quest(quest_id: String, reason: String) -> ActionResult:
 	if not quest_states.has(quest_id):
-		return ActionResult.failed("QuestFail", "", "Cannot fail unknown quest: %s" % quest_id)
+		return ActionResult.failed("QuestFail", "", "不能让未知任务失败：%s" % quest_id)
 
 	var state: QuestState = quest_states[quest_id] as QuestState
 	if state.status != QuestState.STATUS_ACTIVE:
-		return ActionResult.failed("QuestFail", "", "Quest is not active: %s" % quest_id)
+		return ActionResult.failed("QuestFail", "", "任务不在进行中：%s" % quest_id)
 
 	state.fail(reason)
 	quest_failed.emit(quest_id, reason)
@@ -78,7 +78,7 @@ func fail_quest(quest_id: String, reason: String) -> ActionResult:
 		"quest_id": quest_id,
 		"reason": reason,
 	})
-	result.add_feedback("Quest failed: %s." % state.display_name)
+	result.add_feedback("任务失败：%s。" % state.display_name)
 	return result
 
 
@@ -221,7 +221,7 @@ func _get_failed_requirement(definition: Dictionary, actor: CharacterEntity) -> 
 	for requirement_value in requirements:
 		var requirement: Dictionary = requirement_value as Dictionary
 		if not _requirement_met(requirement, definition, actor):
-			return str(requirement.get("failure_text", "Quest requirements are not met."))
+			return str(requirement.get("failure_text", "任务条件尚未满足。"))
 
 	return ""
 
@@ -325,7 +325,7 @@ func _complete_quest(state: QuestState, owner: CharacterEntity) -> void:
 	})
 	for change in reward_changes:
 		result.add_world_change(change)
-	result.add_feedback("Quest completed: %s." % state.display_name)
+	result.add_feedback("任务完成：%s。" % state.display_name)
 	ActionSystem.publish_result(result)
 
 
@@ -395,7 +395,7 @@ func _publish_objective_completed(state: QuestState, objective_id: String, owner
 		"objective_id": objective_id,
 		"actor_id": _actor_id(owner),
 	})
-	result.add_feedback("Quest objective completed: %s." % objective_id)
+	result.add_feedback("任务目标完成：%s。" % objective_id)
 	ActionSystem.publish_result(result)
 
 

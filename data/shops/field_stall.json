@@ -1,7 +1,7 @@
 {
   "id": "field_stall",
-  "display_name": "Field Stall",
-  "description": "A simple public stall used for early selling and buying rules.",
+  "display_name": "田边摊位",
+  "description": "一个简易的公共摊位，用来验证早期买卖规则。",
   "sell_offers": [
     { "item_id": "debug_apple", "price": 3 },
     { "item_id": "debug_stick", "price": 1 },

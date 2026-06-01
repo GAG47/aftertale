@@ -40,6 +40,15 @@ var is_defeated: bool = false
 var inventory: Inventory
 var equipment_slots: EquipmentSlots
 var location_root: Node
+var _movement_tween: Tween
+var _battle_presentation_active: bool = false
+var _battle_presentation_current: bool = false
+var _battle_presentation_team: String = ""
+var _battle_presentation_hp: int = 0
+var _battle_presentation_max_hp: int = 1
+var _battle_presentation_ap: int = 0
+var _battle_presentation_max_ap: int = 1
+var _battle_presentation_status: String = ""
 
 
 func configure(definition: Dictionary, spawn_data: Dictionary, parent_location: Node) -> void:
@@ -125,7 +134,7 @@ func get_runtime_state() -> Dictionary:
 		"max_hp": max_hp,
 		"is_defeated": is_defeated,
 		"inventory": inventory.get_runtime_state() if inventory != null else {},
-		"equipment_slots": equipment_slots.get_summary() if equipment_slots != null else {},
+		"equipment_slots": equipment_slots.get_runtime_state() if equipment_slots != null else {},
 	}
 
 
@@ -148,7 +157,10 @@ func apply_runtime_state(state: Dictionary) -> void:
 
 	var equipment_state: Dictionary = state.get("equipment_slots", {}) as Dictionary
 	if equipment_slots != null and not equipment_state.is_empty():
-		equipment_slots.slots.merge(equipment_state, true)
+		if equipment_state.has("equipped_items"):
+			equipment_slots.apply_runtime_state(equipment_state)
+		else:
+			equipment_slots.slots.merge(equipment_state, true)
 
 	queue_redraw()
 
@@ -159,7 +171,7 @@ func set_grid_position(new_cell: Vector2i) -> void:
 
 	var previous_cell: Vector2i = grid_position
 	grid_position = new_cell
-	_update_world_position()
+	_update_world_position(true)
 	grid_position_changed.emit(character_id, previous_cell, grid_position)
 
 
@@ -185,6 +197,29 @@ func set_combat_stats(new_hp: int, new_max_hp: int, defeated: bool) -> void:
 	attributes["max_hp"] = max_hp
 	attributes["hp"] = hp
 	attributes["defeated"] = is_defeated
+	queue_redraw()
+
+
+func set_battle_presentation(summary: Dictionary, is_current: bool) -> void:
+	_battle_presentation_active = true
+	_battle_presentation_current = is_current
+	_battle_presentation_team = str(summary.get("team", ""))
+	_battle_presentation_hp = int(summary.get("hp", hp))
+	_battle_presentation_max_hp = max(1, int(summary.get("max_hp", max_hp)))
+	_battle_presentation_ap = int(summary.get("action_points", 0))
+	_battle_presentation_max_ap = max(1, int(summary.get("max_action_points", 1)))
+	_battle_presentation_status = str(summary.get("status_text", ""))
+	queue_redraw()
+
+
+func clear_battle_presentation() -> void:
+	if not _battle_presentation_active:
+		return
+
+	_battle_presentation_active = false
+	_battle_presentation_current = false
+	_battle_presentation_team = ""
+	_battle_presentation_status = ""
 	queue_redraw()
 
 
@@ -223,45 +258,281 @@ func get_summary() -> Dictionary:
 		"max_hp": max_hp,
 		"is_defeated": is_defeated,
 		"inventory": inventory.get_summary() if inventory != null else [],
-		"equipment_slots": equipment_slots.get_summary() if equipment_slots != null else {},
+		"equipment_slots": equipment_slots.get_detailed_summary() if equipment_slots != null else {},
+		"effective_attributes": get_effective_attributes(),
 	}
 
 
-func _update_world_position() -> void:
-	if location_root != null and location_root.has_method("grid_to_world"):
-		position = location_root.grid_to_world(grid_position)
+func get_effective_attributes() -> Dictionary:
+	var effective: Dictionary = attributes.duplicate(true)
+	if equipment_slots == null:
+		return effective
+
+	var bonuses: Dictionary = equipment_slots.get_attribute_bonuses()
+	for key in bonuses.keys():
+		var attribute_id: String = str(key)
+		effective[attribute_id] = int(effective.get(attribute_id, 0)) + int(bonuses[key])
+
+	if bonuses.has("vitality") and not bonuses.has("max_hp"):
+		effective["max_hp"] = int(effective.get("max_hp", max_hp)) + int(bonuses["vitality"]) * 4
+
+	return effective
+
+
+func get_equipment_bonus_summary() -> Dictionary:
+	if equipment_slots == null:
+		return {}
+
+	return equipment_slots.get_attribute_bonuses()
+
+
+func _update_world_position(animated: bool = false) -> void:
+	if location_root == null or not location_root.has_method("grid_to_world"):
+		return
+
+	var target_position: Vector2 = location_root.grid_to_world(grid_position)
+	if not animated or not is_inside_tree():
+		position = target_position
+		return
+
+	if _movement_tween != null and _movement_tween.is_valid():
+		_movement_tween.kill()
+
+	_movement_tween = create_tween()
+	_movement_tween.set_trans(Tween.TRANS_SINE)
+	_movement_tween.set_ease(Tween.EASE_OUT)
+	_movement_tween.tween_property(self, "position", target_position, 0.14)
 
 
 func _draw() -> void:
-	var radius: float = 10.0
-	var body_color: Color = _get_debug_color()
-	draw_circle(Vector2.ZERO, radius, body_color)
-	draw_arc(Vector2.ZERO, radius + 2.0, 0.0, TAU, 24, Color(0.1, 0.1, 0.1), 2.0)
-	draw_line(Vector2.ZERO, _facing_vector() * 16.0, Color(0.05, 0.05, 0.05), 2.0)
+	_draw_token_shadow()
+	_draw_token_base()
+
+	if _is_training_dummy():
+		_draw_training_dummy_token()
+	else:
+		_draw_character_token()
+
+	_draw_facing_marker()
 
 	if is_interactable:
-		draw_circle(Vector2(8.0, -8.0), 3.0, Color(1.0, 0.95, 0.35))
+		_draw_status_badge(Vector2(10.0, -13.0), Color(1.0, 0.90, 0.28), Color(0.36, 0.26, 0.06))
 
 	if is_combatable:
-		draw_circle(Vector2(-8.0, -8.0), 3.0, Color(0.9, 0.2, 0.2))
+		_draw_status_badge(Vector2(-10.0, -13.0), Color(0.92, 0.22, 0.18), Color(0.34, 0.06, 0.04))
 
 	if is_defeated:
-		draw_line(Vector2(-8.0, -8.0), Vector2(8.0, 8.0), Color.BLACK, 2.0)
-		draw_line(Vector2(8.0, -8.0), Vector2(-8.0, 8.0), Color.BLACK, 2.0)
+		draw_line(Vector2(-9.0, -12.0), Vector2(9.0, 7.0), Color(0.10, 0.08, 0.06), 2.4)
+		draw_line(Vector2(9.0, -12.0), Vector2(-9.0, 7.0), Color(0.10, 0.08, 0.06), 2.4)
+
+	if _battle_presentation_active:
+		_draw_battle_presentation()
 
 
 func _get_debug_color() -> Color:
 	match character_kind:
 		KIND_PLAYER:
-			return Color(0.95, 0.95, 1.0)
+			return Color(0.48, 0.67, 0.92)
 		KIND_NPC:
-			return Color(0.25, 0.55, 0.95)
+			if _occupation() == "guard":
+				return Color(0.44, 0.52, 0.62)
+			return Color(0.43, 0.68, 0.50)
 		KIND_ENEMY:
-			return Color(0.9, 0.2, 0.2)
+			return Color(0.74, 0.30, 0.24)
 		KIND_COMPANION:
-			return Color(0.25, 0.85, 0.45)
+			return Color(0.46, 0.70, 0.56)
 		_:
-			return Color(0.7, 0.7, 0.7)
+			return Color(0.62, 0.60, 0.55)
+
+
+func _draw_token_shadow() -> void:
+	_draw_ellipse(Vector2(0.0, 9.0), Vector2(25.0, 7.0), Color(0.0, 0.0, 0.0, 0.20))
+
+
+func _draw_token_base() -> void:
+	var base_color: Color = _get_base_color()
+	_draw_ellipse(Vector2(0.0, 6.0), Vector2(24.0, 12.0), Color(base_color.r, base_color.g, base_color.b, 0.86))
+	_draw_ellipse_outline(Vector2(0.0, 6.0), Vector2(24.0, 12.0), Color(0.08, 0.07, 0.06, 0.36), 1.3)
+
+
+func _draw_character_token() -> void:
+	var body_color: Color = _get_debug_color()
+	var trim_color: Color = _get_trim_color()
+	var skin_color: Color = Color(0.91, 0.77, 0.62)
+	var hair_color: Color = _get_hair_color()
+
+	_draw_ellipse(Vector2(0.0, 4.5), Vector2(13.5, 14.0), body_color)
+	_draw_ellipse_outline(Vector2(0.0, 4.5), Vector2(13.5, 14.0), Color(0.08, 0.07, 0.06, 0.50), 1.2)
+	draw_line(Vector2(-4.5, 1.0), Vector2(4.5, 1.0), trim_color, 1.4)
+
+	draw_circle(Vector2(0.0, -7.5), 8.2, skin_color)
+	draw_arc(Vector2(0.0, -7.5), 8.3, 0.0, TAU, 24, Color(0.08, 0.07, 0.06, 0.52), 1.2)
+	_draw_hair(hair_color)
+	_draw_face_marks()
+
+
+func _draw_training_dummy_token() -> void:
+	var wood: Color = Color(0.70, 0.46, 0.22)
+	var dark: Color = Color(0.24, 0.13, 0.06)
+	draw_line(Vector2(0.0, 8.0), Vector2(0.0, -13.0), dark, 4.8)
+	draw_line(Vector2(0.0, 8.0), Vector2(0.0, -13.0), wood, 3.0)
+	draw_line(Vector2(-9.0, -2.0), Vector2(9.0, -2.0), dark, 4.2)
+	draw_line(Vector2(-9.0, -2.0), Vector2(9.0, -2.0), Color(0.82, 0.60, 0.32), 2.5)
+	draw_circle(Vector2(0.0, -13.0), 6.8, Color(0.78, 0.56, 0.29))
+	draw_arc(Vector2(0.0, -13.0), 7.0, 0.0, TAU, 20, dark, 1.4)
+	draw_line(Vector2(-3.0, -14.5), Vector2(-0.8, -12.2), dark, 1.2)
+	draw_line(Vector2(3.0, -14.5), Vector2(0.8, -12.2), dark, 1.2)
+
+
+func _draw_hair(hair_color: Color) -> void:
+	var hair := PackedVector2Array([
+		Vector2(-7.5, -9.0),
+		Vector2(-4.5, -15.0),
+		Vector2(2.0, -16.2),
+		Vector2(7.2, -11.0),
+		Vector2(5.5, -6.6),
+		Vector2(-6.2, -6.4),
+	])
+	draw_polygon(hair, _solid_colors(hair.size(), hair_color))
+
+
+func _draw_face_marks() -> void:
+	if facing == FACING_UP:
+		return
+
+	var eye_y: float = -7.6
+	var eye_offset: float = 2.8
+	if facing == FACING_LEFT:
+		draw_circle(Vector2(-eye_offset, eye_y), 0.9, Color(0.12, 0.10, 0.09))
+	elif facing == FACING_RIGHT:
+		draw_circle(Vector2(eye_offset, eye_y), 0.9, Color(0.12, 0.10, 0.09))
+	else:
+		draw_circle(Vector2(-eye_offset, eye_y), 0.9, Color(0.12, 0.10, 0.09))
+		draw_circle(Vector2(eye_offset, eye_y), 0.9, Color(0.12, 0.10, 0.09))
+
+
+func _draw_facing_marker() -> void:
+	var direction: Vector2 = _facing_vector()
+	var perpendicular: Vector2 = Vector2(-direction.y, direction.x)
+	var tip: Vector2 = direction * 17.0 + Vector2(0.0, 2.0)
+	var base: Vector2 = direction * 11.0 + Vector2(0.0, 2.0)
+	var marker := PackedVector2Array([
+		tip,
+		base + perpendicular * 3.5,
+		base - perpendicular * 3.5,
+	])
+	draw_polygon(marker, _solid_colors(marker.size(), Color(1.0, 0.86, 0.28, 0.96)))
+	draw_polyline(PackedVector2Array([marker[0], marker[1], marker[2], marker[0]]), Color(0.32, 0.24, 0.05, 0.70), 1.1)
+
+
+func _draw_status_badge(center: Vector2, fill: Color, outline: Color) -> void:
+	draw_circle(center, 3.5, fill)
+	draw_arc(center, 3.7, 0.0, TAU, 14, outline, 1.0)
+
+
+func _draw_battle_presentation() -> void:
+	var team_color: Color = Color(0.42, 0.72, 1.0, 0.88)
+	if _battle_presentation_team == BattleUnitState.TEAM_ENEMY:
+		team_color = Color(1.0, 0.30, 0.24, 0.88)
+
+	_draw_ellipse_outline(Vector2(0.0, 6.0), Vector2(28.0, 15.0), team_color, 2.0)
+	if _battle_presentation_current:
+		draw_arc(Vector2.ZERO, 18.0, -PI * 0.72, -PI * 0.28, 12, Color(1.0, 0.88, 0.22, 0.98), 2.6)
+
+	_draw_small_bar(
+		Vector2(-13.0, -23.0),
+		Vector2(26.0, 3.2),
+		_battle_presentation_hp,
+		_battle_presentation_max_hp,
+		Color(0.82, 0.20, 0.18, 0.96)
+	)
+	_draw_small_bar(
+		Vector2(-13.0, -18.5),
+		Vector2(26.0, 2.6),
+		_battle_presentation_ap,
+		_battle_presentation_max_ap,
+		Color(0.32, 0.62, 1.0, 0.95)
+	)
+
+	if not _battle_presentation_status.is_empty():
+		draw_circle(Vector2(13.0, -18.0), 3.2, Color(0.65, 0.48, 0.95, 0.96))
+		draw_arc(Vector2(13.0, -18.0), 3.4, 0.0, TAU, 12, Color(0.18, 0.10, 0.28, 0.70), 1.0)
+
+
+func _draw_small_bar(origin: Vector2, size: Vector2, value: int, max_value: int, fill_color: Color) -> void:
+	var background := Rect2(origin, size)
+	draw_rect(background, Color(0.05, 0.04, 0.03, 0.58), true)
+	var ratio: float = clampf(float(value) / float(max(1, max_value)), 0.0, 1.0)
+	var fill_rect := Rect2(origin + Vector2(0.8, 0.8), Vector2(max(0.0, (size.x - 1.6) * ratio), max(0.0, size.y - 1.6)))
+	draw_rect(fill_rect, fill_color, true)
+
+
+func _get_base_color() -> Color:
+	match character_kind:
+		KIND_PLAYER:
+			return Color(0.48, 0.62, 0.86)
+		KIND_ENEMY:
+			return Color(0.78, 0.38, 0.32)
+		KIND_COMPANION:
+			return Color(0.43, 0.70, 0.54)
+		_:
+			if _occupation() == "guard":
+				return Color(0.46, 0.50, 0.56)
+			return Color(0.54, 0.68, 0.47)
+
+
+func _get_trim_color() -> Color:
+	match character_kind:
+		KIND_PLAYER:
+			return Color(0.98, 0.91, 0.45)
+		KIND_ENEMY:
+			return Color(0.36, 0.12, 0.10)
+		_:
+			if _occupation() == "guard":
+				return Color(0.82, 0.76, 0.58)
+			return Color(0.96, 0.84, 0.48)
+
+
+func _get_hair_color() -> Color:
+	if character_kind == KIND_PLAYER:
+		return Color(0.28, 0.25, 0.22)
+	if _occupation() == "guard":
+		return Color(0.20, 0.19, 0.18)
+	return Color(0.45, 0.31, 0.17)
+
+
+func _is_training_dummy() -> bool:
+	return character_id.find("dummy") >= 0 or str(identity.get("species", "")) == "construct"
+
+
+func _occupation() -> String:
+	return str(identity.get("occupation", ""))
+
+
+func _solid_colors(count: int, color: Color) -> PackedColorArray:
+	var colors := PackedColorArray()
+	for _index in range(count):
+		colors.append(color)
+	return colors
+
+
+func _draw_ellipse(center: Vector2, size: Vector2, color: Color) -> void:
+	var points := PackedVector2Array()
+	var steps: int = 24
+	for index in range(steps):
+		var angle: float = TAU * float(index) / float(steps)
+		points.append(center + Vector2(cos(angle) * size.x * 0.5, sin(angle) * size.y * 0.5))
+	draw_polygon(points, _solid_colors(points.size(), color))
+
+
+func _draw_ellipse_outline(center: Vector2, size: Vector2, color: Color, width: float) -> void:
+	var points := PackedVector2Array()
+	var steps: int = 24
+	for index in range(steps):
+		var angle: float = TAU * float(index) / float(steps)
+		points.append(center + Vector2(cos(angle) * size.x * 0.5, sin(angle) * size.y * 0.5))
+	points.append(points[0])
+	draw_polyline(points, color, width)
 
 
 func _facing_vector() -> Vector2:

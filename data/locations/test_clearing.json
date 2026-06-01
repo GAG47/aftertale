@@ -1,24 +1,24 @@
 {
   "id": "test_clearing",
-  "display_name": "Test Clearing",
+  "display_name": "测试空地",
   "size": { "width": 10, "height": 8 },
   "tile_size": 32,
   "default_entrance": "west_gate",
   "tiles": [
     "gggggggggg",
-    "gmmmmmmggg",
-    "gmpgggmpgg",
-    "epggggmpgg",
-    "gmpgggmpgg",
-    "gmmmmmmggg",
+    "gggmmmgggg",
+    "ggpppppggg",
+    "epppppppgg",
+    "ggpppppggg",
+    "gggmmmgggg",
     "gggggggggg",
     "gggggggggg"
   ],
   "terrain": {
-    "g": { "id": "grass", "label": "Grass", "walkable": true, "color": "#5fa35f" },
-    "p": { "id": "path", "label": "Path", "walkable": true, "color": "#b5975d" },
-    "m": { "id": "stone", "label": "Stone", "walkable": false, "color": "#777777" },
-    "e": { "id": "exit", "label": "Exit", "walkable": true, "color": "#c8b642" }
+    "g": { "id": "grass", "label": "草地", "walkable": true, "color": "#5fa35f" },
+    "p": { "id": "path", "label": "小路", "walkable": true, "color": "#b5975d" },
+    "m": { "id": "stone", "label": "石块", "walkable": false, "color": "#777777" },
+    "e": { "id": "exit", "label": "出口", "walkable": true, "color": "#c8b642" }
   },
   "entrances": [
     { "id": "west_gate", "grid_position": { "x": 1, "y": 3 }, "facing": "right" }
@@ -34,22 +34,22 @@
   "objects": [
     {
       "id": "clearing_marker",
-      "display_name": "Clearing Marker",
-      "grid_position": { "x": 5, "y": 3 },
+      "display_name": "空地石标",
+      "grid_position": { "x": 5, "y": 2 },
       "blocks_movement": true,
       "kind": "inspectable",
       "is_inspectable": true,
-      "inspect_text": "A stone marker points back toward the test field."
+      "inspect_text": "石标指向来时的测试田地。"
     },
     {
       "id": "fallen_stick",
-      "display_name": "Fallen Stick",
-      "grid_position": { "x": 4, "y": 3 },
+      "display_name": "掉落木枝",
+      "grid_position": { "x": 4, "y": 4 },
       "blocks_movement": false,
       "kind": "drop",
       "is_inspectable": true,
       "is_pickable": true,
-      "inspect_text": "A dry stick lies beside the path.",
+      "inspect_text": "一根干木枝躺在路边。",
       "item": {
         "source": "res://data/items/debug_stick.json",
         "quantity": 2
@@ -57,14 +57,14 @@
     },
     {
       "id": "old_switch",
-      "display_name": "Old Switch",
-      "grid_position": { "x": 7, "y": 3 },
+      "display_name": "旧开关",
+      "grid_position": { "x": 7, "y": 4 },
       "blocks_movement": true,
       "kind": "usable",
       "is_inspectable": true,
       "is_usable": true,
-      "inspect_text": "An old switch is mounted on a stone post.",
-      "use_feedback": "The old switch clicks. No connected mechanism exists yet."
+      "inspect_text": "一个旧开关装在石柱上。",
+      "use_feedback": "旧开关咔哒一声。它作为可使用对象记录反馈，但不会直接改写世界事实。"
     }
   ],
   "characters": [
@@ -78,6 +78,12 @@
       "id": "debug_guard",
       "source": "res://data/characters/debug_guard.json",
       "grid_position": { "x": 6, "y": 3 },
+      "facing": "left"
+    },
+    {
+      "id": "debug_training_dummy",
+      "source": "res://data/characters/debug_training_dummy.json",
+      "grid_position": { "x": 8, "y": 6 },
       "facing": "left"
     }
   ],

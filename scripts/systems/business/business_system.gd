@@ -66,7 +66,7 @@ func get_market_summary(actor: CharacterEntity, shop_id: String = "") -> Diction
 	if shop.is_empty():
 		return {
 			"shop_id": resolved_shop_id,
-			"display_name": "No Market",
+			"display_name": "没有市场",
 			"currency": _actor_currency(actor),
 			"sell_offers": [],
 			"buy_offers": [],
@@ -149,18 +149,18 @@ func get_buy_offers(actor: CharacterEntity, shop_id: String = "") -> Array[Dicti
 
 func get_trade_failure(actor: CharacterEntity, shop_id: String, trade_type: String, item_id: String, quantity: int) -> String:
 	if actor == null or not is_instance_valid(actor):
-		return "Trade requires an actor."
+		return "交易需要有效的角色。"
 	if actor.inventory == null:
-		return "%s has no inventory." % actor.display_name
+		return "%s 没有背包。" % actor.display_name
 
 	var shop: Dictionary = _resolve_shop(shop_id)
 	if shop.is_empty():
-		return "Unknown shop."
+		return "未知商店。"
 
 	if item_id.is_empty():
-		return "Trade requires an item."
+		return "交易需要指定物品。"
 	if quantity <= 0:
-		return "Trade quantity must be positive."
+		return "交易数量必须大于 0。"
 
 	match trade_type:
 		"sell":
@@ -168,7 +168,7 @@ func get_trade_failure(actor: CharacterEntity, shop_id: String, trade_type: Stri
 		"buy":
 			return _get_buy_failure(actor, shop, item_id, quantity)
 		_:
-			return "Unknown trade type: %s" % trade_type
+			return "未知交易类型：%s" % trade_type
 
 
 func execute_trade(actor: CharacterEntity, shop_id: String, trade_type: String, item_id: String, quantity: int) -> ActionResult:
@@ -189,7 +189,7 @@ func execute_trade(actor: CharacterEntity, shop_id: String, trade_type: String, 
 		"buy":
 			return _execute_buy(actor, resolved_shop, item_id, quantity)
 
-	return ActionResult.failed("TradeAction", _actor_id(actor), "Unknown trade type: %s" % trade_type, {})
+	return ActionResult.failed("TradeAction", _actor_id(actor), "未知交易类型：%s" % trade_type, {})
 
 
 func get_save_state() -> Dictionary:
@@ -230,7 +230,7 @@ func _execute_sell(actor: CharacterEntity, shop: Dictionary, item_id: String, qu
 		"unit_price": unit_price,
 		"currency_delta": payout,
 	})
-	result.add_feedback("%s sold %d x %s for %d coins." % [actor.display_name, quantity, item_name, payout])
+	result.add_feedback("%s 出售了 %d 个 %s，获得 %d 金币。" % [actor.display_name, quantity, item_name, payout])
 	trade_completed.emit(actor.character_id, shop_id, "sell")
 	return result
 
@@ -264,7 +264,7 @@ func _execute_buy(actor: CharacterEntity, shop: Dictionary, item_id: String, qua
 		"unit_price": unit_price,
 		"currency_delta": -cost,
 	})
-	result.add_feedback("%s bought %d x %s for %d coins." % [actor.display_name, quantity, item_name, cost])
+	result.add_feedback("%s 购买了 %d 个 %s，花费 %d 金币。" % [actor.display_name, quantity, item_name, cost])
 	trade_completed.emit(actor.character_id, shop_id, "buy")
 	return result
 
@@ -272,14 +272,14 @@ func _execute_buy(actor: CharacterEntity, shop: Dictionary, item_id: String, qua
 func _get_sell_failure(actor: CharacterEntity, shop: Dictionary, item_id: String, quantity: int) -> String:
 	var sell_price_table: Dictionary = _get_sell_price_table(shop)
 	if not sell_price_table.has(item_id):
-		return "This shop does not buy %s." % item_id
+		return "这家商店不收购 %s。" % item_id
 	var stack: ItemStack = actor.inventory.get_first_stack(item_id)
 	if stack == null:
-		return "%s does not have enough %s." % [actor.display_name, item_id]
+		return "%s 没有足够的 %s。" % [actor.display_name, item_id]
 	if not bool(stack.definition.get("sellable", true)):
-		return "%s cannot be sold." % stack.display_name
+		return "%s 不能出售。" % stack.display_name
 	if actor.inventory.count_item(item_id) < quantity:
-		return "%s does not have enough %s." % [actor.display_name, item_id]
+		return "%s 没有足够的 %s。" % [actor.display_name, item_id]
 
 	return ""
 
@@ -287,18 +287,18 @@ func _get_sell_failure(actor: CharacterEntity, shop: Dictionary, item_id: String
 func _get_buy_failure(actor: CharacterEntity, shop: Dictionary, item_id: String, quantity: int) -> String:
 	var offer: Dictionary = _get_buy_offer(shop, item_id)
 	if offer.is_empty():
-		return "This shop does not sell %s." % item_id
+		return "这家商店不出售 %s。" % item_id
 
 	var item_definition: Dictionary = _load_offer_item_definition(offer)
 	if item_definition.is_empty():
-		return "Shop item could not be loaded: %s" % item_id
+		return "无法加载商店物品：%s" % item_id
 
 	var unit_price: int = max(1, int(offer.get("price", item_definition.get("base_value", 1))))
 	var cost: int = unit_price * quantity
 	if get_currency(actor.character_id) < cost:
-		return "Need %d coins." % cost
+		return "需要 %d 金币。" % cost
 	if not actor.inventory.can_add_item(item_definition, quantity):
-		return "%s cannot carry the purchase." % actor.display_name
+		return "%s 装不下这次购买的物品。" % actor.display_name
 
 	return ""
 

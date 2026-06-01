@@ -14,26 +14,26 @@ func check() -> ActionResult:
 	if target.has("object"):
 		var object: LocationObject = _get_target_object()
 		if object == null:
-			return _failure("UseItemAction requires a target object.")
+			return _failure("使用需要指定目标物体。")
 
 		if not object.is_usable:
-			return _failure("%s cannot be used." % object.display_name)
+			return _failure("%s 不能使用。" % object.display_name)
 
 		return _success()
 
 	var item_id: String = str(target.get("item_id", ""))
 	if item_id.is_empty():
-		return _failure("UseItemAction requires an item_id or a target object.")
+		return _failure("使用需要指定物品或目标物体。")
 
 	if actor.inventory == null:
-		return _failure("%s has no inventory." % actor.display_name)
+		return _failure("%s 没有背包。" % actor.display_name)
 
 	var stack: ItemStack = actor.inventory.get_first_stack(item_id)
 	if stack == null:
-		return _failure("%s does not have %s." % [actor.display_name, item_id])
+		return _failure("%s 没有 %s。" % [actor.display_name, item_id])
 
 	if not stack.is_usable:
-		return _failure("%s cannot be used." % stack.display_name)
+		return _failure("%s 不能使用。" % stack.display_name)
 
 	return _success()
 

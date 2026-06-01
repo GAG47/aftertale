@@ -1,12 +1,18 @@
 {
   "id": "debug_tool",
-  "display_name": "Debug Tool",
+  "display_name": "测试工具",
   "item_type": "tool",
   "stackable": false,
   "max_stack": 1,
   "base_value": 8,
   "sellable": true,
   "is_usable": false,
+  "equippable": true,
+  "equipment_slot": "tool",
+  "attribute_bonuses": {
+    "strength": 1,
+    "vitality": 1
+  },
   "use_feedback": "",
-  "description": "A simple test tool assembled from sticks. It proves crafting can create equipment-like items."
+  "description": "用木枝组装出的简易测试工具，用来证明制作系统可以创建类似装备的物品。"
 }

@@ -1,12 +1,12 @@
 {
   "id": "debug_apple",
-  "display_name": "Debug Apple",
+  "display_name": "测试苹果",
   "item_type": "consumable",
   "stackable": true,
   "max_stack": 20,
   "base_value": 3,
   "sellable": true,
   "is_usable": true,
-  "use_feedback": "The apple is crisp. Attribute effects are not connected yet.",
-  "description": "A bright test apple used to verify pickup and inventory rules."
+  "use_feedback": "苹果很脆。属性效果还没有接入。",
+  "description": "一个颜色鲜亮的测试苹果，用来验证拾取和背包规则。"
 }

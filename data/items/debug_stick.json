@@ -1,6 +1,6 @@
 {
   "id": "debug_stick",
-  "display_name": "Debug Stick",
+  "display_name": "测试木枝",
   "item_type": "material",
   "stackable": true,
   "max_stack": 10,
@@ -8,5 +8,5 @@
   "sellable": true,
   "is_usable": false,
   "use_feedback": "",
-  "description": "A plain stick. It is useful mostly because rules can count it."
+  "description": "一根普通木枝。它最大的用途是证明规则能正确统计材料。"
 }

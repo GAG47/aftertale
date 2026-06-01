@@ -13,23 +13,23 @@ func check() -> ActionResult:
 
 	var object: LocationObject = _get_target_object()
 	if object == null:
-		return _failure("PickUpAction requires a target object.")
+		return _failure("拾取需要指定目标物体。")
 
 	if not object.is_pickable:
-		return _failure("%s cannot be picked up." % object.display_name)
+		return _failure("%s 不能拾取。" % object.display_name)
 
 	if object.item_definition.is_empty() or object.item_quantity <= 0:
-		return _failure("%s has no item stack to pick up." % object.display_name)
+		return _failure("%s 没有可拾取的物品。" % object.display_name)
 
 	if actor.inventory == null:
-		return _failure("%s has no inventory." % actor.display_name)
+		return _failure("%s 没有背包。" % actor.display_name)
 
 	if not actor.inventory.can_add_item(object.item_definition, object.item_quantity):
-		return _failure("%s cannot carry %s." % [actor.display_name, object.display_name])
+		return _failure("%s 装不下 %s。" % [actor.display_name, object.display_name])
 
 	var location_root: Node = _get_location_root()
 	if location_root == null or not location_root.has_method("remove_location_object"):
-		return _failure("PickUpAction requires a location root that can remove objects.")
+		return _failure("拾取需要当前地点支持移除物体。")
 
 	return _success()
 
@@ -60,7 +60,7 @@ func execute() -> ActionResult:
 		"type": "location_object_removed",
 		"object_id": object.object_id,
 	})
-	result.add_feedback("%s picked up %d x %s." % [actor.display_name, quantity, item_name])
+	result.add_feedback("%s 拾取了 %d 个 %s。" % [actor.display_name, quantity, item_name])
 	return result
 
 
