@@ -15,6 +15,7 @@ func _ready() -> void:
 	ui_root.bind_managers(GameState, SceneLoader, TimeManager, InputManager, ActionSystem, DialogueRunner, QuestSystem, RelationSystem)
 
 	GameState.start_new_session()
+	PartySystem.reset_party("debug_player")
 	GameState.set_scene_context("boot", "none")
 
 	TimeManager.reset()
@@ -36,6 +37,18 @@ func _on_load_requested() -> void:
 
 
 func _on_cancel_requested() -> void:
+	if ui_root.is_character_visible():
+		ui_root.close_character_panel()
+		return
+
+	if ui_root.is_quest_visible():
+		ui_root.close_quest_panel()
+		return
+
+	if ui_root.is_inventory_visible():
+		ui_root.close_inventory()
+		return
+
 	if ui_root.is_game_menu_visible():
 		ui_root.close_game_menu()
 		return

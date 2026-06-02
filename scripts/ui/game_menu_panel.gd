@@ -261,7 +261,7 @@ func _refresh_system() -> void:
 	if not SaveManager.last_message.is_empty():
 		save_state = SaveManager.last_message
 	save_status_label.text = save_state
-	controls_label.text = "移动：WASD / 方向键\n互动：E / Enter\n休息或等待：R\n菜单：Tab / I\n调试：F3\n保存：F5\n读取：F9"
+	controls_label.text = "移动：WASD / 方向键\n互动：E / Enter\n休息或等待：R\n背包：B\n菜单：Tab / I\n调试：F3\n保存：F5\n读取：F9"
 
 
 func _get_location_summary() -> Dictionary:

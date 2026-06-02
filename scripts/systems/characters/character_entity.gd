@@ -25,6 +25,7 @@ const FACING_RIGHT := "right"
 @export var is_combatable: bool = false
 @export var blocks_movement: bool = true
 @export_file("*.json") var dialogue_source: String = ""
+@export_file("*.json") var definition_source: String = ""
 
 var attributes: Dictionary = {}
 var identity: Dictionary = {}
@@ -49,11 +50,16 @@ var _battle_presentation_max_hp: int = 1
 var _battle_presentation_ap: int = 0
 var _battle_presentation_max_ap: int = 1
 var _battle_presentation_status: String = ""
+var _battle_effect_color: Color = Color.TRANSPARENT
+var _battle_effect_alpha: float = 0.0
+var _battle_effect_radius: float = 18.0
+var _battle_effect_tween: Tween
 
 
 func configure(definition: Dictionary, spawn_data: Dictionary, parent_location: Node) -> void:
 	character_id = str(spawn_data.get("id", definition.get("id", character_id)))
-	display_name = str(definition.get("display_name", character_id))
+	display_name = str(spawn_data.get("display_name", definition.get("display_name", character_id)))
+	definition_source = str(spawn_data.get("source", definition.get("source", definition_source)))
 	character_kind = str(spawn_data.get("character_kind", definition.get("character_kind", character_kind)))
 	facing = str(spawn_data.get("facing", definition.get("facing", facing)))
 	faction_id = str(spawn_data.get("faction_id", definition.get("faction_id", faction_id)))
@@ -117,6 +123,7 @@ func configure(definition: Dictionary, spawn_data: Dictionary, parent_location: 
 
 	equipment_slots = EquipmentSlots.new()
 	equipment_slots.configure(character_id)
+	_apply_default_equipment(definition, spawn_data)
 
 	var position_data: Dictionary = spawn_data.get("grid_position", {}) as Dictionary
 	grid_position = Vector2i(int(position_data.get("x", grid_position.x)), int(position_data.get("y", grid_position.y)))
@@ -200,6 +207,36 @@ func set_combat_stats(new_hp: int, new_max_hp: int, defeated: bool) -> void:
 	queue_redraw()
 
 
+func play_battle_effect(effect_type: String) -> void:
+	var color: Color = Color(1.0, 0.88, 0.28, 0.85)
+	match effect_type:
+		"damage":
+			color = Color(1.0, 0.24, 0.18, 0.88)
+		"heal":
+			color = Color(0.35, 1.0, 0.48, 0.82)
+		"status":
+			color = Color(0.74, 0.52, 1.0, 0.82)
+		"skill":
+			color = Color(1.0, 0.82, 0.28, 0.88)
+
+	_battle_effect_color = color
+	_battle_effect_alpha = color.a
+	_battle_effect_radius = 13.0
+	if _battle_effect_tween != null and _battle_effect_tween.is_valid():
+		_battle_effect_tween.kill()
+	if not is_inside_tree():
+		queue_redraw()
+		return
+
+	_battle_effect_tween = create_tween()
+	_battle_effect_tween.set_parallel(true)
+	_battle_effect_tween.tween_property(self, "_battle_effect_alpha", 0.0, 0.38).from(color.a)
+	_battle_effect_tween.tween_property(self, "_battle_effect_radius", 27.0, 0.38).from(13.0)
+	_battle_effect_tween.tween_callback(queue_redraw).set_delay(0.38)
+	_battle_effect_tween.tween_method(_set_battle_effect_progress, 0.0, 1.0, 0.38)
+	queue_redraw()
+
+
 func set_battle_presentation(summary: Dictionary, is_current: bool) -> void:
 	_battle_presentation_active = true
 	_battle_presentation_current = is_current
@@ -247,6 +284,7 @@ func get_summary() -> Dictionary:
 		"is_combatable": is_combatable,
 		"blocks_movement": blocks_movement,
 		"dialogue_source": dialogue_source,
+		"definition_source": definition_source,
 		"attributes": attributes,
 		"identity": identity,
 		"relation_slots": relation_slots,
@@ -327,6 +365,9 @@ func _draw() -> void:
 
 	if _battle_presentation_active:
 		_draw_battle_presentation()
+
+	if _battle_effect_alpha > 0.01:
+		_draw_battle_effect()
 
 
 func _get_debug_color() -> Color:
@@ -459,6 +500,19 @@ func _draw_battle_presentation() -> void:
 		draw_arc(Vector2(13.0, -18.0), 3.4, 0.0, TAU, 12, Color(0.18, 0.10, 0.28, 0.70), 1.0)
 
 
+func _draw_battle_effect() -> void:
+	var color: Color = _battle_effect_color
+	color.a = _battle_effect_alpha
+	draw_arc(Vector2.ZERO, _battle_effect_radius, 0.0, TAU, 28, color, 2.6)
+	var fill_color: Color = color
+	fill_color.a *= 0.18
+	draw_circle(Vector2.ZERO, _battle_effect_radius * 0.55, fill_color)
+
+
+func _set_battle_effect_progress(_value: float) -> void:
+	queue_redraw()
+
+
 func _draw_small_bar(origin: Vector2, size: Vector2, value: int, max_value: int, fill_color: Color) -> void:
 	var background := Rect2(origin, size)
 	draw_rect(background, Color(0.05, 0.04, 0.03, 0.58), true)
@@ -565,3 +619,39 @@ func get_facing_cell() -> Vector2i:
 
 func _read_item_definition(resource_path: String) -> Dictionary:
 	return DefinitionLoader.load_item(resource_path)
+
+
+func _apply_default_equipment(definition: Dictionary, spawn_data: Dictionary) -> void:
+	if equipment_slots == null:
+		return
+
+	var equipment_data: Variant = spawn_data.get("default_equipment", definition.get("default_equipment", definition.get("equipment", {})))
+	if typeof(equipment_data) == TYPE_DICTIONARY:
+		var equipment_dict: Dictionary = equipment_data as Dictionary
+		for slot_id_value in equipment_dict.keys():
+			var slot_id: String = str(slot_id_value)
+			var source: String = _equipment_source_from_value(equipment_dict.get(slot_id_value))
+			_set_default_equipment_from_source(slot_id, source)
+	elif typeof(equipment_data) == TYPE_ARRAY:
+		var equipment_rows: Array = equipment_data as Array
+		for equipment_value in equipment_rows:
+			var equipment_entry: Dictionary = equipment_value as Dictionary
+			var slot_id: String = str(equipment_entry.get("slot_id", equipment_entry.get("slot", "")))
+			var source: String = str(equipment_entry.get("source", ""))
+			_set_default_equipment_from_source(slot_id, source)
+
+
+func _equipment_source_from_value(value: Variant) -> String:
+	if typeof(value) == TYPE_DICTIONARY:
+		var entry: Dictionary = value as Dictionary
+		return str(entry.get("source", ""))
+	return str(value)
+
+
+func _set_default_equipment_from_source(slot_id: String, source: String) -> void:
+	if slot_id.is_empty() or source.is_empty():
+		return
+	var item_definition: Dictionary = _read_item_definition(source)
+	if item_definition.is_empty():
+		return
+	equipment_slots.set_default_item(item_definition, slot_id)

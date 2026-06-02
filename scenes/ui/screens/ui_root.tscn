@@ -1,4 +1,4 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/ui_root.gd" id="1_ui_root"]
 [ext_resource type="PackedScene" path="res://scenes/ui/components/debug_panel.tscn" id="2_debug_panel"]
@@ -6,6 +6,9 @@
 [ext_resource type="Script" path="res://scripts/ui/message_log_panel.gd" id="4_message_log"]
 [ext_resource type="Script" path="res://scripts/ui/game_menu_panel.gd" id="5_game_menu"]
 [ext_resource type="Script" path="res://scripts/ui/battle_hud_panel.gd" id="6_battle_hud"]
+[ext_resource type="Script" path="res://scripts/ui/inventory_panel.gd" id="7_inventory"]
+[ext_resource type="Script" path="res://scripts/ui/quest_panel.gd" id="8_quest"]
+[ext_resource type="Script" path="res://scripts/ui/character_panel.gd" id="9_character"]
 
 [node name="UIRoot" type="Control"]
 layout_mode = 3
@@ -69,7 +72,7 @@ theme_override_constants/margin_bottom = 6
 
 [node name="InteractionLabel" type="Label" parent="InteractionPanel/MarginContainer"]
 layout_mode = 2
-text = "WASD/方向键移动  E/Enter 互动  Tab/I 菜单"
+text = "WASD/方向键移动  E/Enter 互动  B 背包  Tab/I 菜单"
 horizontal_alignment = 1
 autowrap_mode = 3
 
@@ -109,139 +112,281 @@ offset_bottom = -80.0
 mouse_filter = 0
 script = ExtResource("5_game_menu")
 
-[node name="BattleHudPanel" type="PanelContainer" parent="."]
+[node name="InventoryPanel" type="Control" parent="."]
 visible = false
 layout_mode = 1
-anchors_preset = 12
-anchor_top = 1.0
+anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 28.0
-offset_top = -188.0
-offset_right = -28.0
-offset_bottom = -24.0
 grow_horizontal = 2
-grow_vertical = 0
+grow_vertical = 2
 mouse_filter = 0
+script = ExtResource("7_inventory")
+
+[node name="QuestPanel" type="Control" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+script = ExtResource("8_quest")
+
+[node name="CharacterPanel" type="Control" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+script = ExtResource("9_character")
+
+[node name="BattleHudPanel" type="Control" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
 script = ExtResource("6_battle_hud")
 
-[node name="MarginContainer" type="MarginContainer" parent="BattleHudPanel"]
-layout_mode = 2
-theme_override_constants/margin_left = 12
-theme_override_constants/margin_top = 10
-theme_override_constants/margin_right = 12
-theme_override_constants/margin_bottom = 10
+[node name="TurnOrderPanel" type="PanelContainer" parent="BattleHudPanel"]
+layout_mode = 1
+anchors_preset = 0
+offset_left = 28.0
+offset_top = 28.0
+offset_right = 250.0
+offset_bottom = 304.0
+mouse_filter = 0
 
-[node name="RootRow" type="HBoxContainer" parent="BattleHudPanel/MarginContainer"]
-layout_mode = 2
-theme_override_constants/separation = 12
-
-[node name="UnitPanel" type="PanelContainer" parent="BattleHudPanel/MarginContainer/RootRow"]
-layout_mode = 2
-custom_minimum_size = Vector2(220, 0)
-
-[node name="UnitMargin" type="MarginContainer" parent="BattleHudPanel/MarginContainer/RootRow/UnitPanel"]
+[node name="TurnOrderMargin" type="MarginContainer" parent="BattleHudPanel/TurnOrderPanel"]
 layout_mode = 2
 theme_override_constants/margin_left = 10
 theme_override_constants/margin_top = 8
 theme_override_constants/margin_right = 10
 theme_override_constants/margin_bottom = 8
 
-[node name="UnitBox" type="VBoxContainer" parent="BattleHudPanel/MarginContainer/RootRow/UnitPanel/UnitMargin"]
+[node name="TurnOrderBox" type="VBoxContainer" parent="BattleHudPanel/TurnOrderPanel/TurnOrderMargin"]
 layout_mode = 2
 theme_override_constants/separation = 6
 
-[node name="TitleLabel" type="Label" parent="BattleHudPanel/MarginContainer/RootRow/UnitPanel/UnitMargin/UnitBox"]
+[node name="TurnOrderTitle" type="Label" parent="BattleHudPanel/TurnOrderPanel/TurnOrderMargin/TurnOrderBox"]
+layout_mode = 2
+text = "行动顺序"
+
+[node name="TurnOrderScroll" type="ScrollContainer" parent="BattleHudPanel/TurnOrderPanel/TurnOrderMargin/TurnOrderBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="TurnOrderList" type="VBoxContainer" parent="BattleHudPanel/TurnOrderPanel/TurnOrderMargin/TurnOrderBox/TurnOrderScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 5
+
+[node name="UnitPanel" type="PanelContainer" parent="BattleHudPanel"]
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 28.0
+offset_top = -150.0
+offset_right = 278.0
+offset_bottom = -24.0
+grow_vertical = 0
+mouse_filter = 0
+
+[node name="UnitMargin" type="MarginContainer" parent="BattleHudPanel/UnitPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 8
+
+[node name="UnitBox" type="VBoxContainer" parent="BattleHudPanel/UnitPanel/UnitMargin"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="TitleLabel" type="Label" parent="BattleHudPanel/UnitPanel/UnitMargin/UnitBox"]
 layout_mode = 2
 text = "战斗"
 
-[node name="CurrentLabel" type="Label" parent="BattleHudPanel/MarginContainer/RootRow/UnitPanel/UnitMargin/UnitBox"]
+[node name="CurrentLabel" type="Label" parent="BattleHudPanel/UnitPanel/UnitMargin/UnitBox"]
 layout_mode = 2
 text = "当前单位"
 autowrap_mode = 3
 
-[node name="CurrentVitals" type="VBoxContainer" parent="BattleHudPanel/MarginContainer/RootRow/UnitPanel/UnitMargin/UnitBox"]
+[node name="CurrentVitals" type="VBoxContainer" parent="BattleHudPanel/UnitPanel/UnitMargin/UnitBox"]
 layout_mode = 2
 theme_override_constants/separation = 4
 
-[node name="HPBar" type="ProgressBar" parent="BattleHudPanel/MarginContainer/RootRow/UnitPanel/UnitMargin/UnitBox/CurrentVitals"]
+[node name="HPBar" type="ProgressBar" parent="BattleHudPanel/UnitPanel/UnitMargin/UnitBox/CurrentVitals"]
 layout_mode = 2
 custom_minimum_size = Vector2(0, 18)
 max_value = 20.0
 value = 20.0
 show_percentage = false
 
-[node name="APBar" type="ProgressBar" parent="BattleHudPanel/MarginContainer/RootRow/UnitPanel/UnitMargin/UnitBox/CurrentVitals"]
+[node name="APBar" type="ProgressBar" parent="BattleHudPanel/UnitPanel/UnitMargin/UnitBox/CurrentVitals"]
 layout_mode = 2
 custom_minimum_size = Vector2(0, 16)
 max_value = 2.0
 value = 2.0
 show_percentage = false
 
-[node name="UnitsLabel" type="Label" parent="BattleHudPanel/MarginContainer/RootRow/UnitPanel/UnitMargin/UnitBox"]
+[node name="UnitStatusLabel" type="Label" parent="BattleHudPanel/UnitPanel/UnitMargin/UnitBox"]
 layout_mode = 2
-text = "单位"
+text = "状态"
 autowrap_mode = 3
 
-[node name="SkillPanel" type="PanelContainer" parent="BattleHudPanel/MarginContainer/RootRow"]
-layout_mode = 2
-size_flags_horizontal = 3
+[node name="CommandPanel" type="PanelContainer" parent="BattleHudPanel"]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -232.0
+offset_top = -264.0
+offset_right = -28.0
+offset_bottom = -24.0
+grow_horizontal = 0
+grow_vertical = 0
+mouse_filter = 0
 
-[node name="SkillMargin" type="MarginContainer" parent="BattleHudPanel/MarginContainer/RootRow/SkillPanel"]
+[node name="CommandMargin" type="MarginContainer" parent="BattleHudPanel/CommandPanel"]
 layout_mode = 2
 theme_override_constants/margin_left = 10
 theme_override_constants/margin_top = 8
 theme_override_constants/margin_right = 10
 theme_override_constants/margin_bottom = 8
 
-[node name="SkillBox" type="VBoxContainer" parent="BattleHudPanel/MarginContainer/RootRow/SkillPanel/SkillMargin"]
+[node name="CommandBox" type="VBoxContainer" parent="BattleHudPanel/CommandPanel/CommandMargin"]
+layout_mode = 2
+theme_override_constants/separation = 7
+
+[node name="CommandHintLabel" type="Label" parent="BattleHudPanel/CommandPanel/CommandMargin/CommandBox"]
+layout_mode = 2
+text = "选择行动"
+autowrap_mode = 3
+
+[node name="MoveButton" type="Button" parent="BattleHudPanel/CommandPanel/CommandMargin/CommandBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(170, 34)
+text = "移动"
+
+[node name="SkillsButton" type="Button" parent="BattleHudPanel/CommandPanel/CommandMargin/CommandBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(170, 34)
+text = "技能"
+
+[node name="WaitButton" type="Button" parent="BattleHudPanel/CommandPanel/CommandMargin/CommandBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(170, 34)
+text = "等待"
+
+[node name="StatusButton" type="Button" parent="BattleHudPanel/CommandPanel/CommandMargin/CommandBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(170, 34)
+text = "状态"
+
+[node name="FleeButton" type="Button" parent="BattleHudPanel/CommandPanel/CommandMargin/CommandBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(170, 34)
+text = "逃跑"
+
+[node name="SkillPanel" type="PanelContainer" parent="BattleHudPanel"]
+visible = false
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -346.0
+offset_top = -342.0
+offset_right = -28.0
+offset_bottom = -24.0
+grow_horizontal = 0
+grow_vertical = 0
+mouse_filter = 0
+
+[node name="SkillMargin" type="MarginContainer" parent="BattleHudPanel/SkillPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 8
+
+[node name="SkillBox" type="VBoxContainer" parent="BattleHudPanel/SkillPanel/SkillMargin"]
 layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="HintLabel" type="Label" parent="BattleHudPanel/MarginContainer/RootRow/SkillPanel/SkillMargin/SkillBox"]
+[node name="SkillTitleLabel" type="Label" parent="BattleHudPanel/SkillPanel/SkillMargin/SkillBox"]
 layout_mode = 2
-text = "点击高亮格行动"
-autowrap_mode = 3
+text = "技能"
 
-[node name="SkillDetailLabel" type="Label" parent="BattleHudPanel/MarginContainer/RootRow/SkillPanel/SkillMargin/SkillBox"]
+[node name="SkillDetailLabel" type="Label" parent="BattleHudPanel/SkillPanel/SkillMargin/SkillBox"]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 32)
+custom_minimum_size = Vector2(0, 52)
 text = "技能说明"
 autowrap_mode = 3
 
-[node name="SkillScroll" type="ScrollContainer" parent="BattleHudPanel/MarginContainer/RootRow/SkillPanel/SkillMargin/SkillBox"]
+[node name="SkillScroll" type="ScrollContainer" parent="BattleHudPanel/SkillPanel/SkillMargin/SkillBox"]
 layout_mode = 2
-size_flags_horizontal = 3
 size_flags_vertical = 3
 
-[node name="SkillList" type="HBoxContainer" parent="BattleHudPanel/MarginContainer/RootRow/SkillPanel/SkillMargin/SkillBox/SkillScroll"]
+[node name="SkillList" type="VBoxContainer" parent="BattleHudPanel/SkillPanel/SkillMargin/SkillBox/SkillScroll"]
 layout_mode = 2
-theme_override_constants/separation = 8
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
 
-[node name="CommandPanel" type="PanelContainer" parent="BattleHudPanel/MarginContainer/RootRow"]
+[node name="SkillBackButton" type="Button" parent="BattleHudPanel/SkillPanel/SkillMargin/SkillBox"]
 layout_mode = 2
-custom_minimum_size = Vector2(150, 0)
+custom_minimum_size = Vector2(0, 34)
+text = "返回"
 
-[node name="CommandMargin" type="MarginContainer" parent="BattleHudPanel/MarginContainer/RootRow/CommandPanel"]
+[node name="StatusPanel" type="PanelContainer" parent="BattleHudPanel"]
+visible = false
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -300.0
+offset_top = -236.0
+offset_right = -28.0
+offset_bottom = -24.0
+grow_horizontal = 0
+grow_vertical = 0
+mouse_filter = 0
+
+[node name="StatusMargin" type="MarginContainer" parent="BattleHudPanel/StatusPanel"]
 layout_mode = 2
 theme_override_constants/margin_left = 10
 theme_override_constants/margin_top = 8
 theme_override_constants/margin_right = 10
 theme_override_constants/margin_bottom = 8
 
-[node name="CommandBox" type="VBoxContainer" parent="BattleHudPanel/MarginContainer/RootRow/CommandPanel/CommandMargin"]
+[node name="StatusBox" type="VBoxContainer" parent="BattleHudPanel/StatusPanel/StatusMargin"]
 layout_mode = 2
-theme_override_constants/separation = 10
+theme_override_constants/separation = 8
 
-[node name="WaitButton" type="Button" parent="BattleHudPanel/MarginContainer/RootRow/CommandPanel/CommandMargin/CommandBox"]
+[node name="StatusDetailLabel" type="Label" parent="BattleHudPanel/StatusPanel/StatusMargin/StatusBox"]
 layout_mode = 2
-custom_minimum_size = Vector2(128, 48)
-text = "结束行动"
+text = "状态"
+autowrap_mode = 3
 
-[node name="FleeButton" type="Button" parent="BattleHudPanel/MarginContainer/RootRow/CommandPanel/CommandMargin/CommandBox"]
+[node name="StatusBackButton" type="Button" parent="BattleHudPanel/StatusPanel/StatusMargin/StatusBox"]
 layout_mode = 2
-custom_minimum_size = Vector2(128, 48)
-text = "逃跑"
+custom_minimum_size = Vector2(0, 34)
+text = "返回"
 
 [node name="MarginContainer" type="MarginContainer" parent="GameMenuPanel"]
 layout_mode = 2

@@ -9,6 +9,9 @@ extends Control
 @onready var message_log_panel: MessageLogPanel = $MessageLogPanel
 @onready var debug_panel: DebugPanel = $DebugPanel
 @onready var game_menu_panel: GameMenuPanel = $GameMenuPanel
+@onready var inventory_panel = $InventoryPanel
+@onready var quest_panel = $QuestPanel
+@onready var character_panel = $CharacterPanel
 @onready var battle_hud_panel: BattleHudPanel = $BattleHudPanel
 @onready var dialogue_panel: DialoguePanel = $DialoguePanel
 
@@ -33,6 +36,9 @@ func bind_managers(game_state: Node, scene_loader: Node, time_manager: Node, inp
 	action_system.action_executed.connect(_on_action_result)
 	action_system.action_failed.connect(_on_action_result)
 	_input_manager.menu_toggle_requested.connect(_on_menu_toggle_requested)
+	_input_manager.inventory_toggle_requested.connect(_on_inventory_toggle_requested)
+	_input_manager.quest_toggle_requested.connect(_on_quest_toggle_requested)
+	_input_manager.character_toggle_requested.connect(_on_character_toggle_requested)
 	_dialogue_runner.dialogue_node_changed.connect(_on_dialogue_node_changed)
 	_dialogue_runner.dialogue_ended.connect(_on_dialogue_ended)
 	BattleSystem.battle_started.connect(_on_battle_changed)
@@ -44,12 +50,20 @@ func bind_managers(game_state: Node, scene_loader: Node, time_manager: Node, inp
 	_scene_loader.scene_changed.connect(_on_scene_changed)
 	dialogue_panel.option_selected.connect(_on_dialogue_option_selected)
 	game_menu_panel.close_requested.connect(_on_game_menu_close_requested)
+	inventory_panel.close_requested.connect(_on_inventory_close_requested)
+	inventory_panel.inventory_action_requested.connect(_on_inventory_action_requested)
+	quest_panel.close_requested.connect(_on_quest_close_requested)
+	character_panel.close_requested.connect(_on_character_close_requested)
+	character_panel.character_action_requested.connect(_on_character_action_requested)
 	battle_hud_panel.wait_requested.connect(_on_battle_wait_requested)
 	battle_hud_panel.flee_requested.connect(_on_battle_flee_requested)
 	battle_hud_panel.skill_selected.connect(_on_battle_skill_selected)
+	battle_hud_panel.move_selected.connect(_on_battle_move_selected)
+	battle_hud_panel.turn_unit_selected.connect(_on_battle_turn_unit_selected)
 
 	debug_panel.bind_managers(_game_state, _scene_loader, _time_manager, _input_manager, action_system, _dialogue_runner, quest_system, relation_system)
 	game_menu_panel.bind_context(_scene_loader, quest_system)
+	quest_panel.bind_context(quest_system)
 
 	_refresh_static_labels()
 	_on_time_changed(_time_manager.day, _time_manager.hour, _time_manager.minute)
@@ -73,6 +87,18 @@ func is_game_menu_visible() -> bool:
 	return game_menu_panel.visible
 
 
+func is_inventory_visible() -> bool:
+	return inventory_panel.visible
+
+
+func is_quest_visible() -> bool:
+	return quest_panel.visible
+
+
+func is_character_visible() -> bool:
+	return character_panel.visible
+
+
 func toggle_game_menu() -> void:
 	if game_menu_panel.visible:
 		close_game_menu()
@@ -85,6 +111,12 @@ func open_game_menu() -> void:
 	if _game_state.current_mode != GameState.GameMode.EXPLORATION and _game_state.current_mode != GameState.GameMode.MENU:
 		return
 
+	if inventory_panel.visible:
+		inventory_panel.close_panel()
+	if quest_panel.visible:
+		quest_panel.close_panel()
+	if character_panel.visible:
+		character_panel.close_panel()
 	_mode_before_menu = _game_state.current_mode
 	_game_state.set_mode(GameState.GameMode.MENU)
 	game_menu_panel.open_menu()
@@ -103,8 +135,127 @@ func close_game_menu() -> void:
 	message_log_panel.add_message("关闭菜单。")
 
 
+func toggle_inventory() -> void:
+	if inventory_panel.visible:
+		close_inventory()
+		return
+
+	open_inventory()
+
+
+func open_inventory() -> void:
+	if _game_state.current_mode != GameState.GameMode.EXPLORATION and _game_state.current_mode != GameState.GameMode.MENU:
+		return
+
+	var actor: CharacterEntity = _get_controlled_character()
+	if actor == null:
+		return
+
+	if game_menu_panel.visible:
+		game_menu_panel.close_menu()
+	if quest_panel.visible:
+		quest_panel.close_panel()
+	if character_panel.visible:
+		character_panel.close_panel()
+	_mode_before_menu = _game_state.current_mode
+	_game_state.set_mode(GameState.GameMode.MENU)
+	inventory_panel.open_for_actor(actor)
+	message_log_panel.add_message("打开背包。")
+
+
+func close_inventory() -> void:
+	if not inventory_panel.visible:
+		return
+
+	inventory_panel.close_panel()
+	var restore_mode: int = _mode_before_menu
+	if restore_mode == GameState.GameMode.MENU:
+		restore_mode = GameState.GameMode.EXPLORATION
+	_game_state.set_mode(restore_mode)
+	message_log_panel.add_message("关闭背包。")
+
+
+func toggle_quest_panel() -> void:
+	if quest_panel.visible:
+		close_quest_panel()
+		return
+
+	open_quest_panel()
+
+
+func open_quest_panel() -> void:
+	if _game_state.current_mode != GameState.GameMode.EXPLORATION and _game_state.current_mode != GameState.GameMode.MENU:
+		return
+
+	if game_menu_panel.visible:
+		game_menu_panel.close_menu()
+	if inventory_panel.visible:
+		inventory_panel.close_panel()
+	if character_panel.visible:
+		character_panel.close_panel()
+	_mode_before_menu = _game_state.current_mode
+	_game_state.set_mode(GameState.GameMode.MENU)
+	quest_panel.open_panel()
+	message_log_panel.add_message("打开任务。")
+
+
+func close_quest_panel() -> void:
+	if not quest_panel.visible:
+		return
+
+	quest_panel.close_panel()
+	var restore_mode: int = _mode_before_menu
+	if restore_mode == GameState.GameMode.MENU:
+		restore_mode = GameState.GameMode.EXPLORATION
+	_game_state.set_mode(restore_mode)
+	message_log_panel.add_message("关闭任务。")
+
+
+func toggle_character_panel() -> void:
+	if character_panel.visible:
+		close_character_panel()
+		return
+
+	open_character_panel()
+
+
+func open_character_panel() -> void:
+	if _game_state.current_mode != GameState.GameMode.EXPLORATION and _game_state.current_mode != GameState.GameMode.MENU:
+		return
+
+	var actor: CharacterEntity = _get_controlled_character()
+	if actor == null:
+		return
+
+	if game_menu_panel.visible:
+		game_menu_panel.close_menu()
+	if inventory_panel.visible:
+		inventory_panel.close_panel()
+	if quest_panel.visible:
+		quest_panel.close_panel()
+	_mode_before_menu = _game_state.current_mode
+	_game_state.set_mode(GameState.GameMode.MENU)
+	character_panel.open_for_actor(actor)
+	message_log_panel.add_message("打开角色。")
+
+
+func close_character_panel() -> void:
+	if not character_panel.visible:
+		return
+
+	character_panel.close_panel()
+	var restore_mode: int = _mode_before_menu
+	if restore_mode == GameState.GameMode.MENU:
+		restore_mode = GameState.GameMode.EXPLORATION
+	_game_state.set_mode(restore_mode)
+	message_log_panel.add_message("关闭角色。")
+
+
 func clear_transient_ui() -> void:
 	game_menu_panel.close_menu()
+	inventory_panel.close_panel()
+	quest_panel.close_panel()
+	character_panel.close_panel()
 	dialogue_panel.hide_panel()
 	battle_hud_panel.hide_panel()
 	message_log_panel.visible = true
@@ -158,8 +309,56 @@ func _on_menu_toggle_requested() -> void:
 	toggle_game_menu()
 
 
+func _on_inventory_toggle_requested() -> void:
+	toggle_inventory()
+
+
+func _on_quest_toggle_requested() -> void:
+	toggle_quest_panel()
+
+
+func _on_character_toggle_requested() -> void:
+	toggle_character_panel()
+
+
 func _on_game_menu_close_requested() -> void:
 	close_game_menu()
+
+
+func _on_inventory_close_requested() -> void:
+	close_inventory()
+
+
+func _on_quest_close_requested() -> void:
+	close_quest_panel()
+
+
+func _on_character_close_requested() -> void:
+	close_character_panel()
+
+
+func _on_inventory_action_requested(action_type: String, target: Dictionary) -> void:
+	var actor: CharacterEntity = _get_controlled_character()
+	if actor == null:
+		return
+
+	var action: GameAction = ActionSystem.create_action(action_type, actor, target, {
+		"source": "inventory",
+	})
+	ActionSystem.submit(action)
+	inventory_panel.open_for_actor(actor)
+
+
+func _on_character_action_requested(action_type: String, target: Dictionary) -> void:
+	var actor: CharacterEntity = _get_controlled_character()
+	if actor == null:
+		return
+
+	var action: GameAction = ActionSystem.create_action(action_type, actor, target, {
+		"source": "character",
+	})
+	ActionSystem.submit(action)
+	character_panel.refresh()
 
 
 func _on_game_loaded(_save_path: String) -> void:
@@ -175,6 +374,14 @@ func _on_load_failed(_save_path: String, reason: String) -> void:
 func _on_action_result(_action_type: String, _actor_id: String, result: ActionResult) -> void:
 	_refresh_battle_hud()
 	_refresh_interaction_prompt()
+	if inventory_panel.visible:
+		var actor: CharacterEntity = _get_controlled_character()
+		if actor != null:
+			inventory_panel.open_for_actor(actor)
+	if quest_panel.visible:
+		quest_panel.refresh()
+	if character_panel.visible:
+		character_panel.refresh()
 	if not _should_show_result(result):
 		return
 
@@ -219,6 +426,19 @@ func _on_battle_skill_selected(skill_id: String) -> void:
 	_refresh_battle_hud()
 
 
+func _on_battle_move_selected() -> void:
+	if not BattleSystem.is_player_turn():
+		return
+
+	BattleSystem.select_tactical_mode(BattleSystem.TACTICAL_MODE_MOVE)
+	_refresh_battle_hud()
+
+
+func _on_battle_turn_unit_selected(character_id: String) -> void:
+	if BattleSystem.select_player_turn_unit(character_id):
+		_refresh_battle_hud()
+
+
 func _refresh_battle_hud() -> void:
 	if not BattleSystem.is_active():
 		battle_hud_panel.hide_panel()
@@ -228,7 +448,9 @@ func _refresh_battle_hud() -> void:
 		BattleSystem.get_summary(),
 		BattleSystem.is_player_turn(),
 		BattleSystem.get_current_unit_skill_summaries(),
-		BattleSystem.get_selected_skill_id()
+		BattleSystem.get_selected_skill_id(),
+		BattleSystem.get_tactical_mode(),
+		BattleSystem.consume_reopen_skill_menu_requested()
 	)
 
 
@@ -246,10 +468,18 @@ func _refresh_interaction_prompt() -> void:
 			prompt = str(_scene_loader.current_scene.get_interaction_prompt())
 
 	if prompt.is_empty():
-		prompt = "WASD/方向键移动  E/Enter 互动  Tab/I 菜单  R 等待"
+		prompt = "WASD/方向键移动  E/Enter 互动  B 背包  J 任务  C 角色  Tab/I 菜单  R 等待"
 
 	interaction_label.text = prompt
 	interaction_panel.visible = true
+
+
+func _get_controlled_character() -> CharacterEntity:
+	if _scene_loader == null or _scene_loader.current_scene == null or not is_instance_valid(_scene_loader.current_scene):
+		return null
+	if not _scene_loader.current_scene.has_method("get_controlled_character"):
+		return null
+	return _scene_loader.current_scene.get_controlled_character() as CharacterEntity
 
 
 func _should_show_result(result: ActionResult) -> bool:

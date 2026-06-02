@@ -5,6 +5,8 @@ signal action_checked(action_type: String, actor_id: String, result: ActionResul
 signal action_executed(action_type: String, actor_id: String, result: ActionResult)
 signal action_failed(action_type: String, actor_id: String, result: ActionResult)
 
+const RecruitCompanionActionScript := preload("res://scripts/systems/actions/recruit_companion_action.gd")
+
 var last_result: ActionResult
 var action_history: Array[Dictionary] = []
 
@@ -74,6 +76,8 @@ func create_action(action_type: String, actor: CharacterEntity, target: Dictiona
 			action = CraftAction.new()
 		"AcceptQuestAction":
 			action = AcceptQuestAction.new()
+		"RecruitCompanionAction":
+			action = RecruitCompanionActionScript.new()
 		_:
 			action = UnsupportedAction.new()
 			action.action_type = action_type

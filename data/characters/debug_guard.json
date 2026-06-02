@@ -29,6 +29,9 @@
     "first_aid",
     "guard"
   ],
+  "default_equipment": {
+    "weapon": "res://data/items/debug_training_sword.json"
+  },
   "dialogue_source": "res://data/dialogues/debug_guard_dialogue.json",
   "is_player_controlled": false,
   "is_interactable": true,

@@ -5,7 +5,8 @@ signal option_selected(option_id: String)
 
 @onready var speaker_label: Label = $MarginContainer/VBoxContainer/SpeakerLabel
 @onready var text_label: Label = $MarginContainer/VBoxContainer/TextLabel
-@onready var options_box: VBoxContainer = $MarginContainer/VBoxContainer/OptionsBox
+@onready var options_scroll: ScrollContainer = $MarginContainer/VBoxContainer/OptionsScroll
+@onready var options_box: VBoxContainer = $MarginContainer/VBoxContainer/OptionsScroll/OptionsBox
 
 
 func _ready() -> void:
@@ -20,6 +21,7 @@ func show_state(state: Dictionary) -> void:
 	speaker_label.text = str(state.get("speaker_name", ""))
 	text_label.text = str(state.get("text", ""))
 	_clear_options()
+	options_scroll.scroll_vertical = 0
 
 	var options: Array = state.get("options", []) as Array
 	for index in range(options.size()):

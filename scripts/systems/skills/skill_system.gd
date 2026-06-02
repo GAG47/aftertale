@@ -37,11 +37,19 @@ func get_skill_summaries_for_unit(unit: BattleUnitState, battle_state: BattleSta
 			continue
 
 		var target_cell: Vector2i = unit.character.grid_position
-		var target_cells: Array[Vector2i] = get_target_cells(unit, str(skill.get("id", "")), battle_state)
+		var target_cells: Array[Vector2i] = get_range_cells(unit, str(skill.get("id", "")), battle_state)
 		if not target_cells.is_empty():
 			target_cell = target_cells[0]
 
 		var failure_reason: String = get_skill_failure(unit, str(skill.get("id", "")), target_cell, battle_state)
+		for candidate_cell in target_cells:
+			var candidate_failure: String = get_skill_failure(unit, str(skill.get("id", "")), candidate_cell, battle_state)
+			if candidate_failure.is_empty():
+				target_cell = candidate_cell
+				failure_reason = ""
+				break
+			if failure_reason.is_empty():
+				failure_reason = candidate_failure
 		var summary: Dictionary = skill.duplicate(true)
 		summary["can_use"] = failure_reason.is_empty()
 		summary["failure_reason"] = failure_reason
@@ -78,6 +86,39 @@ func get_target_cells(unit: BattleUnitState, skill_id: String, battle_state: Bat
 	return result
 
 
+func get_range_cells(unit: BattleUnitState, skill_id: String, battle_state: BattleState) -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	if unit == null or not unit.is_active() or battle_state == null or not battle_state.active or battle_state.grid == null:
+		return result
+
+	var skill: Dictionary = get_skill(skill_id)
+	if skill.is_empty():
+		return result
+
+	var origin: Vector2i = unit.character.grid_position
+	var target_type: String = str(skill.get("target_type", "enemy"))
+	var skill_range: int = max(0, int(skill.get("range", 1)))
+	if target_type == "self":
+		result.append(origin)
+		return result
+
+	for x in range(origin.x - skill_range, origin.x + skill_range + 1):
+		for y in range(origin.y - skill_range, origin.y + skill_range + 1):
+			var cell: Vector2i = Vector2i(x, y)
+			if not battle_state.grid.in_bounds(cell):
+				continue
+			var distance: int = _manhattan(origin, cell)
+			if distance > skill_range:
+				continue
+			if distance == 0 and target_type != "ally_or_self":
+				continue
+			if not _has_line_of_sight(unit, cell, battle_state):
+				continue
+			result.append(cell)
+
+	return result
+
+
 func get_skill_failure(unit: BattleUnitState, skill_id: String, target_cell: Vector2i, battle_state: BattleState) -> String:
 	if unit == null or not unit.is_active():
 		return "技能需要有效的战斗单位。"
@@ -103,6 +144,8 @@ func get_skill_failure(unit: BattleUnitState, skill_id: String, target_cell: Vec
 			return "%s 只能以自己为目标。" % str(skill.get("display_name", skill_id))
 		return ""
 
+	if battle_state.grid != null and not battle_state.grid.in_bounds(target_cell):
+		return "%s 需要有效的目标格。" % str(skill.get("display_name", skill_id))
 	if _manhattan(unit.character.grid_position, target_cell) > skill_range:
 		return "%s 超出射程。" % str(skill.get("display_name", skill_id))
 	if not _has_line_of_sight(unit, target_cell, battle_state):
@@ -110,7 +153,11 @@ func get_skill_failure(unit: BattleUnitState, skill_id: String, target_cell: Vec
 
 	var target_unit: BattleUnitState = battle_state.get_unit_at(target_cell)
 	if target_type == "enemy":
-		if target_unit == null or not target_unit.is_active() or target_unit.team == unit.team:
+		if target_unit == null:
+			if _can_target_empty_cell(skill):
+				return ""
+			return "%s 需要敌方目标。" % str(skill.get("display_name", skill_id))
+		if not target_unit.is_active() or target_unit.team == unit.team:
 			return "%s 需要敌方目标。" % str(skill.get("display_name", skill_id))
 		return ""
 
@@ -249,6 +296,25 @@ func skill_has_effect(skill_id: String, effect_type: String) -> bool:
 	return false
 
 
+func estimate_heal(source: BattleUnitState, skill_id: String) -> int:
+	var skill: Dictionary = get_skill(skill_id)
+	if skill.is_empty():
+		return 0
+
+	var total: int = 0
+	var effects: Array = skill.get("effects", []) as Array
+	for effect_value in effects:
+		var effect: Dictionary = effect_value as Dictionary
+		if str(effect.get("type", "")) == "heal":
+			total += calculate_heal(source, effect)
+
+	return total
+
+
+func can_target_empty_cell(skill_id: String) -> bool:
+	return _can_target_empty_cell(get_skill(skill_id))
+
+
 func format_feedback(template: String, actor_name: String, target_name: String) -> String:
 	var result: String = template
 	result = result.replace("{actor}", actor_name)
@@ -311,6 +377,21 @@ func _unit_matches_target_type(unit: BattleUnitState, target_unit: BattleUnitSta
 			return target_unit.team == unit.team
 		_:
 			return false
+
+
+func _can_target_empty_cell(skill: Dictionary) -> bool:
+	if skill.is_empty():
+		return false
+	if str(skill.get("target_type", "enemy")) != "enemy":
+		return false
+
+	var effects: Array = skill.get("effects", []) as Array
+	for effect_value in effects:
+		var effect: Dictionary = effect_value as Dictionary
+		if str(effect.get("type", "")) == "damage":
+			return true
+
+	return false
 
 
 func _has_line_of_sight(unit: BattleUnitState, target_cell: Vector2i, battle_state: BattleState) -> bool:

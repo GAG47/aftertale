@@ -218,6 +218,10 @@ func _condition_met(condition: Dictionary) -> bool:
 			return not QuestSystem.is_quest_active(str(condition.get("quest_id", "")))
 		"not_quest_completed":
 			return not QuestSystem.is_quest_completed(str(condition.get("quest_id", "")))
+		"party_member":
+			return PartySystem.is_member(_resolve_character_id(str(condition.get("character", "speaker"))))
+		"not_party_member":
+			return not PartySystem.is_member(_resolve_character_id(str(condition.get("character", "speaker"))))
 		"relation_at_least":
 			return RelationSystem.character_metric_at_least(
 				_resolve_character_id(str(condition.get("source", "speaker"))),

@@ -1,113 +1,171 @@
-{
-  "id": "debug_villager_dialogue",
-  "speaker_id": "debug_villager",
-  "start_node": "greeting",
-  "nodes": {
-    "greeting": {
-      "text": "天气不错。你也是来测试这片场景的吗？",
-      "conditions": [],
-      "options": [
-        {
-          "id": "ask_place",
-          "text": "这里是什么地方？",
-          "next": "about_place"
-        },
-        {
-          "id": "ask_work",
-          "text": "你在做什么？",
-          "next": "about_work"
-        },
-        {
-          "id": "accept_apple_request",
-          "text": "有什么我能帮忙的吗？",
-          "conditions": [
-            { "type": "not_quest_active", "quest_id": "debug_apple_request" },
-            { "type": "not_quest_completed", "quest_id": "debug_apple_request" }
-          ],
-          "results": [
-            {
-              "type": "request_action",
-              "action_type": "AcceptQuestAction",
-              "quest_id": "debug_apple_request"
-            }
-          ],
-          "next": "quest_given"
-        },
-        {
-          "id": "apple",
-          "text": "我捡到一个苹果。",
-          "conditions": [
-            { "type": "quest_active", "quest_id": "debug_apple_request" },
-            { "type": "has_item", "item_id": "debug_apple", "quantity": 1 }
-          ],
-          "next": "apple_reply"
-        },
-        {
-          "id": "trusted_chat",
-          "text": "我们现在算是熟人了吗？",
-          "conditions": [
-            { "type": "quest_completed", "quest_id": "debug_apple_request" },
-            { "type": "relation_at_least", "source": "speaker", "target": "actor", "metric": "affinity", "value": 25 },
-            { "type": "relation_at_least", "source": "speaker", "target": "actor", "metric": "trust", "value": 10 }
-          ],
-          "next": "trusted_reply"
-        },
-        {
-          "id": "bye",
-          "text": "先这样。",
-          "end": true
-        }
-      ]
-    },
-    "about_place": {
-      "text": "这里是测试田地。现在它主要负责证明场景、角色、物品和行动系统能正常协作。",
-      "options": [
-        {
-          "id": "back",
-          "text": "我明白了。",
-          "next": "greeting"
-        }
-      ]
-    },
-    "about_work": {
-      "text": "我会按日程在田地附近活动，也会发布请求。现在这片田地已经能串起对话、任务、物品和种植。",
-      "options": [
-        {
-          "id": "back",
-          "text": "辛苦了。",
-          "next": "greeting"
-        }
-      ]
-    },
-    "quest_given": {
-      "text": "那就帮我确认一下吧。附近应该有一个测试苹果，捡到后再告诉我。",
-      "options": [
-        {
-          "id": "back",
-          "text": "交给我。",
-          "next": "greeting"
-        }
-      ]
-    },
-    "apple_reply": {
-      "text": "很好。这样任务接受、物品拾取和对话回报都串起来了。",
-      "options": [
-        {
-          "id": "finish",
-          "text": "任务完成。",
-          "end": true
-        }
-      ]
-    },
-    "trusted_reply": {
-      "text": "算。你至少证明了自己会把事情做完，这在这里很重要。",
-      "options": [
-        {
-          "id": "back",
-          "text": "我会记住的。",
-          "next": "greeting"
-        }
-      ]
-    }
-  }
+﻿{
+    "id":  "debug_villager_dialogue",
+    "speaker_id":  "debug_villager",
+    "start_node":  "greeting",
+    "nodes":  {
+                  "greeting":  {
+                                   "text":  "天气不错。你也是来测试这片场景的吗？",
+                                   "conditions":  [
+
+                                                  ],
+                                   "options":  [
+                                                   {
+                                                       "id":  "ask_place",
+                                                       "text":  "这里是什么地方？",
+                                                       "next":  "about_place"
+                                                   },
+                                                   {
+                                                       "id":  "ask_work",
+                                                       "text":  "你在做什么？",
+                                                       "next":  "about_work"
+                                                   },
+                                                   {
+                                                       "id":  "accept_apple_request",
+                                                       "text":  "有什么我能帮忙的吗？",
+                                                       "conditions":  [
+                                                                          {
+                                                                              "type":  "not_quest_active",
+                                                                              "quest_id":  "debug_apple_request"
+                                                                          },
+                                                                          {
+                                                                              "type":  "not_quest_completed",
+                                                                              "quest_id":  "debug_apple_request"
+                                                                          }
+                                                                      ],
+                                                       "results":  [
+                                                                       {
+                                                                           "type":  "request_action",
+                                                                           "action_type":  "AcceptQuestAction",
+                                                                           "quest_id":  "debug_apple_request"
+                                                                       }
+                                                                   ],
+                                                       "next":  "quest_given"
+                                                   },
+                                                   {
+                                                       "id":  "apple",
+                                                       "text":  "我捡到一个苹果。",
+                                                       "conditions":  [
+                                                                          {
+                                                                              "type":  "quest_active",
+                                                                              "quest_id":  "debug_apple_request"
+                                                                          },
+                                                                          {
+                                                                              "type":  "has_item",
+                                                                              "item_id":  "debug_apple",
+                                                                              "quantity":  1
+                                                                          }
+                                                                      ],
+                                                       "next":  "apple_reply"
+                                                   },
+                                                   {
+                                                       "id":  "trusted_chat",
+                                                       "text":  "我们现在算是熟人了吗？",
+                                                       "conditions":  [
+                                                                          {
+                                                                              "type":  "quest_completed",
+                                                                              "quest_id":  "debug_apple_request"
+                                                                          },
+                                                                          {
+                                                                              "type":  "relation_at_least",
+                                                                              "source":  "speaker",
+                                                                              "target":  "actor",
+                                                                              "metric":  "affinity",
+                                                                              "value":  25
+                                                                          },
+                                                                          {
+                                                                              "type":  "relation_at_least",
+                                                                              "source":  "speaker",
+                                                                              "target":  "actor",
+                                                                              "metric":  "trust",
+                                                                              "value":  10
+                                                                          }
+                                                                      ],
+                                                       "next":  "trusted_reply"
+                                                   },
+                                                   {
+                                                       "id":  "join_party",
+                                                       "text":  "加入我的队伍吧。",
+                                                       "conditions":  [
+                                                                          {
+                                                                              "type":  "not_party_member",
+                                                                              "character":  "speaker"
+                                                                          }
+                                                                      ],
+                                                       "results":  [
+                                                                       {
+                                                                           "type":  "request_action",
+                                                                           "action_type":  "RecruitCompanionAction",
+                                                                           "character_id":  "debug_villager"
+                                                                       }
+                                                                   ],
+                                                       "next":  "joined_party"
+                                                   },
+                                                   {
+                                                       "id":  "bye",
+                                                       "text":  "先这样。",
+                                                       "end":  true
+                                                   }
+                                               ]
+                               },
+                  "about_place":  {
+                                      "text":  "这里是测试田地。现在它主要负责证明场景、角色、物品和行动系统能正常协作。",
+                                      "options":  [
+                                                      {
+                                                          "id":  "back",
+                                                          "text":  "我明白了。",
+                                                          "next":  "greeting"
+                                                      }
+                                                  ]
+                                  },
+                  "about_work":  {
+                                     "text":  "我会按日程在田地附近活动，也会发布请求。现在这片田地已经能串起对话、任务、物品和种植。",
+                                     "options":  [
+                                                     {
+                                                         "id":  "back",
+                                                         "text":  "辛苦了。",
+                                                         "next":  "greeting"
+                                                     }
+                                                 ]
+                                 },
+                  "quest_given":  {
+                                      "text":  "那就帮我确认一下吧。附近应该有一个测试苹果，捡到后再告诉我。",
+                                      "options":  [
+                                                      {
+                                                          "id":  "back",
+                                                          "text":  "交给我。",
+                                                          "next":  "greeting"
+                                                      }
+                                                  ]
+                                  },
+                  "apple_reply":  {
+                                      "text":  "很好。这样任务接受、物品拾取和对话回报都串起来了。",
+                                      "options":  [
+                                                      {
+                                                          "id":  "finish",
+                                                          "text":  "任务完成。",
+                                                          "end":  true
+                                                      }
+                                                  ]
+                                  },
+                  "trusted_reply":  {
+                                        "text":  "算。你至少证明了自己会把事情做完，这在这里很重要。",
+                                        "options":  [
+                                                        {
+                                                            "id":  "back",
+                                                            "text":  "我会记住的。",
+                                                            "next":  "greeting"
+                                                        }
+                                                    ]
+                                    },
+                  "joined_party":  {
+                                       "text":  "好，那我就先加入你的队伍。",
+                                       "options":  [
+                                                       {
+                                                           "id":  "back",
+                                                           "text":  "欢迎加入。",
+                                                           "next":  "greeting"
+                                                       }
+                                                   ]
+                                   }
+              }
 }

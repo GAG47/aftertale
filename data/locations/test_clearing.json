@@ -81,10 +81,36 @@
       "facing": "left"
     },
     {
-      "id": "debug_training_dummy",
+      "id": "debug_training_dummy_melee",
+      "display_name": "近战训练假人",
+      "source": "res://data/characters/debug_training_dummy.json",
+      "grid_position": { "x": 8, "y": 5 },
+      "facing": "left",
+      "skills": [
+        "basic_attack",
+        "guard"
+      ],
+      "attributes": {
+        "strength": 4,
+        "agility": 2,
+        "vitality": 5
+      }
+    },
+    {
+      "id": "debug_training_dummy_ranged",
+      "display_name": "远程训练假人",
       "source": "res://data/characters/debug_training_dummy.json",
       "grid_position": { "x": 8, "y": 6 },
-      "facing": "left"
+      "facing": "left",
+      "skills": [
+        "quick_shot",
+        "guard"
+      ],
+      "attributes": {
+        "strength": 2,
+        "agility": 4,
+        "vitality": 4
+      }
     }
   ],
   "state": {

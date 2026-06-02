@@ -1,48 +1,78 @@
-{
-  "id": "debug_guard_dialogue",
-  "speaker_id": "debug_guard",
-  "start_node": "greeting",
-  "nodes": {
-    "greeting": {
-      "text": "这里是测试空地。我负责证明不同 NPC 可以挂不同的对话资源。",
-      "conditions": [],
-      "options": [
-        {
-          "id": "ask_marker",
-          "text": "那个石标是做什么的？",
-          "next": "marker"
-        },
-        {
-          "id": "ask_guard",
-          "text": "现在可以验证战斗吗？",
-          "next": "combat"
-        },
-        {
-          "id": "bye",
-          "text": "我继续走走。",
-          "end": true
-        }
-      ]
-    },
-    "marker": {
-      "text": "它目前只是一个可调查对象。真正的地点叙事以后会继续扩展。",
-      "options": [
-        {
-          "id": "back",
-          "text": "知道了。",
-          "next": "greeting"
-        }
-      ]
-    },
-    "combat": {
-      "text": "可以。空地东南角有训练假人，面对它按下互动键会进入战棋战斗。技能、行动点、视线、装备属性和战斗结果都会走规则层。",
-      "options": [
-        {
-          "id": "back",
-          "text": "有道理。",
-          "next": "greeting"
-        }
-      ]
-    }
-  }
+﻿{
+    "id":  "debug_guard_dialogue",
+    "speaker_id":  "debug_guard",
+    "start_node":  "greeting",
+    "nodes":  {
+                  "greeting":  {
+                                   "text":  "这里是测试空地。我负责证明不同 NPC 可以挂不同的对话资源。",
+                                   "conditions":  [
+
+                                                  ],
+                                   "options":  [
+                                                   {
+                                                       "id":  "ask_marker",
+                                                       "text":  "那个石标是做什么的？",
+                                                       "next":  "marker"
+                                                   },
+                                                   {
+                                                       "id":  "ask_guard",
+                                                       "text":  "现在可以验证战斗吗？",
+                                                       "next":  "combat"
+                                                   },
+                                                   {
+                                                       "id":  "join_party",
+                                                       "text":  "加入我的队伍吧。",
+                                                       "conditions":  [
+                                                                          {
+                                                                              "type":  "not_party_member",
+                                                                              "character":  "speaker"
+                                                                          }
+                                                                      ],
+                                                       "results":  [
+                                                                       {
+                                                                           "type":  "request_action",
+                                                                           "action_type":  "RecruitCompanionAction",
+                                                                           "character_id":  "debug_guard"
+                                                                       }
+                                                                   ],
+                                                       "next":  "joined_party"
+                                                   },
+                                                   {
+                                                       "id":  "bye",
+                                                       "text":  "我继续走走。",
+                                                       "end":  true
+                                                   }
+                                               ]
+                               },
+                  "marker":  {
+                                 "text":  "它目前只是一个可调查对象。真正的地点叙事以后会继续扩展。",
+                                 "options":  [
+                                                 {
+                                                     "id":  "back",
+                                                     "text":  "知道了。",
+                                                     "next":  "greeting"
+                                                 }
+                                             ]
+                             },
+                  "combat":  {
+                                 "text":  "可以。空地东南角有训练假人，面对它按下互动键会进入战棋战斗。技能、行动点、视线、装备属性和战斗结果都会走规则层。",
+                                 "options":  [
+                                                 {
+                                                     "id":  "back",
+                                                     "text":  "有道理。",
+                                                     "next":  "greeting"
+                                                 }
+                                             ]
+                             },
+                  "joined_party":  {
+                                       "text":  "好，我会以队员身份协助你。",
+                                       "options":  [
+                                                       {
+                                                           "id":  "back",
+                                                           "text":  "欢迎加入。",
+                                                           "next":  "greeting"
+                                                       }
+                                                   ]
+                                   }
+              }
 }

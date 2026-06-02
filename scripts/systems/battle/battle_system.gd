@@ -7,11 +7,24 @@ signal battle_state_changed()
 
 const MOVE_AP_COST := 1
 const FLEE_AP_COST := 1
+const TACTICAL_MODE_COMMAND := "command"
+const TACTICAL_MODE_MOVE := "move"
+const TACTICAL_MODE_SKILL := "skill"
+const ENEMY_JOIN_RADIUS := 6
+const MOVE_PRESENTATION_DELAY := 0.08
+const SKILL_PRESENTATION_DELAY := 0.42
+const WAIT_PRESENTATION_DELAY := 0.12
+const ENEMY_FOLLOWUP_DELAY := 0.18
+const ENEMY_UNIT_GAP_DELAY := 0.34
 
 var active_state: BattleState
 var last_result: ActionResult
 var selected_skill_id: String = "basic_attack"
+var tactical_mode: String = TACTICAL_MODE_MOVE
+var reopen_skill_menu_requested: bool = false
 var _battle_counter: int = 0
+var _presentation_pending: bool = false
+var _presentation_token: int = 0
 
 
 func start_battle(location_root: Node, initiator: CharacterEntity, opponent: CharacterEntity) -> ActionResult:
@@ -25,6 +38,8 @@ func start_battle(location_root: Node, initiator: CharacterEntity, opponent: Cha
 		return ActionResult.failed("BattleStart", "", "战斗需要发起者。")
 	if opponent == null or not is_instance_valid(opponent):
 		return ActionResult.failed("BattleStart", initiator.character_id, "战斗需要目标。")
+	if PartySystem.is_member(opponent.character_id):
+		return ActionResult.failed("BattleStart", initiator.character_id, "%s is already in the party." % opponent.display_name)
 	if not opponent.is_combatable:
 		return ActionResult.failed("BattleStart", initiator.character_id, "%s 不能被攻击。" % opponent.display_name)
 
@@ -34,17 +49,31 @@ func start_battle(location_root: Node, initiator: CharacterEntity, opponent: Cha
 
 	_battle_counter += 1
 	var battle_id: String = "battle_%03d" % _battle_counter
+	var player_characters: Array[CharacterEntity] = _collect_player_battle_members(location_root, initiator, grid)
+	if player_characters.is_empty():
+		return ActionResult.failed("BattleStart", initiator.character_id, "No party member on this map can enter battle.")
+
+	var enemy_characters: Array[CharacterEntity] = _collect_enemy_battle_members(grid, opponent)
+	if enemy_characters.is_empty():
+		return ActionResult.failed("BattleStart", initiator.character_id, "No enemy on this map can enter battle.")
+
 	var units: Array[BattleUnitState] = []
-	units.append(BattleUnitState.from_character(initiator, BattleUnitState.TEAM_PLAYER))
-	units.append(BattleUnitState.from_character(opponent, BattleUnitState.TEAM_ENEMY))
+	for character in player_characters:
+		units.append(BattleUnitState.from_character(character, BattleUnitState.TEAM_PLAYER))
+	for character in enemy_characters:
+		units.append(BattleUnitState.from_character(character, BattleUnitState.TEAM_ENEMY))
 	active_state = BattleState.new()
 	active_state.configure(battle_id, location_root, grid, units)
 	selected_skill_id = "basic_attack"
+	tactical_mode = TACTICAL_MODE_MOVE
+	reopen_skill_menu_requested = false
 	GameState.set_mode(GameState.GameMode.COMBAT)
 
 	var result: ActionResult = ActionResult.succeeded("BattleStart", initiator.character_id, {
 		"battle_id": battle_id,
 		"opponent_id": opponent.character_id,
+		"player_ids": _character_ids(player_characters),
+		"enemy_ids": _character_ids(enemy_characters),
 	})
 	result.add_world_change({
 		"type": "battle_started",
@@ -60,7 +89,7 @@ func start_battle(location_root: Node, initiator: CharacterEntity, opponent: Cha
 		"delta": { "affinity": -10, "trust": -5, "hostility": 25 },
 		"reason": "battle_started",
 	})
-	result.add_feedback("战斗开始：%s 对阵 %s。" % [initiator.display_name, opponent.display_name])
+	result.add_feedback("战斗开始：%d 名队伍成员对阵 %d 名敌人。" % [player_characters.size(), enemy_characters.size()])
 	last_result = result
 	ActionSystem.publish_result(result)
 	battle_started.emit(battle_id)
@@ -76,6 +105,10 @@ func request_move_current_unit(direction: Vector2i) -> ActionResult:
 	var unit: BattleUnitState = _get_player_current_unit()
 	if unit == null:
 		return _fail("BattleMove", "还没有轮到玩家行动。")
+	if _presentation_pending:
+		return _fail("BattleMove", "行动演出尚未结束。")
+	if tactical_mode != TACTICAL_MODE_MOVE:
+		return _fail("BattleMove", "请先选择移动。")
 	if direction == Vector2i.ZERO:
 		return _fail("BattleMove", "移动需要方向。")
 
@@ -89,6 +122,10 @@ func request_move_current_unit_to(target_cell: Vector2i) -> ActionResult:
 	var unit: BattleUnitState = _get_player_current_unit()
 	if unit == null:
 		return _fail("BattleMove", "还没有轮到玩家行动。")
+	if _presentation_pending:
+		return _fail("BattleMove", "行动演出尚未结束。")
+	if tactical_mode != TACTICAL_MODE_MOVE:
+		return _fail("BattleMove", "请先选择移动。")
 	if active_state == null or active_state.grid == null:
 		return _fail("BattleMove", "移动需要有效的格子地图。")
 
@@ -121,6 +158,8 @@ func request_use_skill_current_unit(skill_id: String, target_cell: Vector2i) -> 
 	var unit: BattleUnitState = _get_player_current_unit()
 	if unit == null:
 		return _fail("UseSkillAction", "还没有轮到玩家行动。")
+	if _presentation_pending:
+		return _fail("UseSkillAction", "行动演出尚未结束。")
 
 	var action: GameAction = ActionSystem.create_action("UseSkillAction", unit.character, {
 		"skill_id": skill_id,
@@ -135,14 +174,63 @@ func select_skill_for_current_unit(skill_id: String) -> bool:
 	var unit: BattleUnitState = _get_player_current_unit()
 	if unit == null:
 		return false
+	if _presentation_pending:
+		return false
 	if not unit.skills.has(skill_id):
 		return false
 	if SkillSystem.get_skill(skill_id).is_empty():
 		return false
 
 	selected_skill_id = skill_id
+	tactical_mode = TACTICAL_MODE_SKILL
+	reopen_skill_menu_requested = false
 	battle_state_changed.emit()
 	return true
+
+
+func select_tactical_mode(mode: String) -> bool:
+	if mode != TACTICAL_MODE_COMMAND and mode != TACTICAL_MODE_MOVE and mode != TACTICAL_MODE_SKILL:
+		return false
+	if _get_player_current_unit() == null:
+		return false
+	if _presentation_pending:
+		return false
+
+	tactical_mode = mode
+	if mode == TACTICAL_MODE_SKILL:
+		reopen_skill_menu_requested = false
+	battle_state_changed.emit()
+	return true
+
+
+func cancel_skill_targeting_to_skill_menu() -> bool:
+	if _get_player_current_unit() == null:
+		return false
+	if tactical_mode != TACTICAL_MODE_SKILL:
+		return false
+
+	tactical_mode = TACTICAL_MODE_MOVE
+	reopen_skill_menu_requested = true
+	battle_state_changed.emit()
+	return true
+
+
+func consume_reopen_skill_menu_requested() -> bool:
+	var requested: bool = reopen_skill_menu_requested
+	reopen_skill_menu_requested = false
+	return requested
+
+
+func get_tactical_mode() -> String:
+	return tactical_mode
+
+
+func is_move_mode() -> bool:
+	return tactical_mode == TACTICAL_MODE_MOVE
+
+
+func is_presentation_pending() -> bool:
+	return _presentation_pending
 
 
 func get_selected_skill_id() -> String:
@@ -157,10 +245,52 @@ func get_current_unit_skill_summaries() -> Array[Dictionary]:
 	return SkillSystem.get_skill_summaries_for_unit(unit, active_state)
 
 
+func get_selectable_player_turn_units() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	if active_state == null or not active_state.active or _presentation_pending:
+		return result
+
+	var current_unit: BattleUnitState = active_state.get_current_unit()
+	if current_unit == null or current_unit.team != BattleUnitState.TEAM_PLAYER:
+		return result
+
+	for unit in active_state.get_contiguous_units_from_current(BattleUnitState.TEAM_PLAYER):
+		result.append(unit.get_summary())
+	return result
+
+
+func select_player_turn_unit(character_id: String) -> bool:
+	if active_state == null or not active_state.active or _presentation_pending:
+		return false
+	var current_unit: BattleUnitState = active_state.get_current_unit()
+	if current_unit == null or current_unit.team != BattleUnitState.TEAM_PLAYER:
+		return false
+
+	var selectable_units: Array[BattleUnitState] = active_state.get_contiguous_units_from_current(BattleUnitState.TEAM_PLAYER)
+	var can_select: bool = false
+	for unit in selectable_units:
+		if unit.character_id == character_id:
+			can_select = true
+			break
+	if not can_select:
+		return false
+	if not active_state.promote_contiguous_unit_to_current(character_id, BattleUnitState.TEAM_PLAYER):
+		return false
+
+	selected_skill_id = "basic_attack"
+	tactical_mode = TACTICAL_MODE_MOVE
+	reopen_skill_menu_requested = false
+	_emit_turn_started()
+	battle_state_changed.emit()
+	return true
+
+
 func get_skill_failure_for_actor(actor: CharacterEntity, skill_id: String, target_cell: Vector2i) -> String:
 	var unit: BattleUnitState = _get_player_current_unit()
 	if unit == null:
 		return "还没有轮到玩家行动。"
+	if _presentation_pending:
+		return "行动演出尚未结束。"
 	if actor == null or not is_instance_valid(actor) or actor.character_id != unit.character_id:
 		return "只有当前行动单位可以使用技能。"
 
@@ -191,15 +321,24 @@ func get_player_tactical_preview() -> Dictionary:
 			"move_cells": [],
 			"attack_cells": [],
 			"current_cell": Vector2i.ZERO,
+			"tactical_mode": tactical_mode,
 		}
+
+	var move_cells: Array[Vector2i] = []
+	var attack_cells: Array[Vector2i] = []
+	if tactical_mode == TACTICAL_MODE_MOVE:
+		move_cells = get_reachable_cells_for_current_unit()
+	elif tactical_mode == TACTICAL_MODE_SKILL:
+		attack_cells = get_range_cells_for_current_skill()
 
 	return {
 		"active": true,
 		"can_control": true,
-		"move_cells": get_reachable_cells_for_current_unit(),
-		"attack_cells": get_target_cells_for_current_skill(),
+		"move_cells": move_cells,
+		"attack_cells": attack_cells,
 		"current_cell": unit.character.grid_position,
 		"selected_skill_id": selected_skill_id,
+		"tactical_mode": tactical_mode,
 	}
 
 
@@ -220,7 +359,16 @@ func get_reachable_cells_for_current_unit() -> Array[Vector2i]:
 
 
 func get_attackable_cells_for_current_unit() -> Array[Vector2i]:
-	return get_target_cells_for_current_skill()
+	return get_range_cells_for_current_skill()
+
+
+func get_range_cells_for_current_skill() -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	var unit: BattleUnitState = _get_player_current_unit()
+	if unit == null or active_state == null:
+		return result
+
+	return SkillSystem.get_range_cells(unit, selected_skill_id, active_state)
 
 
 func get_target_cells_for_current_skill() -> Array[Vector2i]:
@@ -245,6 +393,40 @@ func get_area_cells_for_current_skill(target_cell: Vector2i) -> Array[Vector2i]:
 	return SkillSystem.get_area_cells(selected_skill_id, target_cell, active_state)
 
 
+func get_target_preview_summary(target_cell: Vector2i) -> Dictionary:
+	if active_state == null or not active_state.active:
+		return {}
+
+	var target_unit: BattleUnitState = active_state.get_unit_at(target_cell)
+	var actor: BattleUnitState = _get_player_current_unit()
+	var skill: Dictionary = SkillSystem.get_skill(selected_skill_id)
+	var summary: Dictionary = {
+		"cell": target_cell,
+		"tactical_mode": tactical_mode,
+		"selected_skill_id": selected_skill_id,
+		"skill_display_name": str(skill.get("display_name", selected_skill_id)) if not skill.is_empty() else selected_skill_id,
+		"unit": target_unit.get_summary() if target_unit != null else {},
+		"failure_reason": "",
+		"estimated_damage": 0,
+		"estimated_heal": 0,
+		"can_confirm": false,
+	}
+
+	if actor == null:
+		return summary
+
+	var failure_reason: String = SkillSystem.get_skill_failure(actor, selected_skill_id, target_cell, active_state)
+	summary["failure_reason"] = failure_reason
+	summary["can_confirm"] = failure_reason.is_empty()
+	if target_unit != null and failure_reason.is_empty():
+		if SkillSystem.skill_has_effect(selected_skill_id, "damage"):
+			summary["estimated_damage"] = SkillSystem.estimate_damage(actor, target_unit, selected_skill_id)
+		if SkillSystem.skill_has_effect(selected_skill_id, "heal"):
+			summary["estimated_heal"] = SkillSystem.estimate_heal(actor, selected_skill_id)
+
+	return summary
+
+
 func is_player_turn() -> bool:
 	return _get_player_current_unit() != null
 
@@ -253,6 +435,8 @@ func wait_current_unit() -> ActionResult:
 	var unit: BattleUnitState = _get_current_active_unit()
 	if unit == null:
 		return _fail("BattleWait", "没有可以等待的行动单位。")
+	if _presentation_pending:
+		return _fail("BattleWait", "行动演出尚未结束。")
 
 	unit.action_points = 0
 	var result: ActionResult = ActionResult.succeeded("BattleWait", unit.character_id, {
@@ -264,8 +448,11 @@ func wait_current_unit() -> ActionResult:
 		"character_id": unit.character_id,
 	})
 	result.add_feedback("%s 选择等待。" % unit.display_name)
+	if unit.team == BattleUnitState.TEAM_PLAYER:
+		tactical_mode = TACTICAL_MODE_MOVE
+		reopen_skill_menu_requested = false
 	_publish_result(result)
-	_after_unit_action(unit, true)
+	_schedule_after_unit_action(unit, true, WAIT_PRESENTATION_DELAY)
 	return result
 
 
@@ -273,6 +460,8 @@ func flee_current_unit() -> ActionResult:
 	var unit: BattleUnitState = _get_player_current_unit()
 	if unit == null:
 		return _fail("BattleFlee", "只有当前玩家单位可以逃跑。")
+	if _presentation_pending:
+		return _fail("BattleFlee", "行动演出尚未结束。")
 	if unit.action_points < FLEE_AP_COST:
 		return _fail("BattleFlee", "%s 没有足够行动点逃跑。" % unit.display_name)
 
@@ -287,6 +476,8 @@ func flee_current_unit() -> ActionResult:
 		"character_id": unit.character_id,
 	})
 	result.add_feedback("%s 逃离了战斗。" % unit.display_name)
+	tactical_mode = TACTICAL_MODE_MOVE
+	reopen_skill_menu_requested = false
 	_publish_result(result)
 	_end_battle("fled")
 	return result
@@ -296,7 +487,10 @@ func get_summary() -> Dictionary:
 	if active_state == null:
 		return {}
 
-	return active_state.get_summary()
+	var summary: Dictionary = active_state.get_summary()
+	summary["selectable_player_units"] = get_selectable_player_turn_units()
+	summary["presentation_pending"] = _presentation_pending
+	return summary
 
 
 func is_active() -> bool:
@@ -304,6 +498,8 @@ func is_active() -> bool:
 
 
 func clear_battle_state() -> void:
+	_presentation_pending = false
+	_presentation_token += 1
 	active_state = null
 	battle_state_changed.emit()
 
@@ -347,8 +543,12 @@ func _move_unit_to(unit: BattleUnitState, target_cell: Vector2i, move_cost: int)
 		"remaining_ap": unit.action_points,
 	})
 	result.add_feedback("%s 移动到 %s。" % [unit.display_name, target_cell])
+	if unit.team == BattleUnitState.TEAM_PLAYER:
+		tactical_mode = TACTICAL_MODE_MOVE
+		reopen_skill_menu_requested = false
 	_publish_result(result)
-	_after_unit_action(unit, false)
+	var presentation_delay: float = MOVE_PRESENTATION_DELAY if unit.team == BattleUnitState.TEAM_PLAYER else ENEMY_FOLLOWUP_DELAY
+	_schedule_after_unit_action(unit, false, presentation_delay)
 	return result
 
 
@@ -373,7 +573,7 @@ func _execute_skill_for_unit(unit: BattleUnitState, skill_id: String, target_cel
 		unit.character.face_direction(_direction_toward(unit.character.grid_position, target_cell))
 
 	var affected_units: Array[BattleUnitState] = SkillSystem.get_affected_units(unit, skill_id, target_cell, active_state)
-	var target_name: String = _get_skill_target_name(unit, affected_units)
+	var target_name: String = _get_skill_target_name(unit, affected_units, target_cell)
 
 	var result: ActionResult = ActionResult.succeeded("UseSkillAction", unit.character_id, {
 		"battle_id": active_state.battle_id,
@@ -402,14 +602,17 @@ func _execute_skill_for_unit(unit: BattleUnitState, skill_id: String, target_cel
 	else:
 		result.add_feedback(SkillSystem.format_feedback(feedback_template, unit.display_name, target_name))
 
+	if unit.team == BattleUnitState.TEAM_PLAYER:
+		tactical_mode = TACTICAL_MODE_MOVE
+		reopen_skill_menu_requested = false
 	_publish_result(result)
-	_after_unit_action(unit, unit.team == BattleUnitState.TEAM_ENEMY or bool(skill.get("ends_turn", false)))
+	_schedule_after_unit_action(unit, unit.team == BattleUnitState.TEAM_ENEMY or bool(skill.get("ends_turn", false)), SKILL_PRESENTATION_DELAY)
 	return result
 
 
-func _get_skill_target_name(unit: BattleUnitState, affected_units: Array[BattleUnitState]) -> String:
+func _get_skill_target_name(unit: BattleUnitState, affected_units: Array[BattleUnitState], target_cell: Vector2i) -> String:
 	if affected_units.is_empty():
-		return unit.display_name
+		return "empty cell %s" % target_cell
 	if affected_units.size() == 1:
 		return affected_units[0].display_name
 
@@ -533,6 +736,36 @@ func _after_unit_action(unit: BattleUnitState, force_end_turn: bool) -> void:
 	_advance_turn_or_finish()
 
 
+func _schedule_after_unit_action(unit: BattleUnitState, force_end_turn: bool, delay: float = SKILL_PRESENTATION_DELAY) -> void:
+	if active_state == null or not active_state.active:
+		return
+
+	_presentation_token += 1
+	var token: int = _presentation_token
+	_presentation_pending = true
+	battle_state_changed.emit()
+
+	var tree: SceneTree = get_tree()
+	if tree == null:
+		_finish_scheduled_after_unit_action(token, unit, force_end_turn)
+		return
+
+	await tree.create_timer(maxf(0.0, delay)).timeout
+	_finish_scheduled_after_unit_action(token, unit, force_end_turn)
+
+
+func _finish_scheduled_after_unit_action(token: int, unit: BattleUnitState, force_end_turn: bool) -> void:
+	if token != _presentation_token:
+		return
+	_presentation_pending = false
+	if active_state == null or not active_state.active:
+		battle_state_changed.emit()
+		return
+
+	_after_unit_action(unit, force_end_turn)
+	battle_state_changed.emit()
+
+
 func _advance_turn_or_finish() -> void:
 	if active_state == null or not active_state.active:
 		return
@@ -544,6 +777,7 @@ func _advance_turn_or_finish() -> void:
 
 	_emit_turn_started()
 	if next_unit.team == BattleUnitState.TEAM_ENEMY:
+		await _delay_enemy_unit_start()
 		_run_enemy_turn(next_unit)
 
 
@@ -551,7 +785,7 @@ func _run_enemy_turn(unit: BattleUnitState) -> void:
 	if active_state == null or not active_state.active or not unit.is_active():
 		return
 
-	var target: BattleUnitState = _get_first_active_player_unit()
+	var target: BattleUnitState = _get_nearest_active_player_unit(unit)
 	if target == null:
 		_end_battle("lost")
 		return
@@ -588,6 +822,7 @@ func _run_enemy_turn(unit: BattleUnitState) -> void:
 				})
 				result.add_feedback("%s 向目标靠近。" % unit.display_name)
 				_publish_result(result)
+				await _delay_enemy_followup()
 
 	if active_state == null or not active_state.active or not unit.is_active():
 		return
@@ -601,6 +836,28 @@ func _run_enemy_turn(unit: BattleUnitState) -> void:
 		return
 
 	wait_current_unit()
+
+
+func _delay_enemy_followup(delay: float = ENEMY_FOLLOWUP_DELAY) -> void:
+	await _run_presentation_gap(delay)
+
+
+func _delay_enemy_unit_start(delay: float = ENEMY_UNIT_GAP_DELAY) -> void:
+	await _run_presentation_gap(delay)
+
+
+func _run_presentation_gap(delay: float) -> void:
+	_presentation_token += 1
+	var token: int = _presentation_token
+	_presentation_pending = true
+	battle_state_changed.emit()
+	var tree: SceneTree = get_tree()
+	if tree != null:
+		await tree.create_timer(maxf(0.0, delay)).timeout
+	if token != _presentation_token:
+		return
+	_presentation_pending = false
+	battle_state_changed.emit()
 
 
 func _try_enemy_survival_skill(unit: BattleUnitState) -> bool:
@@ -687,10 +944,72 @@ func _choose_enemy_step_toward(unit: BattleUnitState, target: BattleUnitState) -
 	return best_cell
 
 
+func _collect_player_battle_members(location_root: Node, initiator: CharacterEntity, grid: LocationGrid) -> Array[CharacterEntity]:
+	var members: Array[CharacterEntity] = PartySystem.get_battle_members(location_root, initiator)
+	if not members.is_empty():
+		return members
+	if initiator == null or not is_instance_valid(initiator):
+		return members
+	var live_initiator: CharacterEntity = grid.get_character_by_id(initiator.character_id)
+	if live_initiator != null:
+		members.append(live_initiator)
+	return members
+
+
+func _collect_enemy_battle_members(grid: LocationGrid, opponent: CharacterEntity) -> Array[CharacterEntity]:
+	var enemies: Array[CharacterEntity] = []
+	if grid == null or opponent == null or not is_instance_valid(opponent):
+		return enemies
+
+	enemies.append(opponent)
+	var candidates: Array[Dictionary] = []
+	for character_value in grid.characters_by_id.values():
+		if typeof(character_value) != TYPE_OBJECT or not is_instance_valid(character_value):
+			continue
+		var character: CharacterEntity = character_value as CharacterEntity
+		if character == null or character.character_id == opponent.character_id:
+			continue
+		if not character.is_combatable or character.is_defeated:
+			continue
+		if PartySystem.is_member(character.character_id):
+			continue
+		if character.character_kind != CharacterEntity.KIND_ENEMY:
+			continue
+
+		var distance: int = _manhattan(opponent.grid_position, character.grid_position)
+		if distance > ENEMY_JOIN_RADIUS:
+			continue
+		candidates.append({
+			"character": character,
+			"distance": distance,
+		})
+
+	candidates.sort_custom(Callable(self, "_compare_enemy_candidate"))
+	for candidate in candidates:
+		enemies.append(candidate.get("character") as CharacterEntity)
+	return enemies
+
+
+func _compare_enemy_candidate(a: Dictionary, b: Dictionary) -> bool:
+	var a_distance: int = int(a.get("distance", 0))
+	var b_distance: int = int(b.get("distance", 0))
+	if a_distance == b_distance:
+		var a_character: CharacterEntity = a.get("character") as CharacterEntity
+		var b_character: CharacterEntity = b.get("character") as CharacterEntity
+		var a_id: String = a_character.character_id if a_character != null else ""
+		var b_id: String = b_character.character_id if b_character != null else ""
+		return a_id < b_id
+	return a_distance < b_distance
+
+
 func _end_battle(status: String) -> void:
 	if active_state == null or not active_state.active:
 		return
 
+	_presentation_pending = false
+	_presentation_token += 1
+	tactical_mode = TACTICAL_MODE_MOVE
+	reopen_skill_menu_requested = false
 	active_state.active = false
 	active_state.result_status = status
 	var result: ActionResult = ActionResult.succeeded("BattleEnd", "", {
@@ -717,9 +1036,10 @@ func _end_battle(status: String) -> void:
 				"location_id": active_state.grid.location_id,
 			})
 		elif unit.defeated and unit.team == BattleUnitState.TEAM_PLAYER:
-			GameState.set_flag("player_defeated", true)
+			if unit.character_id == GameState.player_id:
+				GameState.set_flag("player_defeated", true)
 			result.add_world_change({
-				"type": "player_defeated",
+				"type": "party_unit_defeated",
 				"battle_id": active_state.battle_id,
 				"character_id": unit.character_id,
 			})
@@ -750,12 +1070,23 @@ func _get_current_active_unit() -> BattleUnitState:
 	return unit
 
 
-func _get_first_active_player_unit() -> BattleUnitState:
+func _get_nearest_active_player_unit(enemy_unit: BattleUnitState) -> BattleUnitState:
 	var player_units: Array[BattleUnitState] = active_state.get_active_units_for_team(BattleUnitState.TEAM_PLAYER)
 	if player_units.is_empty():
 		return null
 
-	return player_units[0]
+	if enemy_unit == null or not enemy_unit.is_active():
+		return player_units[0]
+
+	var best_unit: BattleUnitState = player_units[0]
+	var best_distance: int = _manhattan(enemy_unit.character.grid_position, best_unit.character.grid_position)
+	for player_unit in player_units:
+		var distance: int = _manhattan(enemy_unit.character.grid_position, player_unit.character.grid_position)
+		if distance < best_distance:
+			best_distance = distance
+			best_unit = player_unit
+
+	return best_unit
 
 
 func _direction_toward(from_cell: Vector2i, to_cell: Vector2i) -> Vector2i:
@@ -848,12 +1179,23 @@ func _participant_ids() -> Array[String]:
 	return ids
 
 
+func _character_ids(characters: Array[CharacterEntity]) -> Array[String]:
+	var ids: Array[String] = []
+	for character in characters:
+		if character == null or not is_instance_valid(character):
+			continue
+		ids.append(character.character_id)
+	return ids
+
+
 func _emit_turn_started() -> void:
 	var unit: BattleUnitState = active_state.get_current_unit() if active_state != null else null
 	if unit == null:
 		return
 	if unit.team == BattleUnitState.TEAM_PLAYER:
 		_select_default_skill_for_unit(unit)
+		tactical_mode = TACTICAL_MODE_MOVE
+		reopen_skill_menu_requested = false
 
 	var result: ActionResult = ActionResult.succeeded("BattleTurnStart", unit.character_id, {
 		"battle_id": active_state.battle_id,

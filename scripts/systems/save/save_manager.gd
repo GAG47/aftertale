@@ -30,6 +30,7 @@ func save_game(save_path: String = DEFAULT_SAVE_PATH) -> ActionResult:
 		"game_state": GameState.get_save_state(),
 		"time": TimeManager.get_save_state(),
 		"quests": QuestSystem.get_save_state(),
+		"party": PartySystem.get_save_state(),
 		"relations": RelationSystem.get_save_state(),
 		"crops": CropSystem.get_save_state(),
 		"business": BusinessSystem.get_save_state(),
@@ -83,6 +84,7 @@ func load_game(save_path: String = DEFAULT_SAVE_PATH) -> ActionResult:
 	GameState.apply_save_state(save_data.get("game_state", {}) as Dictionary)
 	TimeManager.apply_save_state(save_data.get("time", {}) as Dictionary)
 	QuestSystem.apply_save_state(save_data.get("quests", {}) as Dictionary)
+	PartySystem.apply_save_state(save_data.get("party", {}) as Dictionary)
 	RelationSystem.apply_save_state(save_data.get("relations", {}) as Dictionary)
 	CropSystem.apply_save_state(save_data.get("crops", {}) as Dictionary)
 	BusinessSystem.apply_save_state(save_data.get("business", {}) as Dictionary)

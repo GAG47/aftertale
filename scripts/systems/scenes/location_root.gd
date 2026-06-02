@@ -16,6 +16,8 @@ var grid: LocationGrid
 var crops_root: Node2D
 var battle_overlay: BattleGridOverlay
 var battle_feedback_root: Node2D
+var battle_target_info_panel: PanelContainer
+var battle_target_info_label: Label
 var interaction_overlay: InteractionTargetOverlay
 var current_grid_position: Vector2i = Vector2i.ZERO
 var controlled_character: CharacterEntity
@@ -23,6 +25,7 @@ var _location_data_cache: Dictionary = {}
 var _character_spawn_data_by_id: Dictionary = {}
 var _character_definition_by_id: Dictionary = {}
 var _save_runtime_on_exit: bool = true
+var _party_follower_ids: Array[String] = []
 
 
 func _ready() -> void:
@@ -33,10 +36,12 @@ func _ready() -> void:
 	_spawn_objects_from_data()
 	_setup_battle_overlay()
 	_setup_battle_feedback_root()
+	_setup_battle_target_info_panel()
 	_setup_interaction_overlay()
 	_setup_crops_root()
 	refresh_crop_markers()
 	_spawn_characters_from_data()
+	_sync_party_followers()
 	_refresh_interaction_overlay()
 
 	InputManager.move_requested.connect(_on_move_requested)
@@ -44,6 +49,7 @@ func _ready() -> void:
 	InputManager.rest_requested.connect(_on_rest_requested)
 	ActionSystem.action_executed.connect(_on_action_result_for_presentation)
 	ActionSystem.action_failed.connect(_on_action_result_for_presentation)
+	PartySystem.party_changed.connect(_on_party_changed)
 	CropSystem.crop_changed.connect(_on_crop_changed)
 	BattleSystem.battle_state_changed.connect(_refresh_battle_overlay)
 	NpcScheduleSystem.register_location_root(self)
@@ -65,6 +71,8 @@ func _exit_tree() -> void:
 		ActionSystem.action_executed.disconnect(_on_action_result_for_presentation)
 	if ActionSystem.action_failed.is_connected(_on_action_result_for_presentation):
 		ActionSystem.action_failed.disconnect(_on_action_result_for_presentation)
+	if PartySystem.party_changed.is_connected(_on_party_changed):
+		PartySystem.party_changed.disconnect(_on_party_changed)
 	if CropSystem.crop_changed.is_connected(_on_crop_changed):
 		CropSystem.crop_changed.disconnect(_on_crop_changed)
 	if BattleSystem.battle_state_changed.is_connected(_refresh_battle_overlay):
@@ -209,6 +217,8 @@ func get_interaction_prompt() -> String:
 	var target_cell: Vector2i = controlled_character.get_facing_cell()
 	var target_character: CharacterEntity = grid.get_character_at(target_cell)
 	if target_character != null:
+		if PartySystem.is_member(target_character.character_id):
+			return "E/Enter 调查前方  B 背包  J 任务  C 角色  Tab/I 打开菜单"
 		if target_character.is_combatable:
 			return "E/Enter 攻击：%s" % target_character.display_name
 		if target_character.is_interactable:
@@ -227,7 +237,7 @@ func get_interaction_prompt() -> String:
 	if not exit_data.is_empty():
 		return "向前移动：前往 %s" % str(exit_data.get("target_entrance_id", "下一个地点"))
 
-	return "E/Enter 调查前方  Tab/I 打开菜单"
+	return "E/Enter 调查前方  B 背包  J 任务  C 角色  Tab/I 打开菜单"
 
 
 func _load_location_data() -> void:
@@ -282,6 +292,41 @@ func _setup_battle_feedback_root() -> void:
 	battle_feedback_root.name = "BattleFeedback"
 	add_child(battle_feedback_root)
 	move_child(battle_feedback_root, characters_root.get_index() + 1)
+
+
+func _setup_battle_target_info_panel() -> void:
+	battle_target_info_panel = PanelContainer.new()
+	battle_target_info_panel.name = "BattleTargetInfo"
+	battle_target_info_panel.visible = false
+	battle_target_info_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	battle_target_info_panel.custom_minimum_size = Vector2(156.0, 0.0)
+	var style: StyleBoxFlat = StyleBoxFlat.new()
+	style.bg_color = Color(0.05, 0.07, 0.06, 0.88)
+	style.border_color = Color(0.72, 0.78, 0.68, 0.55)
+	style.border_width_left = 1
+	style.border_width_top = 1
+	style.border_width_right = 1
+	style.border_width_bottom = 1
+	style.corner_radius_top_left = 6
+	style.corner_radius_top_right = 6
+	style.corner_radius_bottom_left = 6
+	style.corner_radius_bottom_right = 6
+	battle_target_info_panel.add_theme_stylebox_override("panel", style)
+
+	var margin: MarginContainer = MarginContainer.new()
+	margin.add_theme_constant_override("margin_left", 8)
+	margin.add_theme_constant_override("margin_top", 6)
+	margin.add_theme_constant_override("margin_right", 8)
+	margin.add_theme_constant_override("margin_bottom", 6)
+	battle_target_info_panel.add_child(margin)
+
+	battle_target_info_label = Label.new()
+	battle_target_info_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	battle_target_info_label.add_theme_font_size_override("font_size", 13)
+	battle_target_info_label.add_theme_color_override("font_color", Color(0.94, 0.94, 0.9, 1.0))
+	margin.add_child(battle_target_info_label)
+	add_child(battle_target_info_panel)
+	move_child(battle_target_info_panel, characters_root.get_index() + 2)
 
 
 func _setup_interaction_overlay() -> void:
@@ -353,6 +398,8 @@ func apply_current_schedule(absolute_minutes: int) -> void:
 
 	for character_id_value in _character_spawn_data_by_id.keys():
 		var character_id: String = str(character_id_value)
+		if PartySystem.is_member(character_id):
+			continue
 		var spawn_data: Dictionary = _character_spawn_data_by_id[character_id] as Dictionary
 		var definition: Dictionary = _character_definition_by_id[character_id] as Dictionary
 		if _is_player_spawn(spawn_data, definition):
@@ -398,6 +445,8 @@ func apply_current_schedule(absolute_minutes: int) -> void:
 
 func _build_spawn_data(spawn_data: Dictionary, definition: Dictionary) -> Dictionary:
 	var resolved_spawn_data: Dictionary = spawn_data.duplicate(true)
+	if spawn_data.has("source"):
+		resolved_spawn_data["source"] = str(spawn_data.get("source", ""))
 	if bool(resolved_spawn_data.get("spawn_at_entrance", false)):
 		_apply_entrance_to_spawn_data(resolved_spawn_data)
 
@@ -435,6 +484,103 @@ func _spawn_character(definition: Dictionary, resolved_spawn_data: Dictionary) -
 			character.facing_changed.connect(_on_controlled_character_facing_changed)
 
 	return character
+
+
+func _sync_party_followers(force_reposition: bool = true) -> void:
+	if grid == null or not _has_controlled_character():
+		return
+
+	_release_removed_party_followers()
+	_party_follower_ids.clear()
+	for member_id in PartySystem.get_companion_ids():
+		var follower: CharacterEntity = grid.get_character_by_id(member_id)
+		if follower == null:
+			follower = _spawn_party_follower(member_id)
+		if follower == null:
+			continue
+		_prepare_party_follower(follower)
+		_party_follower_ids.append(member_id)
+		PartySystem.refresh_member(follower)
+
+	if force_reposition:
+		_reposition_party_followers(true)
+
+
+func _release_removed_party_followers() -> void:
+	if grid == null:
+		return
+
+	for follower_id in _party_follower_ids:
+		if PartySystem.is_member(follower_id):
+			continue
+		var follower: CharacterEntity = grid.get_character_by_id(follower_id)
+		if follower == null:
+			continue
+		follower.character_kind = CharacterEntity.KIND_NPC
+		follower.is_interactable = true
+		follower.is_combatable = false
+		PartySystem.refresh_member(follower)
+		GameState.save_character_runtime(follower)
+
+
+func _spawn_party_follower(member_id: String) -> CharacterEntity:
+	var source_path: String = PartySystem.get_member_source(member_id)
+	if source_path.is_empty():
+		var summary: Dictionary = PartySystem.get_member_summary(member_id)
+		source_path = str(summary.get("definition_source", ""))
+	if source_path.is_empty():
+		return null
+
+	var definition: Dictionary = _read_json_resource(source_path)
+	if definition.is_empty():
+		return null
+
+	var spawn_cell: Vector2i = _find_party_spawn_cell(member_id)
+	if spawn_cell.x < 0 or spawn_cell.y < 0:
+		return null
+	var spawn_data: Dictionary = {
+		"id": member_id,
+		"source": source_path,
+		"grid_position": { "x": spawn_cell.x, "y": spawn_cell.y },
+		"facing": controlled_character.facing,
+		"character_kind": CharacterEntity.KIND_COMPANION,
+		"is_player_controlled": false,
+		"is_interactable": false,
+		"is_combatable": true,
+	}
+	var runtime_state: Dictionary = GameState.get_character_runtime(member_id)
+	if runtime_state.has("attributes"):
+		spawn_data["attributes"] = (runtime_state.get("attributes", {}) as Dictionary).duplicate(true)
+
+	var character: CharacterEntity = _spawn_character(definition, spawn_data)
+	if character != null and not runtime_state.is_empty():
+		character.apply_runtime_state(runtime_state)
+	return character
+
+
+func _prepare_party_follower(character: CharacterEntity) -> void:
+	character.character_kind = CharacterEntity.KIND_COMPANION
+	character.is_player_controlled = false
+	character.is_interactable = false
+	character.is_combatable = true
+	character.blocks_movement = true
+	character.set_facing(controlled_character.facing)
+	GameState.save_character_runtime(character)
+
+
+func _find_party_spawn_cell(member_id: String) -> Vector2i:
+	var preferred_cell: Vector2i = controlled_character.grid_position + PartySystem.get_formation_offset(member_id, controlled_character.facing)
+	var fallback_cells: Array[Vector2i] = _get_party_candidate_cells(preferred_cell)
+	for cell in fallback_cells:
+		if grid.can_enter(cell):
+			return cell
+	for radius in range(1, 4):
+		for x in range(-radius, radius + 1):
+			for y in range(-radius, radius + 1):
+				var cell: Vector2i = controlled_character.grid_position + Vector2i(x, y)
+				if grid.can_enter(cell):
+					return cell
+	return Vector2i(-1, -1)
 
 
 func _get_active_schedule_entry(definition: Dictionary, spawn_data: Dictionary) -> Dictionary:
@@ -543,6 +689,10 @@ func _is_player_spawn(spawn_data: Dictionary, definition: Dictionary) -> bool:
 
 func _on_move_requested(direction: Vector2i) -> void:
 	if GameState.current_mode == GameState.GameMode.COMBAT:
+		if not BattleSystem.is_move_mode():
+			ActionSystem.publish_result(ActionResult.failed("BattleMove", GameState.player_id, "请先选择移动。"))
+			_refresh_battle_overlay()
+			return
 		BattleSystem.request_move_current_unit(direction)
 		_refresh_battle_overlay()
 		return
@@ -553,13 +703,18 @@ func _on_move_requested(direction: Vector2i) -> void:
 	if grid == null or not _has_controlled_character():
 		return
 
+	if _try_swap_with_party_follower(direction):
+		_refresh_interaction_overlay()
+		return
+
 	var target: Dictionary = { "direction": direction }
 	var context: Dictionary = { "location_root": self }
 	var action: GameAction = ActionSystem.create_action("MoveAction", controlled_character, target, context) as GameAction
 	var result: ActionResult = ActionSystem.submit(action) as ActionResult
 	_refresh_interaction_overlay()
-	if result.success and not _result_has_change_type(result, "location_exit_requested") and _has_controlled_character():
+	if result.success and _result_has_change_type(result, "character_moved") and not _result_has_change_type(result, "location_exit_requested") and _has_controlled_character():
 		current_grid_position = controlled_character.grid_position
+		_step_party_followers_after_player_move(result)
 
 
 func request_exit_transition(exit_data: Dictionary) -> void:
@@ -600,6 +755,166 @@ func mark_character_defeated(character_id: String) -> bool:
 	return true
 
 
+func _reposition_party_followers(force_place: bool = false) -> void:
+	if grid == null or not _has_controlled_character():
+		return
+	if GameState.current_mode == GameState.GameMode.COMBAT:
+		return
+
+	var occupied_targets: Dictionary = {}
+	for member_id in PartySystem.get_companion_ids():
+		var follower: CharacterEntity = grid.get_character_by_id(member_id)
+		if follower == null:
+			continue
+
+		var preferred_cell: Vector2i = controlled_character.grid_position + PartySystem.get_formation_offset(member_id, controlled_character.facing)
+		var target_cell: Vector2i = _find_available_follow_cell(preferred_cell, follower, occupied_targets)
+		occupied_targets[grid.cell_key(target_cell)] = true
+		_move_party_follower_to(follower, target_cell, force_place)
+
+
+func _step_party_followers_after_player_move(move_result: ActionResult) -> void:
+	if grid == null or not _has_controlled_character():
+		return
+	if GameState.current_mode == GameState.GameMode.COMBAT:
+		return
+
+	var player_move: Dictionary = _get_world_change(move_result, "character_moved", controlled_character.character_id)
+	if player_move.is_empty():
+		return
+
+	var next_target: Vector2i = player_move.get("from", controlled_character.grid_position) as Vector2i
+	var reserved_cells: Dictionary = {}
+	reserved_cells[grid.cell_key(controlled_character.grid_position)] = true
+
+	for member_id in PartySystem.get_companion_ids():
+		var follower: CharacterEntity = grid.get_character_by_id(member_id)
+		if follower == null:
+			continue
+
+		var follower_from: Vector2i = follower.grid_position
+		if not reserved_cells.has(grid.cell_key(next_target)):
+			_move_party_follower_to(follower, next_target, false, true)
+		reserved_cells[grid.cell_key(follower.grid_position)] = true
+		next_target = follower_from
+
+
+func _find_available_follow_cell(preferred_cell: Vector2i, follower: CharacterEntity, occupied_targets: Dictionary) -> Vector2i:
+	var candidates: Array[Vector2i] = _get_party_candidate_cells(preferred_cell)
+	for cell in candidates:
+		if occupied_targets.has(grid.cell_key(cell)):
+			continue
+		if cell == follower.grid_position:
+			return cell
+		if grid.can_enter(cell):
+			return cell
+	return follower.grid_position
+
+
+func _get_party_candidate_cells(preferred_cell: Vector2i) -> Array[Vector2i]:
+	return [
+		preferred_cell,
+		preferred_cell + Vector2i.LEFT,
+		preferred_cell + Vector2i.RIGHT,
+		preferred_cell + Vector2i.UP,
+		preferred_cell + Vector2i.DOWN,
+		preferred_cell + Vector2i(-1, 1),
+		preferred_cell + Vector2i(1, 1),
+		preferred_cell + Vector2i(-1, -1),
+		preferred_cell + Vector2i(1, -1),
+	]
+
+
+func _move_party_follower_to(follower: CharacterEntity, target_cell: Vector2i, force_place: bool, allow_party_target: bool = false) -> bool:
+	if follower == null or not is_instance_valid(follower):
+		return false
+	if follower.grid_position == target_cell:
+		follower.set_facing(controlled_character.facing)
+		return true
+
+	var from_cell: Vector2i = follower.grid_position
+	if force_place:
+		grid.unregister_character(follower.character_id)
+		if not grid.register_character(follower.character_id, target_cell, follower, follower.blocks_movement):
+			grid.register_character(follower.character_id, from_cell, follower, follower.blocks_movement)
+			return false
+	else:
+		if not _can_party_follower_enter_cell(target_cell, follower, allow_party_target):
+			return false
+		if not grid.move_character(follower.character_id, from_cell, target_cell, follower.blocks_movement):
+			return false
+
+	follower.set_grid_position(target_cell)
+	follower.face_direction(target_cell - from_cell)
+	PartySystem.refresh_member(follower)
+	GameState.save_character_runtime(follower)
+	return true
+
+
+func _try_swap_with_party_follower(direction: Vector2i) -> bool:
+	if direction == Vector2i.ZERO or grid == null or not _has_controlled_character():
+		return false
+
+	var player_from: Vector2i = controlled_character.grid_position
+	var target_cell: Vector2i = player_from + direction
+	var follower: CharacterEntity = grid.get_character_at(target_cell)
+	if follower == null or not PartySystem.is_member(follower.character_id) or follower.character_id == controlled_character.character_id:
+		return false
+
+	controlled_character.face_direction(direction)
+	var follower_from: Vector2i = follower.grid_position
+	grid.unregister_character(controlled_character.character_id)
+	grid.unregister_character(follower.character_id)
+	var player_registered: bool = grid.register_character(controlled_character.character_id, follower_from, controlled_character, controlled_character.blocks_movement)
+	var follower_registered: bool = grid.register_character(follower.character_id, player_from, follower, follower.blocks_movement)
+	if not player_registered or not follower_registered:
+		grid.unregister_character(controlled_character.character_id)
+		grid.unregister_character(follower.character_id)
+		grid.register_character(controlled_character.character_id, player_from, controlled_character, controlled_character.blocks_movement)
+		grid.register_character(follower.character_id, follower_from, follower, follower.blocks_movement)
+		return false
+
+	controlled_character.set_grid_position(follower_from)
+	follower.set_grid_position(player_from)
+	follower.set_facing(controlled_character.facing)
+	current_grid_position = controlled_character.grid_position
+	PartySystem.refresh_member(follower)
+	GameState.save_character_runtime(controlled_character)
+	GameState.save_character_runtime(follower)
+
+	var result: ActionResult = ActionResult.succeeded("PartySwap", controlled_character.character_id, {
+		"direction": direction,
+		"follower_id": follower.character_id,
+	})
+	result.add_world_change({
+		"type": "party_member_swapped",
+		"leader_id": controlled_character.character_id,
+		"member_id": follower.character_id,
+		"leader_from": player_from,
+		"leader_to": follower_from,
+		"member_from": follower_from,
+		"member_to": player_from,
+		"location_id": grid.location_id,
+	})
+	result.add_feedback("%s 与 %s 交换了位置。" % [controlled_character.display_name, follower.display_name])
+	ActionSystem.publish_result(result)
+	return true
+
+
+func _can_party_follower_enter_cell(target_cell: Vector2i, follower: CharacterEntity, allow_party_target: bool) -> bool:
+	if grid == null or not grid.is_walkable(target_cell):
+		return false
+	if grid.can_enter(target_cell):
+		return true
+	if not allow_party_target:
+		return false
+
+	var occupant: CharacterEntity = grid.get_character_at(target_cell)
+	if occupant == null or occupant == follower:
+		return false
+	return PartySystem.is_member(occupant.character_id)
+
+
 func _on_primary_action_requested() -> void:
 	if GameState.current_mode == GameState.GameMode.COMBAT:
 		_refresh_interaction_overlay()
@@ -615,6 +930,8 @@ func _on_primary_action_requested() -> void:
 
 	var target_cell: Vector2i = controlled_character.get_facing_cell()
 	var target_character: CharacterEntity = grid.get_character_at(target_cell)
+	if target_character != null and PartySystem.is_member(target_character.character_id):
+		target_character = null
 	if target_character != null and target_character.is_combatable:
 		_submit_battle_start(target_character)
 		return
@@ -722,9 +1039,11 @@ func try_flee_battle() -> bool:
 func _unhandled_input(event: InputEvent) -> void:
 	if GameState.current_mode != GameState.GameMode.COMBAT:
 		_update_battle_hover(Vector2i(-9999, -9999), "", [])
+		_hide_battle_target_info()
 		return
 	if grid == null or not BattleSystem.is_player_turn():
 		_update_battle_hover(Vector2i(-9999, -9999), "", [])
+		_hide_battle_target_info()
 		return
 	if event is InputEventMouseMotion:
 		_update_battle_hover_from_mouse()
@@ -733,7 +1052,17 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 	var mouse_event: InputEventMouseButton = event as InputEventMouseButton
-	if mouse_event.button_index != MOUSE_BUTTON_LEFT or not mouse_event.pressed:
+	if not mouse_event.pressed:
+		return
+	if mouse_event.button_index == MOUSE_BUTTON_RIGHT:
+		if BattleSystem.get_tactical_mode() == BattleSystem.TACTICAL_MODE_SKILL:
+			get_viewport().set_input_as_handled()
+			BattleSystem.cancel_skill_targeting_to_skill_menu()
+			_update_battle_hover(Vector2i(-9999, -9999), "", [])
+			_hide_battle_target_info()
+			_refresh_battle_overlay()
+		return
+	if mouse_event.button_index != MOUSE_BUTTON_LEFT:
 		return
 
 	var clicked_cell: Vector2i = _mouse_to_grid_cell()
@@ -746,23 +1075,28 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _submit_battle_click(clicked_cell: Vector2i) -> void:
 	var preview: Dictionary = BattleSystem.get_player_tactical_preview()
-	var attack_cells: Array = preview.get("attack_cells", []) as Array
-	if _cell_array_has(attack_cells, clicked_cell):
-		BattleSystem.request_use_skill_current_unit(BattleSystem.get_selected_skill_id(), clicked_cell)
-		_refresh_battle_overlay()
+	var tactical_mode: String = str(preview.get("tactical_mode", "command"))
+	if tactical_mode == BattleSystem.TACTICAL_MODE_MOVE:
+		var mode_move_cells: Array = preview.get("move_cells", []) as Array
+		if _cell_array_has(mode_move_cells, clicked_cell):
+			BattleSystem.request_move_current_unit_to(clicked_cell)
+			_refresh_battle_overlay()
+			return
+		ActionSystem.publish_result(ActionResult.failed("BattleSelect", GameState.player_id, "请选择蓝色移动格。"))
 		return
 
-	var move_cells: Array = preview.get("move_cells", []) as Array
-	if _cell_array_has(move_cells, clicked_cell):
-		BattleSystem.request_move_current_unit_to(clicked_cell)
-		_refresh_battle_overlay()
+	if tactical_mode == BattleSystem.TACTICAL_MODE_SKILL:
+		var mode_attack_cells: Array = preview.get("attack_cells", []) as Array
+		if _cell_array_has(mode_attack_cells, clicked_cell):
+			BattleSystem.request_use_skill_current_unit(BattleSystem.get_selected_skill_id(), clicked_cell)
+			_refresh_battle_overlay()
+			return
+		ActionSystem.publish_result(ActionResult.failed("BattleSelect", GameState.player_id, "请选择技能范围内的目标格。"))
 		return
 
-	var target_character: CharacterEntity = grid.get_character_at(clicked_cell)
-	if target_character != null:
-		BattleSystem.request_use_skill_current_unit(BattleSystem.get_selected_skill_id(), clicked_cell)
-		_refresh_battle_overlay()
-		return
+	_update_battle_target_info(clicked_cell)
+	ActionSystem.publish_result(ActionResult.failed("BattleSelect", GameState.player_id, "请先选择移动或技能。"))
+	return
 
 	ActionSystem.publish_result(ActionResult.failed("BattleSelect", GameState.player_id, "请选择高亮的移动格，或选择可攻击的目标。"))
 
@@ -771,20 +1105,26 @@ func _update_battle_hover_from_mouse() -> void:
 	var hover_grid_cell: Vector2i = _mouse_to_grid_cell()
 	if not grid.in_bounds(hover_grid_cell):
 		_update_battle_hover(Vector2i(-9999, -9999), "", [])
+		_hide_battle_target_info()
 		return
 
 	var preview: Dictionary = BattleSystem.get_player_tactical_preview()
-	var attack_cells: Array = preview.get("attack_cells", []) as Array
-	if _cell_array_has(attack_cells, hover_grid_cell):
-		_update_battle_hover(hover_grid_cell, "attack", BattleSystem.get_area_cells_for_current_skill(hover_grid_cell))
-		return
+	_update_battle_target_info(hover_grid_cell)
+	var tactical_mode: String = str(preview.get("tactical_mode", "command"))
+	if tactical_mode == BattleSystem.TACTICAL_MODE_SKILL:
+		var mode_attack_cells: Array = preview.get("attack_cells", []) as Array
+		if _cell_array_has(mode_attack_cells, hover_grid_cell):
+			_update_battle_hover(hover_grid_cell, "attack", BattleSystem.get_area_cells_for_current_skill(hover_grid_cell))
+			return
 
-	var move_cells: Array = preview.get("move_cells", []) as Array
-	if _cell_array_has(move_cells, hover_grid_cell):
-		_update_battle_hover(hover_grid_cell, "move", [])
-		return
+	if tactical_mode == BattleSystem.TACTICAL_MODE_MOVE:
+		var mode_move_cells: Array = preview.get("move_cells", []) as Array
+		if _cell_array_has(mode_move_cells, hover_grid_cell):
+			_update_battle_hover(hover_grid_cell, "move", [])
+			return
 
 	_update_battle_hover(Vector2i(-9999, -9999), "", [])
+	return
 
 
 func _update_battle_hover(cell: Vector2i, kind: String, area_cells: Array = []) -> void:
@@ -794,12 +1134,74 @@ func _update_battle_hover(cell: Vector2i, kind: String, area_cells: Array = []) 
 	battle_overlay.set_hover_cell(cell, kind, area_cells)
 
 
+func _update_battle_target_info(cell: Vector2i) -> void:
+	if battle_target_info_panel == null or not is_instance_valid(battle_target_info_panel):
+		return
+	if grid == null or not grid.in_bounds(cell) or not BattleSystem.is_active():
+		_hide_battle_target_info()
+		return
+
+	var summary: Dictionary = BattleSystem.get_target_preview_summary(cell)
+	var text: String = _build_battle_target_info_text(summary)
+	if text.is_empty():
+		_hide_battle_target_info()
+		return
+
+	battle_target_info_label.text = text
+	battle_target_info_panel.position = grid.grid_to_world(cell) + Vector2(18.0, -52.0)
+	battle_target_info_panel.visible = true
+
+
+func _hide_battle_target_info() -> void:
+	if battle_target_info_panel != null and is_instance_valid(battle_target_info_panel):
+		battle_target_info_panel.visible = false
+
+
+func _build_battle_target_info_text(summary: Dictionary) -> String:
+	if summary.is_empty():
+		return ""
+
+	var unit_summary: Dictionary = summary.get("unit", {}) as Dictionary
+	if unit_summary.is_empty():
+		return ""
+
+	var lines: PackedStringArray = PackedStringArray()
+	var team_label: String = "敌方" if str(unit_summary.get("team", "")) == BattleUnitState.TEAM_ENEMY else "我方"
+	lines.append("%s  %s" % [str(unit_summary.get("display_name", unit_summary.get("character_id", ""))), team_label])
+	lines.append("HP %d/%d  AP %d/%d" % [
+		int(unit_summary.get("hp", 0)),
+		int(unit_summary.get("max_hp", 0)),
+		int(unit_summary.get("action_points", 0)),
+		int(unit_summary.get("max_action_points", 0)),
+	])
+	var status_text: String = str(unit_summary.get("status_text", ""))
+	if not status_text.is_empty():
+		lines.append("状态：%s" % status_text)
+
+	var tactical_mode: String = str(summary.get("tactical_mode", "command"))
+	if tactical_mode == BattleSystem.TACTICAL_MODE_SKILL:
+		var skill_name: String = str(summary.get("skill_display_name", summary.get("selected_skill_id", "")))
+		lines.append("技能：%s" % skill_name)
+		var estimated_damage: int = int(summary.get("estimated_damage", 0))
+		var estimated_heal: int = int(summary.get("estimated_heal", 0))
+		if estimated_damage > 0:
+			lines.append("预计伤害：%d" % estimated_damage)
+		if estimated_heal > 0:
+			lines.append("预计治疗：%d" % estimated_heal)
+		var failure_reason: String = str(summary.get("failure_reason", ""))
+		if not failure_reason.is_empty():
+			lines.append("不可用：%s" % failure_reason)
+
+	return "\n".join(lines)
+
+
 func _refresh_battle_overlay() -> void:
 	if battle_overlay == null or not is_instance_valid(battle_overlay):
 		return
 
 	if not BattleSystem.is_active():
 		battle_overlay.clear_preview()
+		_hide_battle_target_info()
 		_clear_battle_character_presentations()
 		_refresh_interaction_overlay()
 		return
@@ -880,6 +1282,13 @@ func _on_crop_changed(location_id: String, _cell: Vector2i, _crop_state: Diction
 		return
 
 	refresh_crop_markers()
+	_refresh_interaction_overlay()
+
+
+func _on_party_changed() -> void:
+	if GameState.current_mode == GameState.GameMode.COMBAT:
+		return
+	_sync_party_followers(false)
 	_refresh_interaction_overlay()
 
 
@@ -971,19 +1380,24 @@ func _spawn_battle_feedback_from_result(result: ActionResult) -> void:
 	for change_value in result.world_changes:
 		var change: Dictionary = change_value as Dictionary
 		match str(change.get("type", "")):
+			"battle_skill_used":
+				_play_battle_character_effect(str(change.get("character_id", "")), "skill")
 			"battle_unit_damaged":
+				_play_battle_character_effect(str(change.get("target_id", "")), "damage")
 				_spawn_battle_feedback(
 					str(change.get("target_id", "")),
 					"-%d" % int(change.get("damage", 0)),
 					Color(1.0, 0.28, 0.20, 0.98)
 				)
 			"battle_unit_healed":
+				_play_battle_character_effect(str(change.get("target_id", "")), "heal")
 				_spawn_battle_feedback(
 					str(change.get("target_id", "")),
 					"+%d" % int(change.get("healing", 0)),
 					Color(0.38, 1.0, 0.45, 0.98)
 				)
 			"battle_status_applied":
+				_play_battle_character_effect(str(change.get("target_id", "")), "status")
 				_spawn_battle_feedback(
 					str(change.get("target_id", "")),
 					str((change.get("status", {}) as Dictionary).get("display_name", "状态")),
@@ -995,6 +1409,15 @@ func _spawn_battle_feedback_from_result(result: ActionResult) -> void:
 					"击败",
 					Color(1.0, 0.88, 0.30, 0.98)
 				)
+
+
+func _play_battle_character_effect(character_id: String, effect_type: String) -> void:
+	if character_id.is_empty() or grid == null:
+		return
+	var character: CharacterEntity = grid.get_character_by_id(character_id)
+	if character == null:
+		return
+	character.play_battle_effect(effect_type)
 
 
 func _spawn_battle_feedback(character_id: String, text: String, color: Color) -> void:
@@ -1095,3 +1518,17 @@ func _result_has_change_type(result: ActionResult, change_type: String) -> bool:
 			return true
 
 	return false
+
+
+func _get_world_change(result: ActionResult, change_type: String, character_id: String = "") -> Dictionary:
+	if result == null:
+		return {}
+
+	for change in result.world_changes:
+		if str(change.get("type", "")) != change_type:
+			continue
+		if not character_id.is_empty() and str(change.get("character_id", "")) != character_id:
+			continue
+		return change.duplicate(true)
+
+	return {}

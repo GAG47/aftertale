@@ -1,102 +1,270 @@
 class_name BattleHudPanel
-extends PanelContainer
+extends Control
 
 signal wait_requested()
 signal flee_requested()
 signal skill_selected(skill_id: String)
+signal move_selected()
+signal turn_unit_selected(character_id: String)
 
-@onready var title_label: Label = $MarginContainer/RootRow/UnitPanel/UnitMargin/UnitBox/TitleLabel
-@onready var current_label: Label = $MarginContainer/RootRow/UnitPanel/UnitMargin/UnitBox/CurrentLabel
-@onready var current_hp_bar: ProgressBar = $MarginContainer/RootRow/UnitPanel/UnitMargin/UnitBox/CurrentVitals/HPBar
-@onready var current_ap_bar: ProgressBar = $MarginContainer/RootRow/UnitPanel/UnitMargin/UnitBox/CurrentVitals/APBar
-@onready var units_label: Label = $MarginContainer/RootRow/UnitPanel/UnitMargin/UnitBox/UnitsLabel
-@onready var hint_label: Label = $MarginContainer/RootRow/SkillPanel/SkillMargin/SkillBox/HintLabel
-@onready var skill_detail_label: Label = $MarginContainer/RootRow/SkillPanel/SkillMargin/SkillBox/SkillDetailLabel
-@onready var skill_list: HBoxContainer = $MarginContainer/RootRow/SkillPanel/SkillMargin/SkillBox/SkillScroll/SkillList
-@onready var wait_button: Button = $MarginContainer/RootRow/CommandPanel/CommandMargin/CommandBox/WaitButton
-@onready var flee_button: Button = $MarginContainer/RootRow/CommandPanel/CommandMargin/CommandBox/FleeButton
+enum MenuMode { COMMANDS, SKILLS, STATUS }
+
+@onready var unit_panel: PanelContainer = $UnitPanel
+@onready var turn_order_panel: PanelContainer = $TurnOrderPanel
+@onready var turn_order_list: VBoxContainer = $TurnOrderPanel/TurnOrderMargin/TurnOrderBox/TurnOrderScroll/TurnOrderList
+@onready var title_label: Label = $UnitPanel/UnitMargin/UnitBox/TitleLabel
+@onready var current_label: Label = $UnitPanel/UnitMargin/UnitBox/CurrentLabel
+@onready var current_hp_bar: ProgressBar = $UnitPanel/UnitMargin/UnitBox/CurrentVitals/HPBar
+@onready var current_ap_bar: ProgressBar = $UnitPanel/UnitMargin/UnitBox/CurrentVitals/APBar
+@onready var unit_status_label: Label = $UnitPanel/UnitMargin/UnitBox/UnitStatusLabel
+@onready var command_panel: PanelContainer = $CommandPanel
+@onready var command_hint_label: Label = $CommandPanel/CommandMargin/CommandBox/CommandHintLabel
+@onready var move_button: Button = $CommandPanel/CommandMargin/CommandBox/MoveButton
+@onready var skills_button: Button = $CommandPanel/CommandMargin/CommandBox/SkillsButton
+@onready var wait_button: Button = $CommandPanel/CommandMargin/CommandBox/WaitButton
+@onready var status_button: Button = $CommandPanel/CommandMargin/CommandBox/StatusButton
+@onready var flee_button: Button = $CommandPanel/CommandMargin/CommandBox/FleeButton
+@onready var skill_panel: PanelContainer = $SkillPanel
+@onready var skill_title_label: Label = $SkillPanel/SkillMargin/SkillBox/SkillTitleLabel
+@onready var skill_detail_label: Label = $SkillPanel/SkillMargin/SkillBox/SkillDetailLabel
+@onready var skill_list: VBoxContainer = $SkillPanel/SkillMargin/SkillBox/SkillScroll/SkillList
+@onready var skill_back_button: Button = $SkillPanel/SkillMargin/SkillBox/SkillBackButton
+@onready var status_panel: PanelContainer = $StatusPanel
+@onready var status_detail_label: Label = $StatusPanel/StatusMargin/StatusBox/StatusDetailLabel
+@onready var status_back_button: Button = $StatusPanel/StatusMargin/StatusBox/StatusBackButton
+
+var _menu_mode: int = MenuMode.COMMANDS
+var _current_summary: Dictionary = {}
+var _skill_summaries: Array = []
+var _selected_skill_id: String = ""
+var _tactical_mode: String = "move"
+var _can_control: bool = false
+var _selectable_turn_unit_ids: Array[String] = []
 
 
 func _ready() -> void:
 	visible = false
+	move_button.pressed.connect(_on_move_pressed)
+	skills_button.pressed.connect(_on_skills_pressed)
 	wait_button.pressed.connect(_on_wait_pressed)
+	status_button.pressed.connect(_on_status_pressed)
 	flee_button.pressed.connect(_on_flee_pressed)
+	skill_back_button.pressed.connect(_on_back_to_commands_pressed)
+	status_back_button.pressed.connect(_on_back_to_commands_pressed)
 
 
-func show_battle_summary(summary: Dictionary, can_control: bool, skill_summaries: Array, selected_skill_id: String) -> void:
+func show_battle_summary(summary: Dictionary, can_control: bool, skill_summaries: Array, selected_skill_id: String, tactical_mode: String = "move", reopen_skill_menu: bool = false) -> void:
 	if summary.is_empty() or not bool(summary.get("active", false)):
 		hide_panel()
 		return
 
 	visible = true
-	var round_number: int = int(summary.get("round", 1))
-	title_label.text = "战斗 第 %d 回合" % round_number
+	_current_summary = summary.duplicate(true)
+	_skill_summaries = skill_summaries.duplicate(true)
+	_selected_skill_id = selected_skill_id
+	_tactical_mode = tactical_mode
+	_can_control = can_control
+	if not can_control:
+		_menu_mode = MenuMode.COMMANDS
+	elif reopen_skill_menu:
+		_menu_mode = MenuMode.SKILLS
 
-	var current_unit: Dictionary = summary.get("current_unit", {}) as Dictionary
-	if current_unit.is_empty():
-		current_label.text = "当前单位：无"
-		_set_bar(current_hp_bar, 0, 1, "HP 0/0")
-		_set_bar(current_ap_bar, 0, 1, "AP 0/0")
-	else:
-		current_label.text = "%s行动\n%s\nHP %d/%d  AP %d/%d" % [
-			"玩家" if can_control else "敌方",
-			str(current_unit.get("display_name", current_unit.get("character_id", "未知"))),
-			int(current_unit.get("hp", 0)),
-			int(current_unit.get("max_hp", 0)),
-			int(current_unit.get("action_points", 0)),
-			int(current_unit.get("max_action_points", 0)),
-		]
-		_set_bar(
-			current_hp_bar,
-			int(current_unit.get("hp", 0)),
-			max(1, int(current_unit.get("max_hp", 1))),
-			"HP %d/%d" % [int(current_unit.get("hp", 0)), int(current_unit.get("max_hp", 0))]
-		)
-		_set_bar(
-			current_ap_bar,
-			int(current_unit.get("action_points", 0)),
-			max(1, int(current_unit.get("max_action_points", 1))),
-			"AP %d/%d" % [int(current_unit.get("action_points", 0)), int(current_unit.get("max_action_points", 0))]
-		)
-
-	hint_label.text = _build_action_hint(can_control, _get_selected_skill_name(skill_summaries, selected_skill_id))
-
-	var unit_lines: PackedStringArray = PackedStringArray()
-	var units: Array = summary.get("units", []) as Array
-	for unit_value in units:
-		var unit: Dictionary = unit_value as Dictionary
-		var marker: String = " "
-		if str(unit.get("character_id", "")) == str(current_unit.get("character_id", "")):
-			marker = ">"
-		var status_text: String = str(unit.get("status_text", ""))
-		var status_suffix: String = ""
-		if not status_text.is_empty():
-			status_suffix = "  " + status_text
-		var defeated_suffix: String = ""
-		if bool(unit.get("defeated", false)):
-			defeated_suffix = "  已倒下"
-		elif bool(unit.get("fled", false)):
-			defeated_suffix = "  已逃离"
-		unit_lines.append("%s%s [%s] HP %d/%d AP %d/%d%s%s" % [
-			marker,
-			str(unit.get("display_name", unit.get("character_id", "未知"))),
-			_translate_team(str(unit.get("team", "?"))),
-			int(unit.get("hp", 0)),
-			int(unit.get("max_hp", 0)),
-			int(unit.get("action_points", 0)),
-			int(unit.get("max_action_points", 0)),
-			status_suffix,
-			defeated_suffix,
-		])
-
-	units_label.text = _join_strings(unit_lines, "\n")
-	_refresh_skill_buttons(skill_summaries, selected_skill_id, can_control)
-	wait_button.disabled = not can_control
-	flee_button.disabled = not can_control
+	_refresh_unit_card()
+	_refresh_turn_order()
+	_refresh_command_menu()
+	_refresh_skill_menu()
+	_refresh_status_menu()
+	_sync_menu_visibility()
 
 
 func hide_panel() -> void:
 	visible = false
+	_menu_mode = MenuMode.COMMANDS
+	_selectable_turn_unit_ids.clear()
+
+
+func _input(event: InputEvent) -> void:
+	if not visible or not _can_control:
+		return
+	if _menu_mode == MenuMode.COMMANDS:
+		return
+	if not (event is InputEventMouseButton):
+		return
+
+	var mouse_event: InputEventMouseButton = event as InputEventMouseButton
+	if mouse_event.button_index != MOUSE_BUTTON_RIGHT or not mouse_event.pressed:
+		return
+
+	get_viewport().set_input_as_handled()
+	_return_to_commands()
+
+
+func _refresh_unit_card() -> void:
+	var round_number: int = int(_current_summary.get("round", 1))
+	title_label.text = "战斗 第 %d 回合" % round_number
+
+	var current_unit: Dictionary = _current_summary.get("current_unit", {}) as Dictionary
+	if current_unit.is_empty():
+		current_label.text = "当前单位：无"
+		unit_status_label.text = ""
+		_set_bar(current_hp_bar, 0, 1, "HP 0/0")
+		_set_bar(current_ap_bar, 0, 1, "AP 0/0")
+		return
+
+	var unit_name: String = str(current_unit.get("display_name", current_unit.get("character_id", "未知")))
+	current_label.text = "%s\n%s行动" % [unit_name, "玩家" if _can_control else "敌方"]
+	unit_status_label.text = "HP %d/%d   AP %d/%d   SPD %d%s" % [
+		int(current_unit.get("hp", 0)),
+		int(current_unit.get("max_hp", 0)),
+		int(current_unit.get("action_points", 0)),
+		int(current_unit.get("max_action_points", 0)),
+		int(current_unit.get("speed", 0)),
+		_get_status_suffix(current_unit),
+	]
+	_set_bar(
+		current_hp_bar,
+		int(current_unit.get("hp", 0)),
+		max(1, int(current_unit.get("max_hp", 1))),
+		"HP %d/%d" % [int(current_unit.get("hp", 0)), int(current_unit.get("max_hp", 0))]
+	)
+	_set_bar(
+		current_ap_bar,
+		int(current_unit.get("action_points", 0)),
+		max(1, int(current_unit.get("max_action_points", 1))),
+		"AP %d/%d" % [int(current_unit.get("action_points", 0)), int(current_unit.get("max_action_points", 0))]
+	)
+
+
+func _refresh_command_menu() -> void:
+	var is_busy: bool = bool(_current_summary.get("presentation_pending", false))
+	command_hint_label.text = "行动演出中" if is_busy else ("选择行动" if _can_control else "敌方行动中")
+	move_button.disabled = not _can_control or is_busy
+	skills_button.disabled = not _can_control or is_busy
+	wait_button.disabled = not _can_control or is_busy
+	status_button.disabled = _current_summary.is_empty()
+	flee_button.disabled = not _can_control or is_busy
+
+
+func _refresh_turn_order() -> void:
+	_clear_children(turn_order_list)
+	_selectable_turn_unit_ids.clear()
+
+	var selectable_units: Array = _current_summary.get("selectable_player_units", []) as Array
+	for unit_value in selectable_units:
+		var unit: Dictionary = unit_value as Dictionary
+		var unit_id: String = str(unit.get("character_id", ""))
+		if not unit_id.is_empty():
+			_selectable_turn_unit_ids.append(unit_id)
+
+	var turn_order: Array = _current_summary.get("turn_order", []) as Array
+	if turn_order.is_empty():
+		var empty_label: Label = Label.new()
+		empty_label.text = "暂无顺序"
+		empty_label.modulate = Color(0.75, 0.75, 0.75)
+		turn_order_list.add_child(empty_label)
+		return
+
+	for order_value in turn_order:
+		var unit: Dictionary = order_value as Dictionary
+		var unit_id: String = str(unit.get("character_id", ""))
+		var can_select_unit: bool = _selectable_turn_unit_ids.has(unit_id) and not bool(_current_summary.get("presentation_pending", false))
+		if can_select_unit:
+			var button: Button = Button.new()
+			button.custom_minimum_size = Vector2(0.0, 34.0)
+			button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			button.text = _build_turn_order_text(unit)
+			button.tooltip_text = "选择该角色先行动"
+			button.disabled = bool(unit.get("is_current", false))
+			button.pressed.connect(_on_turn_unit_pressed.bind(unit_id))
+			turn_order_list.add_child(button)
+		else:
+			var label: Label = Label.new()
+			label.custom_minimum_size = Vector2(0.0, 30.0)
+			label.text = _build_turn_order_text(unit)
+			label.modulate = _get_turn_order_color(str(unit.get("team", "")), bool(unit.get("is_current", false)))
+			label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			turn_order_list.add_child(label)
+
+
+func _refresh_skill_menu() -> void:
+	_clear_children(skill_list)
+	skill_title_label.text = "技能"
+	skill_detail_label.text = _build_selected_skill_detail()
+	if _skill_summaries.is_empty():
+		var label: Label = Label.new()
+		label.text = "没有可用技能"
+		label.modulate = Color(0.78, 0.78, 0.78)
+		skill_list.add_child(label)
+		return
+
+	for skill_value in _skill_summaries:
+		var skill: Dictionary = skill_value as Dictionary
+		var skill_id: String = str(skill.get("id", ""))
+		var button: Button = Button.new()
+		button.custom_minimum_size = Vector2(0.0, 38.0)
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		button.text = "%s%s     AP %d" % [
+			"◆ " if skill_id == _selected_skill_id else "",
+			str(skill.get("display_name", skill_id)),
+			int(skill.get("ap_cost", 0)),
+		]
+		var cooldown: int = int(skill.get("cooldown_remaining", 0))
+		if cooldown > 0:
+			button.text += "   CD %d" % cooldown
+		button.disabled = not _can_control or not bool(skill.get("can_use", false))
+		button.tooltip_text = _build_skill_detail(skill)
+		button.pressed.connect(_on_skill_pressed.bind(skill_id))
+		skill_list.add_child(button)
+
+
+func _refresh_status_menu() -> void:
+	var current_unit: Dictionary = _current_summary.get("current_unit", {}) as Dictionary
+	if current_unit.is_empty():
+		status_detail_label.text = "没有当前单位。"
+		return
+
+	status_detail_label.text = "%s\n%s\nHP %d/%d\nAP %d/%d\nSPD %d\n状态：%s" % [
+		str(current_unit.get("display_name", current_unit.get("character_id", "未知"))),
+		_translate_team(str(current_unit.get("team", ""))),
+		int(current_unit.get("hp", 0)),
+		int(current_unit.get("max_hp", 0)),
+		int(current_unit.get("action_points", 0)),
+		int(current_unit.get("max_action_points", 0)),
+		int(current_unit.get("speed", 0)),
+		_get_status_text(current_unit),
+	]
+
+
+func _sync_menu_visibility() -> void:
+	var is_skill_aiming: bool = _can_control and _tactical_mode == "skill"
+	command_panel.visible = not is_skill_aiming and _menu_mode == MenuMode.COMMANDS
+	skill_panel.visible = not is_skill_aiming and _menu_mode == MenuMode.SKILLS
+	status_panel.visible = not is_skill_aiming and _menu_mode == MenuMode.STATUS
+
+
+func _on_move_pressed() -> void:
+	command_hint_label.text = "蓝色格可移动。用方向键移动，或点击蓝色格。"
+	move_selected.emit()
+
+
+func _on_skills_pressed() -> void:
+	_menu_mode = MenuMode.SKILLS
+	_sync_menu_visibility()
+
+
+func _on_status_pressed() -> void:
+	_menu_mode = MenuMode.STATUS
+	_sync_menu_visibility()
+
+
+func _on_back_to_commands_pressed() -> void:
+	_return_to_commands()
+
+
+func _return_to_commands() -> void:
+	_menu_mode = MenuMode.COMMANDS
+	_sync_menu_visibility()
+	move_selected.emit()
 
 
 func _on_wait_pressed() -> void:
@@ -107,50 +275,36 @@ func _on_flee_pressed() -> void:
 	flee_requested.emit()
 
 
-func _refresh_skill_buttons(skill_summaries: Array, selected_skill_id: String, can_control: bool) -> void:
-	_clear_children(skill_list)
-	skill_detail_label.text = ""
-	if skill_summaries.is_empty():
-		var label: Label = Label.new()
-		label.text = "没有技能"
-		label.modulate = Color(0.78, 0.78, 0.78)
-		skill_list.add_child(label)
-		return
-
-	for skill_value in skill_summaries:
-		var skill: Dictionary = skill_value as Dictionary
-		var skill_id: String = str(skill.get("id", ""))
-		var button: Button = Button.new()
-		button.custom_minimum_size = Vector2(126.0, 58.0)
-		var selected: bool = skill_id == selected_skill_id
-		var target_text: String = _target_type_label(str(skill.get("target_type", "enemy")))
-		button.text = "%s%s\nAP %d  RNG %d\n%s%s" % [
-			"◆ " if selected else "",
-			str(skill.get("display_name", skill_id)),
-			int(skill.get("ap_cost", 0)),
-			int(skill.get("range", 0)),
-			target_text,
-			_area_label(skill).strip_edges(),
-		]
-		var cooldown: int = int(skill.get("cooldown_remaining", 0))
-		if cooldown > 0:
-			button.text += "  CD %d" % cooldown
-		button.disabled = not can_control or not bool(skill.get("can_use", false))
-		button.tooltip_text = _build_skill_tooltip(skill)
-		button.pressed.connect(_on_skill_pressed.bind(skill_id))
-		skill_list.add_child(button)
-
-		if selected:
-			skill_detail_label.text = _build_skill_detail(skill)
-
-
-func _clear_children(parent: Node) -> void:
-	for child in parent.get_children():
-		child.queue_free()
-
-
 func _on_skill_pressed(skill_id: String) -> void:
+	_menu_mode = MenuMode.COMMANDS
+	_sync_menu_visibility()
 	skill_selected.emit(skill_id)
+
+
+func _on_turn_unit_pressed(character_id: String) -> void:
+	if character_id.is_empty():
+		return
+	turn_unit_selected.emit(character_id)
+
+
+func _build_turn_order_text(unit: Dictionary) -> String:
+	var prefix: String = "▶ " if bool(unit.get("is_current", false)) else "   "
+	var team_label: String = "我" if str(unit.get("team", "")) == "player" else "敌"
+	return "%s%s｜%s  SPD %d  AP %d" % [
+		prefix,
+		team_label,
+		str(unit.get("display_name", unit.get("character_id", "未知"))),
+		int(unit.get("speed", 0)),
+		int(unit.get("action_points", 0)),
+	]
+
+
+func _get_turn_order_color(team: String, is_current: bool) -> Color:
+	if is_current:
+		return Color(1.0, 0.88, 0.32)
+	if team == "player":
+		return Color(0.70, 0.86, 1.0)
+	return Color(1.0, 0.70, 0.66)
 
 
 func _set_bar(bar: ProgressBar, value: int, max_value: int, label_text: String) -> void:
@@ -161,45 +315,31 @@ func _set_bar(bar: ProgressBar, value: int, max_value: int, label_text: String) 
 	bar.tooltip_text = label_text
 
 
-func _build_action_hint(can_control: bool, selected_skill_name: String) -> String:
-	if not can_control:
-		return "敌方行动中"
-	if selected_skill_name.is_empty():
-		return "选择技能后点击目标格。蓝色移动，红色技能。"
-	return "当前技能：%s    蓝色移动 / 红色使用技能" % selected_skill_name
-
-
-func _get_selected_skill_name(skill_summaries: Array, selected_skill_id: String) -> String:
-	for skill_value in skill_summaries:
+func _build_selected_skill_detail() -> String:
+	for skill_value in _skill_summaries:
 		var skill: Dictionary = skill_value as Dictionary
-		if str(skill.get("id", "")) == selected_skill_id:
-			return str(skill.get("display_name", selected_skill_id))
+		if str(skill.get("id", "")) == _selected_skill_id:
+			return _build_skill_detail(skill)
 
-	return selected_skill_id
+	return "选择技能后，地图会显示可用目标范围。"
 
 
 func _build_skill_detail(skill: Dictionary) -> String:
 	if skill.is_empty():
 		return ""
 
-	var pieces: PackedStringArray = PackedStringArray()
-	pieces.append(str(skill.get("description", "")))
-	pieces.append("目标：%s  范围：%d  区域：%s" % [
+	var description: String = str(skill.get("description", ""))
+	var details: String = "%s / 范围 %d / %s" % [
 		_target_type_label(str(skill.get("target_type", "enemy"))),
 		int(skill.get("range", 0)),
-		_area_label(skill).strip_edges(),
-	])
+		_area_label(skill),
+	]
 	var failure_reason: String = str(skill.get("failure_reason", ""))
 	if not failure_reason.is_empty():
-		pieces.append("暂不可用：%s" % failure_reason)
-	return _join_strings(pieces, "\n")
-
-
-func _build_skill_tooltip(skill: Dictionary) -> String:
-	var text: String = _build_skill_detail(skill)
-	if text.is_empty():
-		return str(skill.get("display_name", skill.get("id", "")))
-	return text
+		details += "\n暂不可用：%s" % failure_reason
+	if description.is_empty():
+		return details
+	return "%s\n%s" % [description, details]
 
 
 func _target_type_label(target_type: String) -> String:
@@ -219,18 +359,27 @@ func _target_type_label(target_type: String) -> String:
 func _area_label(skill: Dictionary) -> String:
 	var area: String = str(skill.get("area", "single"))
 	if area == "radius":
-		return "  半径%d" % int(skill.get("radius", 0))
-	return "  单体"
+		return "半径%d" % int(skill.get("radius", 0))
+	return "单体"
 
 
-func _join_strings(values: PackedStringArray, separator: String) -> String:
-	var result: String = ""
-	for index in range(values.size()):
-		if index > 0:
-			result += separator
-		result += values[index]
+func _get_status_text(unit: Dictionary) -> String:
+	var status_text: String = str(unit.get("status_text", ""))
+	if status_text.is_empty():
+		return "无"
+	return status_text
 
-	return result
+
+func _get_status_suffix(unit: Dictionary) -> String:
+	var status_text: String = _get_status_text(unit)
+	if status_text == "无":
+		return ""
+	return "   %s" % status_text
+
+
+func _clear_children(parent: Node) -> void:
+	for child in parent.get_children():
+		child.queue_free()
 
 
 func _translate_team(team: String) -> String:

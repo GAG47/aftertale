@@ -34,6 +34,12 @@ layout_mode = 2
 text = "Dialogue text"
 autowrap_mode = 3
 
-[node name="OptionsBox" type="VBoxContainer" parent="MarginContainer/VBoxContainer"]
+[node name="OptionsScroll" type="ScrollContainer" parent="MarginContainer/VBoxContainer"]
 layout_mode = 2
+custom_minimum_size = Vector2(0, 82)
+size_flags_vertical = 3
+
+[node name="OptionsBox" type="VBoxContainer" parent="MarginContainer/VBoxContainer/OptionsScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/separation = 4
