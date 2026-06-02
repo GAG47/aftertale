@@ -12,10 +12,11 @@ func check() -> ActionResult:
 		return base_result
 
 	var shop_id: String = str(target.get("shop_id", ""))
+	var vendor_id: String = str(target.get("vendor_id", ""))
 	var trade_type: String = str(target.get("trade_type", ""))
 	var item_id: String = str(target.get("item_id", ""))
 	var quantity: int = int(target.get("quantity", 1))
-	var failed_requirement: String = BusinessSystem.get_trade_failure(actor, shop_id, trade_type, item_id, quantity)
+	var failed_requirement: String = BusinessSystem.get_trade_failure(actor, shop_id, trade_type, item_id, quantity, vendor_id)
 	if not failed_requirement.is_empty():
 		return _failure(failed_requirement)
 
@@ -32,5 +33,6 @@ func execute() -> ActionResult:
 		str(target.get("shop_id", "")),
 		str(target.get("trade_type", "")),
 		str(target.get("item_id", "")),
-		int(target.get("quantity", 1))
+		int(target.get("quantity", 1)),
+		str(target.get("vendor_id", ""))
 	)

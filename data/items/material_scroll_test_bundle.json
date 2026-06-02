@@ -1,0 +1,12 @@
+{
+  "id": "material_scroll_test_bundle",
+  "display_name": "长材料测试包",
+  "item_type": "tool",
+  "stackable": true,
+  "max_stack": 10,
+  "base_value": 1,
+  "sellable": false,
+  "is_usable": false,
+  "use_feedback": "",
+  "description": "用于验证制作台材料列表滚动区域的测试产物。"
+}

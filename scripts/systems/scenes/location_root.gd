@@ -3,6 +3,7 @@ extends Node2D
 signal location_ready(location_id: String)
 signal grid_position_changed(cell: Vector2i)
 signal exit_requested(exit_data: Dictionary)
+signal facility_requested(facility_data: Dictionary)
 
 @export_file("*.json") var location_data_path: String = ""
 @export var entrance_id: String = ""
@@ -218,7 +219,7 @@ func get_interaction_prompt() -> String:
 	var target_character: CharacterEntity = grid.get_character_at(target_cell)
 	if target_character != null:
 		if PartySystem.is_member(target_character.character_id):
-			return "E/Enter 调查前方  B 背包  J 任务  C 角色  Tab/I 打开菜单"
+			return "E/Enter 调查前方  B 背包  J 任务  C 角色"
 		if target_character.is_combatable:
 			return "E/Enter 攻击：%s" % target_character.display_name
 		if target_character.is_interactable:
@@ -228,6 +229,15 @@ func get_interaction_prompt() -> String:
 	if target_object != null:
 		if target_object.is_pickable:
 			return "E/Enter 拾取：%s" % target_object.display_name
+		if target_object.is_facility():
+			if target_object.facility_type == "crafting":
+				return "E/Enter 制作：%s" % target_object.display_name
+			if target_object.facility_type == "shop":
+				return "E/Enter 交易：%s" % target_object.display_name
+			if target_object.facility_type == "rest":
+				return _get_rest_facility_prompt(target_object)
+			if target_object.facility_type == "save":
+				return "E/Enter 存档：%s" % target_object.display_name
 		if target_object.is_usable:
 			return "E/Enter 使用：%s" % target_object.display_name
 		if target_object.is_inspectable:
@@ -237,7 +247,7 @@ func get_interaction_prompt() -> String:
 	if not exit_data.is_empty():
 		return "向前移动：前往 %s" % str(exit_data.get("target_entrance_id", "下一个地点"))
 
-	return "E/Enter 调查前方  B 背包  J 任务  C 角色  Tab/I 打开菜单"
+	return "E/Enter 调查前方  B 背包  J 任务  C 角色"
 
 
 func _load_location_data() -> void:
@@ -1226,6 +1236,19 @@ func _cell_array_has(cells: Array, target_cell: Vector2i) -> bool:
 
 
 func _submit_object_interaction(target_object: LocationObject, target_cell: Vector2i) -> void:
+	if target_object.is_facility():
+		match target_object.facility_type:
+			"crafting", "shop":
+				facility_requested.emit(target_object.get_facility_data())
+			"rest":
+				_submit_rest_facility(target_object)
+			"save":
+				_submit_save_facility(target_object)
+			_:
+				facility_requested.emit(target_object.get_facility_data())
+		_refresh_interaction_overlay()
+		return
+
 	var target: Dictionary = {
 		"object": target_object,
 		"target_cell": target_cell,
@@ -1267,6 +1290,30 @@ func _choose_interaction_action(target_object: LocationObject) -> String:
 	if target_object.is_usable:
 		return "UseItemAction"
 	return "InspectAction"
+
+
+func _get_rest_facility_prompt(target_object: LocationObject) -> String:
+	match target_object.rest_type:
+		"bed":
+			return "E/Enter 休息到明早：%s" % target_object.display_name
+		"campfire":
+			return "E/Enter 烤火休息：%s" % target_object.display_name
+		"inn":
+			return "E/Enter 入住：%s（%d 金币）" % [target_object.display_name, target_object.cost]
+		_:
+			return "E/Enter 休息：%s" % target_object.display_name
+
+
+func _submit_rest_facility(target_object: LocationObject) -> void:
+	var target: Dictionary = target_object.get_facility_data()
+	target["target_scope"] = "party"
+	var context: Dictionary = { "location_root": self }
+	var action: GameAction = ActionSystem.create_action("RestAction", controlled_character, target, context) as GameAction
+	ActionSystem.submit(action)
+
+
+func _submit_save_facility(_target_object: LocationObject) -> void:
+	SaveManager.save_game()
 
 
 func _read_location_data() -> Dictionary:
@@ -1472,6 +1519,9 @@ func _refresh_interaction_overlay() -> void:
 	if target_object != null:
 		if target_object.is_pickable:
 			interaction_overlay.set_target(target_cell, "pickup", current_cell)
+			return
+		if target_object.is_facility():
+			interaction_overlay.set_target(target_cell, "use", current_cell)
 			return
 		if target_object.is_usable:
 			interaction_overlay.set_target(target_cell, "use", current_cell)

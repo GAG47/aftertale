@@ -1,0 +1,23 @@
+{
+  "id": "material_scroll_test",
+  "display_name": "长材料测试配方",
+  "category": "tools",
+  "description": "一个专门用来验证材料列表滚动效果的测试配方。",
+  "ingredients": [
+    { "item_id": "debug_stick", "quantity": 1 },
+    { "item_id": "debug_apple", "quantity": 1 },
+    { "item_id": "debug_seed", "quantity": 1 },
+    { "item_id": "packed_snack", "quantity": 1 },
+    { "item_id": "debug_tool", "quantity": 1 },
+    { "item_id": "test_fiber", "quantity": 2 },
+    { "item_id": "test_stone", "quantity": 3 },
+    { "item_id": "test_cloth", "quantity": 1 },
+    { "item_id": "test_ore", "quantity": 2 },
+    { "item_id": "test_resin", "quantity": 1 },
+    { "item_id": "test_coal", "quantity": 2 },
+    { "item_id": "test_thread", "quantity": 4 }
+  ],
+  "outputs": [
+    { "source": "res://data/items/material_scroll_test_bundle.json", "quantity": 1 }
+  ]
+}

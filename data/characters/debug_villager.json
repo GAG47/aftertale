@@ -23,6 +23,9 @@
     "faction": {}
   },
   "dialogue_source": "res://data/dialogues/debug_villager_dialogue.json",
+  "inventory": [
+    { "source": "res://data/items/debug_seed.json", "quantity": 3 }
+  ],
   "is_player_controlled": false,
   "is_interactable": true,
   "is_combatable": false,

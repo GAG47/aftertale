@@ -11,10 +11,22 @@ extends Node2D
 @export var is_usable: bool = false
 @export_multiline var inspect_text: String = ""
 @export_multiline var use_feedback: String = ""
+@export var facility_type: String = ""
+@export var shop_id: String = ""
+@export var vendor_character_id: String = ""
+@export var rest_type: String = ""
+@export var rest_minutes: int = 60
+@export var rest_target_hour: int = 6
+@export var rest_target_minute: int = 0
+@export var heal_ratio: float = 0.0
+@export var heal_amount: int = 0
+@export var full_restore: bool = false
+@export var cost: int = 0
 
 var location_root: Node
 var item_definition: Dictionary = {}
 var item_quantity: int = 0
+var recipe_ids: Array[String] = []
 
 
 func configure(data: Dictionary, parent_location: Node) -> void:
@@ -27,6 +39,33 @@ func configure(data: Dictionary, parent_location: Node) -> void:
 	is_usable = bool(data.get("is_usable", kind == "usable"))
 	inspect_text = str(data.get("inspect_text", "There is nothing unusual here."))
 	use_feedback = str(data.get("use_feedback", "Nothing happens."))
+	facility_type = str(data.get("facility_type", ""))
+	if facility_type.is_empty() and kind == "workbench":
+		facility_type = "crafting"
+	if facility_type.is_empty() and kind == "shop":
+		facility_type = "shop"
+	if facility_type.is_empty() and (kind == "bed" or kind == "campfire" or kind == "inn"):
+		facility_type = "rest"
+	if facility_type.is_empty() and kind == "save_point":
+		facility_type = "save"
+	shop_id = str(data.get("shop_id", ""))
+	vendor_character_id = str(data.get("vendor_character_id", data.get("vendor_id", "")))
+	rest_type = str(data.get("rest_type", ""))
+	if rest_type.is_empty() and facility_type == "rest":
+		rest_type = kind
+	rest_minutes = max(0, int(data.get("minutes", data.get("rest_minutes", rest_minutes))))
+	rest_target_hour = clampi(int(data.get("target_hour", data.get("rest_target_hour", rest_target_hour))), 0, 23)
+	rest_target_minute = clampi(int(data.get("target_minute", data.get("rest_target_minute", rest_target_minute))), 0, 59)
+	heal_ratio = max(0.0, float(data.get("heal_ratio", heal_ratio)))
+	heal_amount = max(0, int(data.get("heal_amount", heal_amount)))
+	full_restore = bool(data.get("full_restore", rest_type == "bed" or rest_type == "inn"))
+	cost = max(0, int(data.get("cost", cost)))
+	recipe_ids.clear()
+	var recipe_rows: Array = data.get("recipe_ids", []) as Array
+	for recipe_id_value in recipe_rows:
+		recipe_ids.append(str(recipe_id_value))
+	if is_facility():
+		is_usable = true
 
 	var item_data: Dictionary = data.get("item", {}) as Dictionary
 	item_quantity = int(item_data.get("quantity", 0))
@@ -55,8 +94,14 @@ func _draw() -> void:
 		_draw_seed_pouch_icon()
 	elif item_id == "debug_stick":
 		_draw_stick_icon()
-	elif object_id.find("crate") >= 0:
+	elif facility_type == "crafting" or object_id.find("crate") >= 0:
 		_draw_crate_icon()
+	elif facility_type == "shop" or rest_type == "inn":
+		_draw_shop_icon()
+	elif rest_type == "campfire":
+		_draw_campfire_icon()
+	elif rest_type == "bed" or facility_type == "save":
+		_draw_marker_icon()
 	elif object_id.find("switch") >= 0:
 		_draw_switch_icon()
 	elif object_id.find("sign") >= 0 or object_id.find("marker") >= 0:
@@ -79,6 +124,41 @@ func get_summary() -> Dictionary:
 		"is_usable": is_usable,
 		"item_id": str(item_definition.get("id", "")),
 		"item_quantity": item_quantity,
+		"facility_type": facility_type,
+		"shop_id": shop_id,
+		"vendor_character_id": vendor_character_id,
+		"recipe_ids": recipe_ids.duplicate(),
+		"rest_type": rest_type,
+		"minutes": rest_minutes,
+		"target_hour": rest_target_hour,
+		"target_minute": rest_target_minute,
+		"heal_ratio": heal_ratio,
+		"heal_amount": heal_amount,
+		"full_restore": full_restore,
+		"cost": cost,
+	}
+
+
+func is_facility() -> bool:
+	return facility_type == "crafting" or facility_type == "shop" or facility_type == "rest" or facility_type == "save"
+
+
+func get_facility_data() -> Dictionary:
+	return {
+		"id": object_id,
+		"display_name": display_name,
+		"facility_type": facility_type,
+		"shop_id": shop_id,
+		"vendor_character_id": vendor_character_id,
+		"recipe_ids": recipe_ids.duplicate(),
+		"rest_type": rest_type,
+		"minutes": rest_minutes,
+		"target_hour": rest_target_hour,
+		"target_minute": rest_target_minute,
+		"heal_ratio": heal_ratio,
+		"heal_amount": heal_amount,
+		"full_restore": full_restore,
+		"cost": cost,
 	}
 
 
@@ -146,6 +226,39 @@ func _draw_crate_icon() -> void:
 	draw_rect(rect.grow(-5.5), Color(0.83, 0.58, 0.30, 0.25), false, 1.0)
 
 
+func _draw_shop_icon() -> void:
+	var rect := Rect2(Vector2(-10.0, -8.0), Vector2(20.0, 16.0))
+	draw_rect(rect, Color(0.56, 0.24, 0.20), true)
+	draw_rect(rect, Color(0.18, 0.09, 0.07), false, 1.5)
+	draw_line(Vector2(-8.0, -2.0), Vector2(8.0, -2.0), Color(0.94, 0.78, 0.45), 1.5)
+	draw_circle(Vector2(-4.0, 3.0), 2.0, Color(0.94, 0.78, 0.45))
+	draw_circle(Vector2(4.0, 3.0), 2.0, Color(0.94, 0.78, 0.45))
+
+
+func _draw_campfire_icon() -> void:
+	draw_line(Vector2(-8.0, 8.0), Vector2(8.0, 1.0), Color(0.32, 0.18, 0.09), 3.0)
+	draw_line(Vector2(8.0, 8.0), Vector2(-8.0, 1.0), Color(0.32, 0.18, 0.09), 3.0)
+	var flame := PackedVector2Array([
+		Vector2(0.0, -11.0),
+		Vector2(-7.0, 1.0),
+		Vector2(-3.0, 8.0),
+		Vector2(0.0, 4.0),
+		Vector2(4.0, 8.0),
+		Vector2(8.0, 1.0),
+	])
+	draw_polygon(flame, _solid_colors(flame.size(), Color(0.94, 0.28, 0.12)))
+	var inner := PackedVector2Array([Vector2(0.0, -5.0), Vector2(-3.0, 4.0), Vector2(2.0, 5.0), Vector2(4.0, 0.0)])
+	draw_polygon(inner, _solid_colors(inner.size(), Color(1.0, 0.78, 0.24)))
+
+
+func _draw_marker_icon() -> void:
+	var rect := Rect2(Vector2(-9.0, -7.0), Vector2(18.0, 14.0))
+	draw_rect(rect, Color(0.38, 0.48, 0.62), true)
+	draw_rect(rect, Color(0.12, 0.17, 0.24), false, 1.4)
+	draw_line(Vector2(-5.0, -1.0), Vector2(5.0, -1.0), Color(0.90, 0.92, 0.82), 1.3)
+	draw_line(Vector2(-5.0, 3.0), Vector2(5.0, 3.0), Color(0.90, 0.92, 0.82), 1.3)
+
+
 func _draw_switch_icon() -> void:
 	draw_rect(Rect2(Vector2(-6.5, -9.0), Vector2(13.0, 18.0)), Color(0.58, 0.53, 0.55), true)
 	draw_rect(Rect2(Vector2(-6.5, -9.0), Vector2(13.0, 18.0)), Color(0.20, 0.18, 0.19), false, 1.4)
@@ -162,6 +275,8 @@ func _draw_generic_icon() -> void:
 		color = Color(0.35, 0.85, 0.35)
 	elif kind == "usable":
 		color = Color(0.75, 0.45, 0.95)
+	elif is_facility():
+		color = Color(0.95, 0.67, 0.25)
 	draw_circle(Vector2.ZERO, 8.0, color)
 	_draw_soft_outline(9.0)
 

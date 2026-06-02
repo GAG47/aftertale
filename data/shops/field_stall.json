@@ -2,6 +2,8 @@
   "id": "field_stall",
   "display_name": "田边摊位",
   "description": "一个简易的公共摊位，用来验证早期买卖规则。",
+  "vendor_id": "debug_villager",
+  "vendor_currency": 5,
   "sell_offers": [
     { "item_id": "debug_apple", "price": 3 },
     { "item_id": "debug_stick", "price": 1 },
@@ -14,12 +16,14 @@
     {
       "item_id": "debug_seed",
       "source": "res://data/items/debug_seed.json",
-      "price": 2
+      "price": 2,
+      "restock_quantity": 3
     },
     {
       "item_id": "packed_snack",
       "source": "res://data/items/packed_snack.json",
-      "price": 9
+      "price": 9,
+      "restock_quantity": 1
     }
   ]
 }

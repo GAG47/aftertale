@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/ui_root.gd" id="1_ui_root"]
 [ext_resource type="PackedScene" path="res://scenes/ui/components/debug_panel.tscn" id="2_debug_panel"]
@@ -9,6 +9,7 @@
 [ext_resource type="Script" path="res://scripts/ui/inventory_panel.gd" id="7_inventory"]
 [ext_resource type="Script" path="res://scripts/ui/quest_panel.gd" id="8_quest"]
 [ext_resource type="Script" path="res://scripts/ui/character_panel.gd" id="9_character"]
+[ext_resource type="Script" path="res://scripts/ui/facility_panel.gd" id="10_facility"]
 
 [node name="UIRoot" type="Control"]
 layout_mode = 3
@@ -72,7 +73,7 @@ theme_override_constants/margin_bottom = 6
 
 [node name="InteractionLabel" type="Label" parent="InteractionPanel/MarginContainer"]
 layout_mode = 2
-text = "WASD/方向键移动  E/Enter 互动  B 背包  Tab/I 菜单"
+text = "WASD/方向键移动  E/Enter 互动  B 背包  J 任务  C 角色"
 horizontal_alignment = 1
 autowrap_mode = 3
 
@@ -144,6 +145,17 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 0
 script = ExtResource("9_character")
+
+[node name="FacilityPanel" type="Control" parent="."]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+script = ExtResource("10_facility")
 
 [node name="BattleHudPanel" type="Control" parent="."]
 visible = false

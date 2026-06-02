@@ -1,6 +1,10 @@
 class_name UIRoot
 extends Control
 
+signal return_title_requested()
+signal new_game_requested()
+signal quit_game_requested()
+
 @onready var time_label: Label = $TopBar/TopBarMargin/StatusRow/TimeLabel
 @onready var mode_label: Label = $TopBar/TopBarMargin/StatusRow/ModeLabel
 @onready var scene_label: Label = $TopBar/TopBarMargin/StatusRow/SceneLabel
@@ -12,6 +16,7 @@ extends Control
 @onready var inventory_panel = $InventoryPanel
 @onready var quest_panel = $QuestPanel
 @onready var character_panel = $CharacterPanel
+@onready var facility_panel = $FacilityPanel
 @onready var battle_hud_panel: BattleHudPanel = $BattleHudPanel
 @onready var dialogue_panel: DialoguePanel = $DialoguePanel
 
@@ -35,7 +40,6 @@ func bind_managers(game_state: Node, scene_loader: Node, time_manager: Node, inp
 	_time_manager.time_changed.connect(_on_time_changed)
 	action_system.action_executed.connect(_on_action_result)
 	action_system.action_failed.connect(_on_action_result)
-	_input_manager.menu_toggle_requested.connect(_on_menu_toggle_requested)
 	_input_manager.inventory_toggle_requested.connect(_on_inventory_toggle_requested)
 	_input_manager.quest_toggle_requested.connect(_on_quest_toggle_requested)
 	_input_manager.character_toggle_requested.connect(_on_character_toggle_requested)
@@ -50,11 +54,16 @@ func bind_managers(game_state: Node, scene_loader: Node, time_manager: Node, inp
 	_scene_loader.scene_changed.connect(_on_scene_changed)
 	dialogue_panel.option_selected.connect(_on_dialogue_option_selected)
 	game_menu_panel.close_requested.connect(_on_game_menu_close_requested)
+	game_menu_panel.return_title_requested.connect(_on_game_menu_return_title_requested)
+	game_menu_panel.quit_game_requested.connect(_on_game_menu_quit_requested)
+	game_menu_panel.new_game_requested.connect(_on_game_menu_new_game_requested)
 	inventory_panel.close_requested.connect(_on_inventory_close_requested)
 	inventory_panel.inventory_action_requested.connect(_on_inventory_action_requested)
 	quest_panel.close_requested.connect(_on_quest_close_requested)
 	character_panel.close_requested.connect(_on_character_close_requested)
 	character_panel.character_action_requested.connect(_on_character_action_requested)
+	facility_panel.close_requested.connect(_on_facility_close_requested)
+	facility_panel.facility_action_requested.connect(_on_facility_action_requested)
 	battle_hud_panel.wait_requested.connect(_on_battle_wait_requested)
 	battle_hud_panel.flee_requested.connect(_on_battle_flee_requested)
 	battle_hud_panel.skill_selected.connect(_on_battle_skill_selected)
@@ -87,6 +96,10 @@ func is_game_menu_visible() -> bool:
 	return game_menu_panel.visible
 
 
+func is_title_screen_visible() -> bool:
+	return game_menu_panel.is_title_screen()
+
+
 func is_inventory_visible() -> bool:
 	return inventory_panel.visible
 
@@ -99,7 +112,14 @@ func is_character_visible() -> bool:
 	return character_panel.visible
 
 
+func is_facility_visible() -> bool:
+	return facility_panel.is_open()
+
+
 func toggle_game_menu() -> void:
+	if game_menu_panel.is_title_screen():
+		return
+
 	if game_menu_panel.visible:
 		close_game_menu()
 		return
@@ -108,6 +128,9 @@ func toggle_game_menu() -> void:
 
 
 func open_game_menu() -> void:
+	if game_menu_panel.is_title_screen():
+		return
+
 	if _game_state.current_mode != GameState.GameMode.EXPLORATION and _game_state.current_mode != GameState.GameMode.MENU:
 		return
 
@@ -117,6 +140,8 @@ func open_game_menu() -> void:
 		quest_panel.close_panel()
 	if character_panel.visible:
 		character_panel.close_panel()
+	if facility_panel.visible:
+		facility_panel.close_panel()
 	_mode_before_menu = _game_state.current_mode
 	_game_state.set_mode(GameState.GameMode.MENU)
 	game_menu_panel.open_menu()
@@ -126,6 +151,8 @@ func open_game_menu() -> void:
 func close_game_menu() -> void:
 	if not game_menu_panel.visible:
 		return
+	if game_menu_panel.is_title_screen():
+		return
 
 	game_menu_panel.close_menu()
 	var restore_mode: int = _mode_before_menu
@@ -133,6 +160,14 @@ func close_game_menu() -> void:
 		restore_mode = GameState.GameMode.EXPLORATION
 	_game_state.set_mode(restore_mode)
 	message_log_panel.add_message("关闭菜单。")
+
+
+func open_title_screen() -> void:
+	clear_transient_ui()
+	_mode_before_menu = GameState.GameMode.EXPLORATION
+	_game_state.set_mode(GameState.GameMode.MENU)
+	game_menu_panel.open_title_menu()
+	message_log_panel.add_message("返回标题。")
 
 
 func toggle_inventory() -> void:
@@ -157,6 +192,8 @@ func open_inventory() -> void:
 		quest_panel.close_panel()
 	if character_panel.visible:
 		character_panel.close_panel()
+	if facility_panel.visible:
+		facility_panel.close_panel()
 	_mode_before_menu = _game_state.current_mode
 	_game_state.set_mode(GameState.GameMode.MENU)
 	inventory_panel.open_for_actor(actor)
@@ -193,6 +230,8 @@ func open_quest_panel() -> void:
 		inventory_panel.close_panel()
 	if character_panel.visible:
 		character_panel.close_panel()
+	if facility_panel.visible:
+		facility_panel.close_panel()
 	_mode_before_menu = _game_state.current_mode
 	_game_state.set_mode(GameState.GameMode.MENU)
 	quest_panel.open_panel()
@@ -233,6 +272,8 @@ func open_character_panel() -> void:
 		inventory_panel.close_panel()
 	if quest_panel.visible:
 		quest_panel.close_panel()
+	if facility_panel.visible:
+		facility_panel.close_panel()
 	_mode_before_menu = _game_state.current_mode
 	_game_state.set_mode(GameState.GameMode.MENU)
 	character_panel.open_for_actor(actor)
@@ -251,11 +292,46 @@ func close_character_panel() -> void:
 	message_log_panel.add_message("关闭角色。")
 
 
+func open_facility(facility_data: Dictionary) -> void:
+	if _game_state.current_mode != GameState.GameMode.EXPLORATION and _game_state.current_mode != GameState.GameMode.MENU:
+		return
+
+	var actor: CharacterEntity = _get_controlled_character()
+	if actor == null:
+		return
+
+	if game_menu_panel.visible:
+		game_menu_panel.close_menu()
+	if inventory_panel.visible:
+		inventory_panel.close_panel()
+	if quest_panel.visible:
+		quest_panel.close_panel()
+	if character_panel.visible:
+		character_panel.close_panel()
+	_mode_before_menu = _game_state.current_mode
+	_game_state.set_mode(GameState.GameMode.MENU)
+	facility_panel.open_for_facility(actor, facility_data)
+	message_log_panel.add_message("打开%s。" % str(facility_data.get("display_name", "交互对象")))
+
+
+func close_facility() -> void:
+	if not facility_panel.is_open():
+		return
+
+	facility_panel.close_panel()
+	var restore_mode: int = _mode_before_menu
+	if restore_mode == GameState.GameMode.MENU:
+		restore_mode = GameState.GameMode.EXPLORATION
+	_game_state.set_mode(restore_mode)
+	message_log_panel.add_message("关闭交互。")
+
+
 func clear_transient_ui() -> void:
 	game_menu_panel.close_menu()
 	inventory_panel.close_panel()
 	quest_panel.close_panel()
 	character_panel.close_panel()
+	facility_panel.close_panel()
 	dialogue_panel.hide_panel()
 	battle_hud_panel.hide_panel()
 	message_log_panel.visible = true
@@ -288,7 +364,11 @@ func _on_scene_context_changed(scene_id: String, _location_id: String) -> void:
 	_refresh_interaction_prompt()
 
 
-func _on_scene_changed(_scene_path: String, _scene_root: Node) -> void:
+func _on_scene_changed(_scene_path: String, scene_root: Node) -> void:
+	if scene_root != null and scene_root.has_signal("facility_requested"):
+		var callback := Callable(self, "_on_facility_requested")
+		if not scene_root.is_connected("facility_requested", callback):
+			scene_root.connect("facility_requested", callback)
 	_refresh_interaction_prompt()
 
 
@@ -303,10 +383,6 @@ func _on_dialogue_ended(_result: ActionResult) -> void:
 
 func _on_dialogue_option_selected(option_id: String) -> void:
 	_dialogue_runner.choose_option(option_id)
-
-
-func _on_menu_toggle_requested() -> void:
-	toggle_game_menu()
 
 
 func _on_inventory_toggle_requested() -> void:
@@ -325,6 +401,18 @@ func _on_game_menu_close_requested() -> void:
 	close_game_menu()
 
 
+func _on_game_menu_return_title_requested() -> void:
+	return_title_requested.emit()
+
+
+func _on_game_menu_quit_requested() -> void:
+	quit_game_requested.emit()
+
+
+func _on_game_menu_new_game_requested() -> void:
+	new_game_requested.emit()
+
+
 func _on_inventory_close_requested() -> void:
 	close_inventory()
 
@@ -335,6 +423,10 @@ func _on_quest_close_requested() -> void:
 
 func _on_character_close_requested() -> void:
 	close_character_panel()
+
+
+func _on_facility_close_requested() -> void:
+	close_facility()
 
 
 func _on_inventory_action_requested(action_type: String, target: Dictionary) -> void:
@@ -361,6 +453,22 @@ func _on_character_action_requested(action_type: String, target: Dictionary) -> 
 	character_panel.refresh()
 
 
+func _on_facility_requested(facility_data: Dictionary) -> void:
+	open_facility(facility_data)
+
+
+func _on_facility_action_requested(action_type: String, target: Dictionary) -> void:
+	var actor: CharacterEntity = _get_controlled_character()
+	if actor == null:
+		return
+
+	var action: GameAction = ActionSystem.create_action(action_type, actor, target, {
+		"source": "facility",
+	})
+	ActionSystem.submit(action)
+	facility_panel.refresh()
+
+
 func _on_game_loaded(_save_path: String) -> void:
 	clear_transient_ui()
 	_refresh_static_labels()
@@ -382,6 +490,8 @@ func _on_action_result(_action_type: String, _actor_id: String, result: ActionRe
 		quest_panel.refresh()
 	if character_panel.visible:
 		character_panel.refresh()
+	if facility_panel.is_open():
+		facility_panel.refresh()
 	if not _should_show_result(result):
 		return
 
@@ -468,7 +578,7 @@ func _refresh_interaction_prompt() -> void:
 			prompt = str(_scene_loader.current_scene.get_interaction_prompt())
 
 	if prompt.is_empty():
-		prompt = "WASD/方向键移动  E/Enter 互动  B 背包  J 任务  C 角色  Tab/I 菜单  R 等待"
+		prompt = "WASD/方向键移动  E/Enter 互动  B 背包  J 任务  C 角色  R 等待"
 
 	interaction_label.text = prompt
 	interaction_panel.visible = true

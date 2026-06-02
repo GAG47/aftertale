@@ -4,7 +4,6 @@ signal move_requested(direction: Vector2i)
 signal primary_action_requested()
 signal rest_requested()
 signal cancel_requested()
-signal menu_toggle_requested()
 signal inventory_toggle_requested()
 signal quest_toggle_requested()
 signal character_toggle_requested()
@@ -19,7 +18,6 @@ const ACTION_MOVE_RIGHT := "move_right"
 const ACTION_INTERACT := "interact"
 const ACTION_REST := "rest"
 const ACTION_CANCEL := "cancel"
-const ACTION_MENU_TOGGLE := "menu_toggle"
 const ACTION_INVENTORY_TOGGLE := "inventory_toggle"
 const ACTION_QUEST_TOGGLE := "quest_toggle"
 const ACTION_CHARACTER_TOGGLE := "character_toggle"
@@ -60,11 +58,6 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	if event.is_action_pressed(ACTION_REST):
 		rest_requested.emit()
-		get_viewport().set_input_as_handled()
-		return
-
-	if event.is_action_pressed(ACTION_MENU_TOGGLE):
-		menu_toggle_requested.emit()
 		get_viewport().set_input_as_handled()
 		return
 
@@ -119,8 +112,6 @@ func _register_default_actions() -> void:
 	_register_key_action(ACTION_INTERACT, KEY_E)
 	_register_key_action(ACTION_INTERACT, KEY_ENTER)
 	_register_key_action(ACTION_REST, KEY_R)
-	_register_key_action(ACTION_MENU_TOGGLE, KEY_TAB)
-	_register_key_action(ACTION_MENU_TOGGLE, KEY_I)
 	_register_key_action(ACTION_INVENTORY_TOGGLE, KEY_B)
 	_register_key_action(ACTION_QUEST_TOGGLE, KEY_J)
 	_register_key_action(ACTION_CHARACTER_TOGGLE, KEY_C)

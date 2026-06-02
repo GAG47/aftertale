@@ -15,7 +15,8 @@ func check() -> ActionResult:
 	if recipe_id.is_empty():
 		return _failure("CraftAction requires a recipe_id.")
 
-	var failed_requirement: String = CraftSystem.get_failed_requirement(actor, recipe_id)
+	var quantity: int = max(1, int(target.get("quantity", 1)))
+	var failed_requirement: String = CraftSystem.get_failed_requirement(actor, recipe_id, quantity)
 	if not failed_requirement.is_empty():
 		return _failure(failed_requirement)
 
@@ -27,4 +28,4 @@ func execute() -> ActionResult:
 	if not check_result.success:
 		return check_result
 
-	return CraftSystem.execute_craft(actor, str(target.get("recipe_id", "")))
+	return CraftSystem.execute_craft(actor, str(target.get("recipe_id", "")), max(1, int(target.get("quantity", 1))))
