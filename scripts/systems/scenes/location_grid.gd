@@ -11,6 +11,7 @@ var terrain: Dictionary = {}
 var entrances: Dictionary = {}
 var exits_by_cell: Dictionary = {}
 var state: Dictionary = {}
+var structure_blockers_by_cell: Dictionary = {}
 var blocking_occupants: Dictionary = {}
 var objects_by_cell: Dictionary = {}
 var objects_by_id: Dictionary = {}
@@ -52,6 +53,7 @@ static func from_dictionary(data: Dictionary) -> LocationGrid:
 		var cell := grid._cell_from_dict(exit_position)
 		grid.exits_by_cell[grid.cell_key(cell)] = exit_data.duplicate(true)
 
+	grid._load_structure_blockers(data)
 	return grid
 
 
@@ -89,7 +91,14 @@ func is_walkable(cell: Vector2i) -> bool:
 		return false
 
 	var terrain_data: Dictionary = terrain_at(cell)
-	return bool(terrain_data.get("walkable", false))
+	if not bool(terrain_data.get("walkable", false)):
+		return false
+
+	var structure_blocker: Dictionary = structure_blockers_by_cell.get(cell_key(cell), {}) as Dictionary
+	if bool(structure_blocker.get("blocks_movement", false)):
+		return false
+
+	return true
 
 
 func is_occupied(cell: Vector2i) -> bool:
@@ -106,6 +115,10 @@ func blocks_line_of_sight(cell: Vector2i, ignore_blocking_occupant: bool = false
 
 	var terrain_data: Dictionary = terrain_at(cell)
 	if bool(terrain_data.get("blocks_sight", not bool(terrain_data.get("walkable", false)))):
+		return true
+
+	var structure_blocker: Dictionary = structure_blockers_by_cell.get(cell_key(cell), {}) as Dictionary
+	if bool(structure_blocker.get("blocks_sight", false)):
 		return true
 
 	if not ignore_blocking_occupant and blocking_occupants.has(cell_key(cell)):
@@ -349,6 +362,102 @@ func grid_to_world(cell: Vector2i) -> Vector2:
 
 func cell_key(cell: Vector2i) -> String:
 	return "%d,%d" % [cell.x, cell.y]
+
+
+func _load_structure_blockers(data: Dictionary) -> void:
+	var structure_rows: Array = data.get("structures", []) as Array
+	for structure_value in structure_rows:
+		var structure: Dictionary = structure_value as Dictionary
+		_register_structure_collision(structure)
+
+	var override_rows: Array = data.get("collision_overrides", []) as Array
+	for override_value in override_rows:
+		var override_data: Dictionary = override_value as Dictionary
+		var cell := Vector2i(int(override_data.get("x", 0)), int(override_data.get("y", 0)))
+		if override_data.has("grid_position"):
+			cell = _cell_from_dict(override_data.get("grid_position", {}) as Dictionary)
+		_set_structure_blocker(
+			cell,
+			bool(override_data.get("blocks", override_data.get("blocks_movement", true))),
+			bool(override_data.get("blocks_sight", override_data.get("blocks", true)))
+		)
+
+
+func _register_structure_collision(structure: Dictionary) -> void:
+	var blocks_movement: bool = bool(structure.get("blocks_movement", false))
+	var blocks_sight: bool = bool(structure.get("blocks_sight", blocks_movement))
+	if not blocks_movement and not blocks_sight:
+		return
+
+	var cells: Array[Vector2i] = _structure_cells(structure)
+	for cell in cells:
+		_set_structure_blocker(cell, blocks_movement, blocks_sight)
+
+
+func _structure_cells(structure: Dictionary) -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	if str(structure.get("type", "")) == "wall_ring":
+		var bounds: Dictionary = structure.get("bounds", {}) as Dictionary
+		var x: int = int(bounds.get("x", 0))
+		var y: int = int(bounds.get("y", 0))
+		var w: int = int(bounds.get("w", 0))
+		var h: int = int(bounds.get("h", 0))
+		for yy in range(y, y + h):
+			for xx in range(x, x + w):
+				var cell := Vector2i(xx, yy)
+				if not _is_ring_edge(xx, yy, x, y, w, h):
+					continue
+				if _structure_excludes_cell(structure, cell):
+					continue
+				result.append(cell)
+		return result
+
+	var explicit_cells: Array = structure.get("cells", []) as Array
+	for cell_value in explicit_cells:
+		var cell_data: Dictionary = cell_value as Dictionary
+		result.append(_cell_from_dict(cell_data))
+
+	if not explicit_cells.is_empty():
+		return result
+
+	var position_data: Dictionary = structure.get("grid_position", {}) as Dictionary
+	var size_data: Dictionary = structure.get("grid_size", {}) as Dictionary
+	var origin := _cell_from_dict(position_data)
+	var w: int = max(1, int(size_data.get("w", 1)))
+	var h: int = max(1, int(size_data.get("h", 1)))
+	for y in range(origin.y, origin.y + h):
+		for x in range(origin.x, origin.x + w):
+			result.append(Vector2i(x, y))
+
+	return result
+
+
+func _is_ring_edge(xx: int, yy: int, x: int, y: int, w: int, h: int) -> bool:
+	return xx == x or xx == x + w - 1 or yy == y or yy == y + h - 1
+
+
+func _structure_excludes_cell(structure: Dictionary, cell: Vector2i) -> bool:
+	var excluded_rows: Array = structure.get("exclude_cells", []) as Array
+	for excluded_value in excluded_rows:
+		var excluded: Dictionary = excluded_value as Dictionary
+		if _cell_from_dict(excluded) == cell:
+			return true
+	return false
+
+
+func _set_structure_blocker(cell: Vector2i, blocks_movement: bool, blocks_sight: bool) -> void:
+	if not in_bounds(cell):
+		return
+
+	var key := cell_key(cell)
+	if not blocks_movement and not blocks_sight:
+		structure_blockers_by_cell.erase(key)
+		return
+
+	structure_blockers_by_cell[key] = {
+		"blocks_movement": blocks_movement,
+		"blocks_sight": blocks_sight,
+	}
 
 
 func _line_cells(from_cell: Vector2i, to_cell: Vector2i) -> Array[Vector2i]:

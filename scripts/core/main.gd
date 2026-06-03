@@ -28,7 +28,7 @@ func _start_new_game() -> void:
 	TimeManager.reset()
 	TimeManager.set_paused(false)
 
-	SceneLoader.load_location("res://scenes/locations/test_field.tscn", "start")
+	SceneLoader.load_location("res://scenes/locations/test_village.tscn", "plaza")
 
 
 func _on_debug_toggle_requested() -> void:

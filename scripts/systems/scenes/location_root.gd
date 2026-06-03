@@ -9,6 +9,8 @@ signal facility_requested(facility_data: Dictionary)
 @export var entrance_id: String = ""
 
 @onready var tile_renderer: DebugTileRenderer = $DebugTileRenderer
+@onready var floor_decoration_renderer: Node = get_node_or_null("FloorDecorationRenderer")
+@onready var building_renderer: Node = get_node_or_null("BuildingRenderer")
 @onready var objects_root: Node2D = $Objects
 @onready var characters_root: Node2D = $Characters
 @onready var camera: Camera2D = $Camera2D
@@ -30,6 +32,7 @@ var _party_follower_ids: Array[String] = []
 
 
 func _ready() -> void:
+	_setup_scene_layer_order()
 	_load_location_data()
 	if grid == null:
 		return
@@ -56,6 +59,16 @@ func _ready() -> void:
 	NpcScheduleSystem.register_location_root(self)
 	GameState.set_scene_context(grid.location_id, grid.location_id)
 	location_ready.emit(grid.location_id)
+
+
+func _setup_scene_layer_order() -> void:
+	tile_renderer.z_index = -100
+	if floor_decoration_renderer != null:
+		floor_decoration_renderer.z_index = -50
+	objects_root.z_index = 0
+	characters_root.z_index = 10
+	if building_renderer != null:
+		building_renderer.z_index = 30
 
 
 func _exit_tree() -> void:
@@ -138,6 +151,7 @@ func restore_controlled_character(state: Dictionary) -> bool:
 	controlled_character.set_grid_position(saved_cell)
 	controlled_character.set_facing(saved_facing)
 	current_grid_position = saved_cell
+	_update_building_renderer_focus()
 	grid_position_changed.emit(current_grid_position)
 	GameState.save_character_runtime(controlled_character)
 	return true
@@ -261,7 +275,23 @@ func _load_location_data() -> void:
 		return
 
 	tile_renderer.configure(grid)
+	_configure_scene_layer_renderer(floor_decoration_renderer)
+	_configure_scene_layer_renderer(building_renderer)
 	camera.position = Vector2(grid.width * grid.tile_size, grid.height * grid.tile_size) * 0.5
+
+
+func _configure_scene_layer_renderer(renderer: Node) -> void:
+	if renderer == null or not renderer.has_method("configure"):
+		return
+
+	renderer.configure(
+		grid,
+		_location_data_cache.get("floor_overlays", []) as Array,
+		_location_data_cache.get("floor_decorations", []) as Array,
+		_location_data_cache.get("structures", []) as Array,
+		_location_data_cache.get("roofs", []) as Array,
+		_location_data_cache.get("zones", _location_data_cache.get("districts", [])) as Array
+	)
 
 
 func _spawn_objects_from_data() -> void:
@@ -468,6 +498,7 @@ func _build_spawn_data(spawn_data: Dictionary, definition: Dictionary) -> Dictio
 
 func _spawn_character(definition: Dictionary, resolved_spawn_data: Dictionary) -> CharacterEntity:
 	var character: CharacterEntity = CharacterEntity.new()
+	character.z_index = 10
 	characters_root.add_child(character)
 	character.configure(definition, resolved_spawn_data, self)
 
@@ -487,6 +518,7 @@ func _spawn_character(definition: Dictionary, resolved_spawn_data: Dictionary) -
 			character.apply_runtime_state(runtime_state)
 		controlled_character = character
 		current_grid_position = character.grid_position
+		_update_building_renderer_focus()
 		GameState.player_id = character.character_id
 		if not character.grid_position_changed.is_connected(_on_controlled_character_grid_position_changed):
 			character.grid_position_changed.connect(_on_controlled_character_grid_position_changed)
@@ -1389,6 +1421,15 @@ func _has_controlled_character() -> bool:
 	return controlled_character != null and is_instance_valid(controlled_character)
 
 
+func _update_building_renderer_focus() -> void:
+	if building_renderer == null:
+		return
+	if not building_renderer.has_method("set_active_cell"):
+		return
+
+	building_renderer.set_active_cell(current_grid_position)
+
+
 func _refresh_battle_character_presentations() -> void:
 	if grid == null:
 		return
@@ -1551,6 +1592,7 @@ func _get_crop_interaction_kind(cell: Vector2i) -> String:
 
 func _on_controlled_character_grid_position_changed(_character_id: String, _previous_cell: Vector2i, new_cell: Vector2i) -> void:
 	current_grid_position = new_cell
+	_update_building_renderer_focus()
 	grid_position_changed.emit(current_grid_position)
 	_refresh_interaction_overlay()
 

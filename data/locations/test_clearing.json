@@ -27,8 +27,8 @@
     {
       "id": "west_gate",
       "grid_position": { "x": 0, "y": 3 },
-      "target_scene_path": "res://scenes/locations/test_field.tscn",
-      "target_entrance_id": "from_clearing"
+      "target_scene_path": "res://scenes/locations/test_village.tscn",
+      "target_entrance_id": "from_wild"
     }
   ],
   "objects": [
