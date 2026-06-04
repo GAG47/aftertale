@@ -43,18 +43,24 @@
       "start": "06:00",
       "end": "17:59",
       "location_id": "test_clearing",
+      "anchor_id": "clearing_guard_post",
       "grid_position": { "x": 6, "y": 3 },
       "facing": "left",
-      "activity": "guarding the marker"
+      "activity_type": "patrol",
+      "activity": "guarding the marker",
+      "movement": "walk"
     },
     {
       "id": "night_patrol",
       "start": "18:00",
       "end": "05:59",
       "location_id": "test_clearing",
+      "anchor_id": "clearing_night_patrol",
       "grid_position": { "x": 6, "y": 4 },
       "facing": "right",
-      "activity": "patrolling at night"
+      "activity_type": "patrol",
+      "activity": "patrolling at night",
+      "movement": "walk"
     }
   ]
 }

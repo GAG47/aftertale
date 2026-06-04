@@ -34,6 +34,7 @@ func save_game(save_path: String = DEFAULT_SAVE_PATH) -> ActionResult:
 		"relations": RelationSystem.get_save_state(),
 		"crops": CropSystem.get_save_state(),
 		"business": BusinessSystem.get_save_state(),
+		"npc_schedules": NpcScheduleSystem.get_save_state(),
 	}
 
 	var dir_error: Error = DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(SAVE_DIR))
@@ -88,6 +89,7 @@ func load_game(save_path: String = DEFAULT_SAVE_PATH) -> ActionResult:
 	RelationSystem.apply_save_state(save_data.get("relations", {}) as Dictionary)
 	CropSystem.apply_save_state(save_data.get("crops", {}) as Dictionary)
 	BusinessSystem.apply_save_state(save_data.get("business", {}) as Dictionary)
+	NpcScheduleSystem.apply_save_state(save_data.get("npc_schedules", {}) as Dictionary)
 
 	var scene_state: Dictionary = save_data.get("scene", {}) as Dictionary
 	var scene_path: String = str(scene_state.get("scene_path", ""))

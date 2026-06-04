@@ -5,6 +5,10 @@ signal grid_position_changed(cell: Vector2i)
 signal exit_requested(exit_data: Dictionary)
 signal facility_requested(facility_data: Dictionary)
 
+const NpcMovementAgentScript := preload("res://scripts/systems/schedules/npc_movement_agent.gd")
+const NpcActivityAgentScript := preload("res://scripts/systems/schedules/npc_activity_agent.gd")
+const NpcAutonomyAgentScript := preload("res://scripts/systems/schedules/npc_autonomy_agent.gd")
+
 @export_file("*.json") var location_data_path: String = ""
 @export var entrance_id: String = ""
 
@@ -29,6 +33,9 @@ var _character_spawn_data_by_id: Dictionary = {}
 var _character_definition_by_id: Dictionary = {}
 var _save_runtime_on_exit: bool = true
 var _party_follower_ids: Array[String] = []
+var _npc_movement_agent
+var _npc_activity_agent
+var _npc_autonomy_agent
 
 
 func _ready() -> void:
@@ -59,6 +66,12 @@ func _ready() -> void:
 	NpcScheduleSystem.register_location_root(self)
 	GameState.set_scene_context(grid.location_id, grid.location_id)
 	location_ready.emit(grid.location_id)
+
+
+func _process(delta: float) -> void:
+	_update_npc_schedule_movement(delta)
+	_update_npc_autonomy(delta)
+	_update_npc_activities(delta)
 
 
 func _setup_scene_layer_order() -> void:
@@ -274,10 +287,110 @@ func _load_location_data() -> void:
 		push_error("Location data is invalid: %s" % location_data_path)
 		return
 
+	_setup_npc_movement_agent()
+	_setup_npc_activity_agent()
+	_setup_npc_autonomy_agent()
 	tile_renderer.configure(grid)
 	_configure_scene_layer_renderer(floor_decoration_renderer)
 	_configure_scene_layer_renderer(building_renderer)
 	camera.position = Vector2(grid.width * grid.tile_size, grid.height * grid.tile_size) * 0.5
+
+
+func _setup_npc_movement_agent() -> void:
+	_npc_movement_agent = NpcMovementAgentScript.new()
+	_npc_movement_agent.configure(grid)
+
+
+func _setup_npc_activity_agent() -> void:
+	_npc_activity_agent = NpcActivityAgentScript.new()
+	_npc_activity_agent.configure(grid)
+
+
+func _setup_npc_autonomy_agent() -> void:
+	_npc_autonomy_agent = NpcAutonomyAgentScript.new()
+	_npc_autonomy_agent.configure(grid)
+
+
+func _update_npc_schedule_movement(delta: float) -> void:
+	if grid == null or _npc_movement_agent == null:
+		return
+
+	var events: Array[Dictionary] = _npc_movement_agent.update(delta)
+	if events.is_empty():
+		return
+
+	var result: ActionResult = ActionResult.succeeded("NpcMovementUpdate", "", {
+		"location_id": grid.location_id,
+	})
+	for event in events:
+		result.add_world_change(event)
+		match str(event.get("type", "")):
+			"scheduled_character_arrived":
+				result.add_feedback("%s arrived for %s." % [
+					_get_character_display_name(str(event.get("character_id", ""))),
+					str(event.get("activity", "schedule")),
+				])
+			"scheduled_character_blocked":
+				result.add_feedback("%s could not continue scheduled movement." % _get_character_display_name(str(event.get("character_id", ""))))
+
+	ActionSystem.publish_result(result)
+	_refresh_interaction_overlay()
+
+
+func _update_npc_autonomy(delta: float) -> void:
+	if grid == null or _npc_autonomy_agent == null:
+		return
+
+	var events: Array[Dictionary] = _npc_autonomy_agent.update(delta, _npc_movement_agent)
+	if events.is_empty():
+		return
+
+	var result: ActionResult = ActionResult.succeeded("NpcAutonomyUpdate", "", {
+		"location_id": grid.location_id,
+	})
+	var should_resume_schedule: bool = false
+	for event in events:
+		result.add_world_change(event)
+		match str(event.get("type", "")):
+			"scheduled_character_interruption_started":
+				result.add_feedback("%s interrupted schedule: %s." % [
+					_get_character_display_name(str(event.get("character_id", ""))),
+					str(event.get("reason", "event")),
+				])
+			"scheduled_character_interruption_cleared":
+				should_resume_schedule = true
+				result.add_feedback("%s resumed schedule after %s." % [
+					_get_character_display_name(str(event.get("character_id", ""))),
+					str(event.get("reason", "event")),
+				])
+
+	ActionSystem.publish_result(result)
+	if should_resume_schedule:
+		apply_current_schedule(TimeManager.get_absolute_minutes())
+	_refresh_interaction_overlay()
+
+
+func _update_npc_activities(delta: float) -> void:
+	if grid == null or _npc_activity_agent == null:
+		return
+
+	var events: Array[Dictionary] = _npc_activity_agent.update(delta, _npc_movement_agent)
+	if events.is_empty():
+		return
+
+	var result: ActionResult = ActionResult.succeeded("NpcActivityUpdate", "", {
+		"location_id": grid.location_id,
+	})
+	for event in events:
+		result.add_world_change(event)
+		if str(event.get("type", "")) == "scheduled_character_activity_entered":
+			result.add_feedback("%s began %s." % [
+				_get_character_display_name(str(event.get("character_id", ""))),
+				str(event.get("activity", "an activity")),
+			])
+
+	ActionSystem.publish_result(result)
+	_refresh_interaction_overlay()
 
 
 func _configure_scene_layer_renderer(renderer: Node) -> void:
@@ -399,6 +512,7 @@ func _spawn_characters_from_data() -> void:
 		_character_definition_by_id[character_id] = definition.duplicate(true)
 
 		var resolved_spawn_data: Dictionary = _build_spawn_data(spawn_data, definition)
+		var offscreen_state: Dictionary = NpcScheduleSystem.get_offscreen_character_state(grid.location_id, character_id)
 		var active_entry: Dictionary = _get_active_schedule_entry(definition, resolved_spawn_data)
 		if not active_entry.is_empty():
 			var scheduled_location_id: String = str(active_entry.get("location_id", grid.location_id))
@@ -406,6 +520,9 @@ func _spawn_characters_from_data() -> void:
 				continue
 
 			_apply_schedule_entry_to_spawn_data(resolved_spawn_data, active_entry, scheduled_location_id)
+			_apply_matching_offscreen_state_to_spawn_data(resolved_spawn_data, offscreen_state, active_entry)
+		elif not offscreen_state.is_empty() and str(offscreen_state.get("location_id", grid.location_id)) == grid.location_id:
+			_apply_offscreen_state_to_spawn_data(resolved_spawn_data, offscreen_state)
 
 		_spawn_character(definition, resolved_spawn_data)
 
@@ -451,8 +568,16 @@ func apply_current_schedule(absolute_minutes: int) -> void:
 
 		var scheduled_location_id: String = str(active_entry.get("location_id", grid.location_id))
 		var character: CharacterEntity = grid.get_character_by_id(character_id)
+		if character != null and _npc_autonomy_agent != null and _npc_autonomy_agent.has_active_interruption(character_id):
+			continue
 		if scheduled_location_id != grid.location_id:
 			if character != null:
+				if _npc_movement_agent != null:
+					_npc_movement_agent.cancel_movement(character.character_id)
+				if _npc_activity_agent != null:
+					_npc_activity_agent.cancel_character(character.character_id)
+				if _npc_autonomy_agent != null:
+					_npc_autonomy_agent.cancel_character(character.character_id)
 				_remove_scheduled_character(character, active_entry, result)
 				change_count += 1
 			continue
@@ -634,54 +759,111 @@ func _get_active_schedule_entry(definition: Dictionary, spawn_data: Dictionary) 
 
 
 func _apply_schedule_entry_to_spawn_data(spawn_data: Dictionary, entry: Dictionary, scheduled_location_id: String) -> void:
-	if entry.has("grid_position"):
-		spawn_data["grid_position"] = (entry.get("grid_position", {}) as Dictionary).duplicate(true)
-	if entry.has("facing"):
-		spawn_data["facing"] = str(entry.get("facing", "down"))
+	var target: Dictionary = _resolve_schedule_target(entry)
+	if target.has("grid_position"):
+		spawn_data["grid_position"] = (target.get("grid_position", {}) as Dictionary).duplicate(true)
+	if target.has("facing"):
+		spawn_data["facing"] = str(target.get("facing", "down"))
 
 	spawn_data["schedule_entry_id"] = str(entry.get("id", ""))
+	spawn_data["anchor_id"] = str(entry.get("anchor_id", ""))
+	spawn_data["activity_type"] = str(entry.get("activity_type", "idle"))
 	spawn_data["activity"] = str(entry.get("activity", "idle"))
+	spawn_data["movement"] = str(entry.get("movement", "walk"))
 	spawn_data["scheduled_location_id"] = scheduled_location_id
+
+
+func _apply_matching_offscreen_state_to_spawn_data(spawn_data: Dictionary, offscreen_state: Dictionary, active_entry: Dictionary) -> void:
+	if offscreen_state.is_empty():
+		return
+	if str(offscreen_state.get("entry_id", "")) != str(active_entry.get("id", "")):
+		return
+
+	_apply_offscreen_state_to_spawn_data(spawn_data, offscreen_state)
+
+
+func _apply_offscreen_state_to_spawn_data(spawn_data: Dictionary, offscreen_state: Dictionary) -> void:
+	if offscreen_state.has("grid_position"):
+		spawn_data["grid_position"] = (offscreen_state.get("grid_position", {}) as Dictionary).duplicate(true)
+	if offscreen_state.has("facing"):
+		spawn_data["facing"] = str(offscreen_state.get("facing", "down"))
+
+	spawn_data["schedule_entry_id"] = str(offscreen_state.get("entry_id", spawn_data.get("schedule_entry_id", "")))
+	spawn_data["anchor_id"] = str(offscreen_state.get("anchor_id", spawn_data.get("anchor_id", "")))
+	spawn_data["activity_type"] = str(offscreen_state.get("activity_type", spawn_data.get("activity_type", "idle")))
+	spawn_data["activity"] = str(offscreen_state.get("activity", spawn_data.get("activity", "idle")))
+	spawn_data["movement"] = str(offscreen_state.get("movement", spawn_data.get("movement", "walk")))
+	spawn_data["scheduled_location_id"] = str(offscreen_state.get("location_id", grid.location_id))
 
 
 func _apply_schedule_entry_to_character(character: CharacterEntity, entry: Dictionary, scheduled_location_id: String, result: ActionResult) -> bool:
 	var entry_id: String = str(entry.get("id", ""))
+	var next_activity_type: String = str(entry.get("activity_type", character.current_activity_type))
 	var next_activity: String = str(entry.get("activity", character.current_activity))
 	var next_facing: String = str(entry.get("facing", character.facing))
 	var entry_changed: bool = character.current_schedule_entry_id != entry_id
+	var activity_type_changed: bool = character.current_activity_type != next_activity_type
 	var activity_changed: bool = character.current_activity != next_activity
 	var facing_changed: bool = character.facing != next_facing
 	var changed: bool = false
+	var movement_active: bool = false
 
-	if entry.has("grid_position"):
-		var target_position: Dictionary = entry.get("grid_position", {}) as Dictionary
+	var schedule_target: Dictionary = _resolve_schedule_target(entry)
+	if schedule_target.has("grid_position"):
+		var target_position: Dictionary = schedule_target.get("grid_position", {}) as Dictionary
 		var target_cell: Vector2i = _cell_from_dict(target_position)
-		if character.grid_position != target_cell and (entry_changed or activity_changed):
-			if _move_scheduled_character(character, target_cell, result):
+		if schedule_target.has("facing"):
+			next_facing = str(schedule_target.get("facing", next_facing))
+			facing_changed = character.facing != next_facing
+		movement_active = _npc_movement_agent != null and _npc_movement_agent.has_active_intent(character.character_id, entry_id, target_cell)
+		if character.grid_position != target_cell and (entry_changed or activity_type_changed or activity_changed) and not movement_active:
+			var movement_entry: Dictionary = entry.duplicate(true)
+			movement_entry["facing"] = next_facing
+			var movement_request: Dictionary = _request_scheduled_character_movement(character, movement_entry, scheduled_location_id, target_cell)
+			var movement_state: String = str(movement_request.get("state", ""))
+			if movement_state == "started":
+				result.add_world_change({
+					"type": "scheduled_character_movement_started",
+					"character_id": character.character_id,
+					"location_id": grid.location_id,
+					"entry_id": entry_id,
+					"from": character.grid_position,
+					"target": target_cell,
+					"activity_type": str(entry.get("activity_type", "idle")),
+					"activity": next_activity,
+				})
+				result.add_feedback("%s started walking to %s." % [character.display_name, next_activity])
 				changed = true
-			else:
+				movement_active = true
+			elif movement_state == "arrived":
+				changed = true
+			elif movement_state == "blocked":
 				result.add_world_change({
 					"type": "scheduled_character_blocked",
 					"character_id": character.character_id,
 					"location_id": grid.location_id,
 					"entry_id": entry_id,
 					"target": target_cell,
+					"reason": str(movement_request.get("reason", "")),
 				})
 				result.add_feedback("%s could not reach scheduled activity %s." % [character.display_name, next_activity])
 				changed = true
 
-	if facing_changed:
+	if facing_changed and not movement_active:
 		character.set_facing(next_facing)
 		changed = true
 
-	if entry_changed or activity_changed or changed:
+	if entry_changed or activity_type_changed or activity_changed or changed:
 		character.set_schedule_state(entry, scheduled_location_id)
 		result.add_world_change({
 			"type": "scheduled_character_state_changed",
 			"character_id": character.character_id,
 			"location_id": grid.location_id,
 			"entry_id": character.current_schedule_entry_id,
+			"anchor_id": character.current_schedule_anchor_id,
+			"activity_type": character.current_activity_type,
 			"activity": character.current_activity,
+			"movement": character.current_movement_mode,
 			"grid_position": character.grid_position,
 			"facing": character.facing,
 		})
@@ -689,6 +871,37 @@ func _apply_schedule_entry_to_character(character: CharacterEntity, entry: Dicti
 		return true
 
 	return false
+
+
+func _resolve_schedule_target(entry: Dictionary) -> Dictionary:
+	var target: Dictionary = {}
+	var anchor_id: String = str(entry.get("anchor_id", ""))
+	if not anchor_id.is_empty() and grid != null:
+		var anchor: Dictionary = grid.get_anchor(anchor_id)
+		if not anchor.is_empty():
+			var anchor_position: Dictionary = anchor.get("grid_position", {}) as Dictionary
+			if not anchor_position.is_empty():
+				target["grid_position"] = anchor_position.duplicate(true)
+			if anchor.has("facing"):
+				target["facing"] = str(anchor.get("facing", "down"))
+
+	if not target.has("grid_position") and entry.has("grid_position"):
+		target["grid_position"] = (entry.get("grid_position", {}) as Dictionary).duplicate(true)
+
+	if entry.has("facing"):
+		target["facing"] = str(entry.get("facing", "down"))
+
+	return target
+
+
+func _request_scheduled_character_movement(character: CharacterEntity, entry: Dictionary, scheduled_location_id: String, target_cell: Vector2i) -> Dictionary:
+	if _npc_movement_agent == null:
+		return {
+			"state": "blocked",
+			"reason": "missing_movement_agent",
+		}
+
+	return _npc_movement_agent.request_schedule_movement(character, entry, scheduled_location_id, target_cell)
 
 
 func _move_scheduled_character(character: CharacterEntity, target_cell: Vector2i, result: ActionResult) -> bool:
@@ -711,6 +924,12 @@ func _move_scheduled_character(character: CharacterEntity, target_cell: Vector2i
 
 
 func _remove_scheduled_character(character: CharacterEntity, entry: Dictionary, result: ActionResult) -> void:
+	if _npc_movement_agent != null:
+		_npc_movement_agent.cancel_movement(character.character_id)
+	if _npc_activity_agent != null:
+		_npc_activity_agent.cancel_character(character.character_id)
+	if _npc_autonomy_agent != null:
+		_npc_autonomy_agent.cancel_character(character.character_id)
 	grid.unregister_character(character.character_id)
 	result.add_world_change({
 		"type": "scheduled_character_departed",
@@ -1411,6 +1630,17 @@ func _get_character_summaries() -> Array[Dictionary]:
 			summaries.append(character.get_summary())
 
 	return summaries
+
+
+func _get_character_display_name(character_id: String) -> String:
+	if grid == null or character_id.is_empty():
+		return character_id
+
+	var character: CharacterEntity = grid.get_character_by_id(character_id)
+	if character == null:
+		return character_id
+
+	return character.display_name
 
 
 func _cell_from_dict(value: Dictionary) -> Vector2i:

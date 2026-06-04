@@ -36,45 +36,60 @@
       "start": "06:00",
       "end": "08:59",
       "location_id": "test_field",
+      "anchor_id": "field_morning_work",
       "grid_position": { "x": 6, "y": 5 },
       "facing": "down",
-      "activity": "checking the field"
+      "activity_type": "work",
+      "activity": "checking the field",
+      "movement": "walk"
     },
     {
       "id": "day_path_watch",
       "start": "09:00",
       "end": "11:59",
       "location_id": "test_field",
+      "anchor_id": "field_path_watch",
       "grid_position": { "x": 7, "y": 5 },
       "facing": "left",
-      "activity": "watching the path"
+      "activity_type": "patrol",
+      "activity": "watching the path",
+      "movement": "walk"
     },
     {
       "id": "afternoon_pond_walk",
       "start": "12:00",
       "end": "16:59",
       "location_id": "test_field",
+      "anchor_id": "field_pond_walk",
       "grid_position": { "x": 6, "y": 6 },
       "facing": "up",
-      "activity": "walking near the pond"
+      "activity_type": "social",
+      "activity": "walking near the pond",
+      "movement": "walk"
     },
     {
       "id": "evening_west_path",
       "start": "17:00",
       "end": "20:59",
       "location_id": "test_field",
+      "anchor_id": "field_west_path",
       "grid_position": { "x": 5, "y": 6 },
       "facing": "right",
-      "activity": "heading home"
+      "activity_type": "travel",
+      "activity": "heading home",
+      "movement": "walk"
     },
     {
       "id": "night_rest",
       "start": "21:00",
       "end": "05:59",
       "location_id": "test_field",
+      "anchor_id": "field_rest_spot",
       "grid_position": { "x": 2, "y": 6 },
       "facing": "right",
-      "activity": "resting"
+      "activity_type": "sleep",
+      "activity": "resting",
+      "movement": "walk"
     }
   ]
 }

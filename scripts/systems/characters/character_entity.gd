@@ -33,7 +33,12 @@ var relation_slots: Dictionary = {}
 var skills: Array[String] = []
 var schedule: Array[Dictionary] = []
 var current_schedule_entry_id: String = ""
+var current_schedule_anchor_id: String = ""
+var current_activity_type: String = "idle"
 var current_activity: String = "idle"
+var current_movement_mode: String = "walk"
+var current_interruption_reason: String = ""
+var current_interruption_priority: int = 0
 var scheduled_location_id: String = ""
 var hp: int = 1
 var max_hp: int = 1
@@ -106,7 +111,10 @@ func configure(definition: Dictionary, spawn_data: Dictionary, parent_location: 
 		schedule.append(schedule_entry.duplicate(true))
 
 	current_schedule_entry_id = str(spawn_data.get("schedule_entry_id", ""))
+	current_schedule_anchor_id = str(spawn_data.get("anchor_id", current_schedule_anchor_id))
+	current_activity_type = str(spawn_data.get("activity_type", current_activity_type))
 	current_activity = str(spawn_data.get("activity", current_activity))
+	current_movement_mode = str(spawn_data.get("movement", current_movement_mode))
 	scheduled_location_id = str(spawn_data.get("scheduled_location_id", ""))
 
 	var inventory_capacity: int = int(spawn_data.get("inventory_capacity", definition.get("inventory_capacity", 24)))
@@ -193,8 +201,24 @@ func set_facing(new_facing: String) -> void:
 
 func set_schedule_state(entry: Dictionary, location_id: String) -> void:
 	current_schedule_entry_id = str(entry.get("id", ""))
+	current_schedule_anchor_id = str(entry.get("anchor_id", current_schedule_anchor_id))
+	current_activity_type = str(entry.get("activity_type", current_activity_type))
 	current_activity = str(entry.get("activity", current_activity))
+	current_movement_mode = str(entry.get("movement", current_movement_mode))
 	scheduled_location_id = location_id
+
+
+func set_interruption_state(reason: String, priority: int) -> void:
+	current_interruption_reason = reason
+	current_interruption_priority = max(0, priority)
+
+
+func clear_interruption_state(reason: String = "") -> void:
+	if not reason.is_empty() and current_interruption_reason != reason:
+		return
+
+	current_interruption_reason = ""
+	current_interruption_priority = 0
 
 
 func set_combat_stats(new_hp: int, new_max_hp: int, defeated: bool) -> void:
@@ -290,7 +314,12 @@ func get_summary() -> Dictionary:
 		"relation_slots": relation_slots,
 		"skills": skills.duplicate(),
 		"schedule_entry_id": current_schedule_entry_id,
+		"anchor_id": current_schedule_anchor_id,
+		"activity_type": current_activity_type,
 		"activity": current_activity,
+		"movement": current_movement_mode,
+		"interruption_reason": current_interruption_reason,
+		"interruption_priority": current_interruption_priority,
 		"scheduled_location_id": scheduled_location_id,
 		"hp": hp,
 		"max_hp": max_hp,

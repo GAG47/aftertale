@@ -120,6 +120,15 @@
     { "id": "plaza", "grid_position": { "x": 13, "y": 11 }, "facing": "down" },
     { "id": "from_wild", "grid_position": { "x": 24, "y": 14 }, "facing": "left" }
   ],
+  "anchors": [
+    { "id": "house_sleep_spot", "kind": "bed", "grid_position": { "x": 4, "y": 4 }, "facing": "left" },
+    { "id": "shop_counter_spot", "kind": "shop_counter", "grid_position": { "x": 18, "y": 4 }, "facing": "down" },
+    { "id": "tavern_table_spot", "kind": "meal", "grid_position": { "x": 23, "y": 4 }, "facing": "right" },
+    { "id": "plaza_social_spot", "kind": "social", "grid_position": { "x": 15, "y": 11 }, "facing": "left", "activity_cells": [{ "x": 14, "y": 11 }, { "x": 15, "y": 11 }] },
+    { "id": "training_yard_guard_post", "kind": "training", "grid_position": { "x": 20, "y": 11 }, "facing": "left", "activity_cells": [{ "x": 20, "y": 11 }, { "x": 21, "y": 11 }] },
+    { "id": "wild_gate_guard_post", "kind": "guard_post", "grid_position": { "x": 23, "y": 14 }, "facing": "right", "activity_cells": [{ "x": 22, "y": 14 }, { "x": 23, "y": 14 }] },
+    { "id": "field_work_spot", "kind": "farm_work", "grid_position": { "x": 6, "y": 12 }, "facing": "down" }
+  ],
   "exits": [
     {
       "id": "wild_gate",
@@ -264,31 +273,76 @@
       "facing": "down",
       "schedule": [
         {
-          "id": "shop_day",
+          "id": "home_morning",
           "start": "06:00",
-          "end": "17:59",
+          "end": "07:29",
           "location_id": "test_village",
+          "anchor_id": "house_sleep_spot",
+          "grid_position": { "x": 4, "y": 4 },
+          "facing": "left",
+          "activity_type": "rest",
+          "activity": "getting ready at home",
+          "movement": "walk"
+        },
+        {
+          "id": "shop_morning",
+          "start": "07:30",
+          "end": "11:59",
+          "location_id": "test_village",
+          "anchor_id": "shop_counter_spot",
           "grid_position": { "x": 18, "y": 4 },
           "facing": "down",
-          "activity": "tending the shop"
+          "activity_type": "shopkeep",
+          "activity": "tending the shop",
+          "movement": "walk"
+        },
+        {
+          "id": "tavern_lunch",
+          "start": "12:00",
+          "end": "12:59",
+          "location_id": "test_village",
+          "anchor_id": "tavern_table_spot",
+          "grid_position": { "x": 23, "y": 4 },
+          "facing": "right",
+          "activity_type": "eat",
+          "activity": "having lunch at the tavern",
+          "movement": "walk"
+        },
+        {
+          "id": "shop_afternoon",
+          "start": "13:00",
+          "end": "17:59",
+          "location_id": "test_village",
+          "anchor_id": "shop_counter_spot",
+          "grid_position": { "x": 18, "y": 4 },
+          "facing": "down",
+          "activity_type": "shopkeep",
+          "activity": "tending the shop",
+          "movement": "walk"
         },
         {
           "id": "tavern_evening",
           "start": "18:00",
           "end": "20:59",
           "location_id": "test_village",
+          "anchor_id": "tavern_table_spot",
           "grid_position": { "x": 23, "y": 4 },
           "facing": "right",
-          "activity": "eating at the tavern"
+          "activity_type": "social",
+          "activity": "eating at the tavern",
+          "movement": "walk"
         },
         {
           "id": "home_night",
           "start": "21:00",
           "end": "05:59",
           "location_id": "test_village",
+          "anchor_id": "house_sleep_spot",
           "grid_position": { "x": 4, "y": 4 },
           "facing": "left",
-          "activity": "resting at home"
+          "activity_type": "sleep",
+          "activity": "resting at home",
+          "movement": "walk"
         }
       ]
     },
@@ -299,22 +353,52 @@
       "facing": "left",
       "schedule": [
         {
-          "id": "training_day",
+          "id": "training_morning",
           "start": "06:00",
-          "end": "17:59",
+          "end": "11:59",
           "location_id": "test_village",
+          "anchor_id": "training_yard_guard_post",
           "grid_position": { "x": 20, "y": 11 },
           "facing": "left",
-          "activity": "watching the training yard"
+          "activity_type": "train",
+          "activity": "watching the training yard",
+          "movement": "walk"
+        },
+        {
+          "id": "plaza_midday_patrol",
+          "start": "12:00",
+          "end": "13:59",
+          "location_id": "test_village",
+          "anchor_id": "plaza_social_spot",
+          "grid_position": { "x": 15, "y": 11 },
+          "facing": "left",
+          "activity_type": "patrol",
+          "activity": "checking the plaza",
+          "movement": "walk"
+        },
+        {
+          "id": "training_afternoon",
+          "start": "14:00",
+          "end": "17:59",
+          "location_id": "test_village",
+          "anchor_id": "training_yard_guard_post",
+          "grid_position": { "x": 20, "y": 11 },
+          "facing": "left",
+          "activity_type": "train",
+          "activity": "watching the training yard",
+          "movement": "walk"
         },
         {
           "id": "gate_night",
           "start": "18:00",
           "end": "05:59",
           "location_id": "test_village",
+          "anchor_id": "wild_gate_guard_post",
           "grid_position": { "x": 23, "y": 14 },
           "facing": "right",
-          "activity": "guarding the wild gate"
+          "activity_type": "patrol",
+          "activity": "guarding the wild gate",
+          "movement": "walk"
         }
       ]
     },

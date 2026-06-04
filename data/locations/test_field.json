@@ -25,6 +25,13 @@
     { "id": "start", "grid_position": { "x": 2, "y": 5 }, "facing": "right" },
     { "id": "from_clearing", "grid_position": { "x": 10, "y": 3 }, "facing": "left" }
   ],
+  "anchors": [
+    { "id": "field_morning_work", "kind": "farm_work", "grid_position": { "x": 6, "y": 5 }, "facing": "down" },
+    { "id": "field_path_watch", "kind": "watch", "grid_position": { "x": 7, "y": 5 }, "facing": "left" },
+    { "id": "field_pond_walk", "kind": "walk", "grid_position": { "x": 6, "y": 6 }, "facing": "up", "activity_cells": [{ "x": 6, "y": 6 }, { "x": 7, "y": 6 }] },
+    { "id": "field_west_path", "kind": "travel", "grid_position": { "x": 5, "y": 6 }, "facing": "right" },
+    { "id": "field_rest_spot", "kind": "rest", "grid_position": { "x": 2, "y": 6 }, "facing": "right" }
+  ],
   "exits": [
     {
       "id": "east_gate",

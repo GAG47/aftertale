@@ -7,6 +7,8 @@ var active_location_root: Node
 var active_location_data_path: String = ""
 var active_location_registered_minutes: int = 0
 var offscreen_states: Dictionary = {}
+var last_settled_minutes_by_location: Dictionary = {}
+var _skip_next_unregister_settle: bool = false
 
 
 func _ready() -> void:
@@ -17,6 +19,7 @@ func register_location_root(location_root: Node) -> void:
 	if location_root == null or not is_instance_valid(location_root):
 		return
 
+	_settle_location_before_entry(str(location_root.get("location_data_path")))
 	active_location_root = location_root
 	active_location_data_path = str(location_root.get("location_data_path"))
 	active_location_registered_minutes = TimeManager.get_absolute_minutes()
@@ -28,7 +31,9 @@ func unregister_location_root(location_root: Node) -> void:
 		return
 
 	if not is_instance_valid(active_location_root) or active_location_root == location_root:
-		if not active_location_data_path.is_empty():
+		if _skip_next_unregister_settle:
+			_skip_next_unregister_settle = false
+		elif not active_location_data_path.is_empty():
 			settle_offscreen_location(active_location_data_path, active_location_registered_minutes, TimeManager.get_absolute_minutes())
 		active_location_root = null
 		active_location_data_path = ""
@@ -81,13 +86,21 @@ func settle_offscreen_location(location_data_path: String, from_absolute_minutes
 		if active_entry.is_empty():
 			continue
 
+		var scheduled_location_id: String = str(active_entry.get("location_id", location_id))
+		var scheduled_location_data: Dictionary = location_data
+		if scheduled_location_id != location_id:
+			scheduled_location_data = _read_location_data_by_id(scheduled_location_id)
+		var target: Dictionary = _resolve_schedule_target(active_entry, scheduled_location_data)
 		character_states.append({
 			"character_id": str(spawn_data.get("id", character_definition.get("id", ""))),
-			"location_id": str(active_entry.get("location_id", location_id)),
-			"grid_position": active_entry.get("grid_position", {}),
-			"facing": str(active_entry.get("facing", character_definition.get("facing", "down"))),
+			"location_id": scheduled_location_id,
+			"anchor_id": str(active_entry.get("anchor_id", "")),
+			"grid_position": target.get("grid_position", active_entry.get("grid_position", {})),
+			"facing": str(target.get("facing", active_entry.get("facing", character_definition.get("facing", "down")))),
+			"activity_type": str(active_entry.get("activity_type", "idle")),
 			"activity": str(active_entry.get("activity", "idle")),
 			"entry_id": str(active_entry.get("id", "")),
+			"movement": str(active_entry.get("movement", "walk")),
 		})
 
 	var summary: Dictionary = {
@@ -97,8 +110,23 @@ func settle_offscreen_location(location_data_path: String, from_absolute_minutes
 		"characters": character_states,
 	}
 	offscreen_states[location_id] = summary
+	last_settled_minutes_by_location[location_id] = to_absolute_minutes
 	offscreen_settled.emit(location_id, from_absolute_minutes, to_absolute_minutes)
 	return summary
+
+
+func get_offscreen_character_state(location_id: String, character_id: String) -> Dictionary:
+	if location_id.is_empty() or character_id.is_empty():
+		return {}
+
+	var summary: Dictionary = get_offscreen_summary(location_id)
+	var character_rows: Array = summary.get("characters", []) as Array
+	for character_value in character_rows:
+		var character_state: Dictionary = character_value as Dictionary
+		if str(character_state.get("character_id", "")) == character_id:
+			return character_state.duplicate(true)
+
+	return {}
 
 
 func get_offscreen_summary(location_id: String = "") -> Dictionary:
@@ -106,6 +134,28 @@ func get_offscreen_summary(location_id: String = "") -> Dictionary:
 		return offscreen_states.duplicate(true)
 
 	return offscreen_states.get(location_id, {}) as Dictionary
+
+
+func get_save_state() -> Dictionary:
+	return {
+		"offscreen_states": offscreen_states.duplicate(true),
+		"last_settled_minutes_by_location": last_settled_minutes_by_location.duplicate(true),
+	}
+
+
+func apply_save_state(state: Dictionary) -> void:
+	offscreen_states = (state.get("offscreen_states", {}) as Dictionary).duplicate(true)
+	last_settled_minutes_by_location = (state.get("last_settled_minutes_by_location", {}) as Dictionary).duplicate(true)
+	_skip_next_unregister_settle = true
+
+
+func reset_schedule_state() -> void:
+	active_location_root = null
+	active_location_data_path = ""
+	active_location_registered_minutes = 0
+	offscreen_states.clear()
+	last_settled_minutes_by_location.clear()
+	_skip_next_unregister_settle = false
 
 
 func _on_time_changed(_day: int, _hour: int, _minute: int) -> void:
@@ -140,3 +190,60 @@ func _get_schedule(character_definition: Dictionary, spawn_data: Dictionary) -> 
 
 func _read_json_resource(resource_path: String) -> Dictionary:
 	return DefinitionLoader.load_json_resource(resource_path)
+
+
+func _settle_location_before_entry(location_data_path: String) -> void:
+	if location_data_path.is_empty():
+		return
+
+	var location_data: Dictionary = _read_json_resource(location_data_path)
+	if location_data.is_empty():
+		return
+
+	var location_id: String = str(location_data.get("id", ""))
+	if location_id.is_empty():
+		return
+
+	var current_minutes: int = TimeManager.get_absolute_minutes()
+	var last_settled_minutes: int = int(last_settled_minutes_by_location.get(location_id, -1))
+	if last_settled_minutes < 0 or last_settled_minutes >= current_minutes:
+		return
+
+	settle_offscreen_location(location_data_path, last_settled_minutes, current_minutes)
+
+
+func _read_location_data_by_id(location_id: String) -> Dictionary:
+	if location_id.is_empty():
+		return {}
+
+	return DefinitionLoader.load_location("res://data/locations/%s.json" % location_id)
+
+
+func _resolve_schedule_target(entry: Dictionary, location_data: Dictionary) -> Dictionary:
+	var target: Dictionary = {}
+	var anchor_id: String = str(entry.get("anchor_id", ""))
+	if not anchor_id.is_empty() and not location_data.is_empty():
+		var anchor: Dictionary = _get_anchor(location_data, anchor_id)
+		if not anchor.is_empty():
+			var anchor_position: Dictionary = anchor.get("grid_position", {}) as Dictionary
+			if not anchor_position.is_empty():
+				target["grid_position"] = anchor_position.duplicate(true)
+			if anchor.has("facing"):
+				target["facing"] = str(anchor.get("facing", "down"))
+
+	if not target.has("grid_position") and entry.has("grid_position"):
+		target["grid_position"] = (entry.get("grid_position", {}) as Dictionary).duplicate(true)
+	if entry.has("facing"):
+		target["facing"] = str(entry.get("facing", "down"))
+
+	return target
+
+
+func _get_anchor(location_data: Dictionary, anchor_id: String) -> Dictionary:
+	var anchor_rows: Array = location_data.get("anchors", []) as Array
+	for anchor_value in anchor_rows:
+		var anchor: Dictionary = anchor_value as Dictionary
+		if str(anchor.get("id", "")) == anchor_id:
+			return anchor
+
+	return {}

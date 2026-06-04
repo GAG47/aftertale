@@ -11,6 +11,18 @@ $questIds = @{}
 $locationsById = @{}
 $characterIds = @{}
 $factionIds = @{}
+$validActivityTypes = @(
+    "idle",
+    "travel",
+    "eat",
+    "work",
+    "shopkeep",
+    "patrol",
+    "train",
+    "rest",
+    "sleep",
+    "social"
+)
 
 function Get-TerrainValue {
     param($terrain, [string]$key)
@@ -43,6 +55,85 @@ function Test-LocationCell {
 
     if (-not [bool]$terrainValue.walkable) {
         $errors.Add("Schedule cell is not walkable '$x,$y': $context")
+    }
+}
+
+function Get-AnchorValue {
+    param($locationRecord, [string]$anchorId)
+
+    foreach ($anchor in @($locationRecord.Json.anchors)) {
+        if ([string]$anchor.id -eq $anchorId) {
+            return $anchor
+        }
+    }
+
+    return $null
+}
+
+function Test-ScheduleEntry {
+    param($scheduleEntry, [string]$sourceLabel, [string]$defaultLocationId)
+
+    if (-not $scheduleEntry.id) {
+        $errors.Add("Schedule entry missing id '$sourceLabel'")
+    }
+
+    if (-not $scheduleEntry.start -or [string]$scheduleEntry.start -notmatch "^\d{2}:\d{2}$") {
+        $errors.Add("Schedule entry has invalid start '$($scheduleEntry.id)': $sourceLabel")
+    }
+
+    if (-not $scheduleEntry.end -or [string]$scheduleEntry.end -notmatch "^\d{2}:\d{2}$") {
+        $errors.Add("Schedule entry has invalid end '$($scheduleEntry.id)': $sourceLabel")
+    }
+
+    if ($scheduleEntry.activity_type -and -not ($validActivityTypes -contains [string]$scheduleEntry.activity_type)) {
+        $errors.Add("Schedule entry has unknown activity_type '$($scheduleEntry.activity_type)': $sourceLabel / $($scheduleEntry.id)")
+    }
+
+    if ($scheduleEntry.movement -and [string]$scheduleEntry.movement -ne "walk") {
+        $errors.Add("Schedule entry has unsupported movement '$($scheduleEntry.movement)': $sourceLabel / $($scheduleEntry.id)")
+    }
+
+    $scheduledLocationId = $defaultLocationId
+    if ($scheduleEntry.location_id) {
+        $scheduledLocationId = [string]$scheduleEntry.location_id
+    }
+
+    if (-not $locationsById.ContainsKey($scheduledLocationId)) {
+        $errors.Add("Schedule references unknown location '$scheduledLocationId': $sourceLabel")
+        return
+    }
+
+    $locationRecord = $locationsById[$scheduledLocationId]
+    $resolvedByAnchor = $false
+    if ($scheduleEntry.anchor_id) {
+        $anchor = Get-AnchorValue $locationRecord ([string]$scheduleEntry.anchor_id)
+        if ($null -eq $anchor) {
+            if (-not $scheduleEntry.grid_position) {
+                $errors.Add("Schedule references missing anchor '$($scheduleEntry.anchor_id)' without grid_position fallback: $sourceLabel / $($scheduleEntry.id)")
+                return
+            }
+            $errors.Add("Schedule references missing anchor '$($scheduleEntry.anchor_id)': $sourceLabel / $($scheduleEntry.id)")
+        }
+        elseif (-not $anchor.grid_position) {
+            if (-not $scheduleEntry.grid_position) {
+                $errors.Add("Schedule anchor missing grid_position '$($scheduleEntry.anchor_id)' and no fallback exists: $sourceLabel / $($scheduleEntry.id)")
+                return
+            }
+            $errors.Add("Schedule anchor missing grid_position '$($scheduleEntry.anchor_id)': $sourceLabel / $($scheduleEntry.id)")
+        }
+        else {
+            Test-LocationCell $locationRecord ([int]$anchor.grid_position.x) ([int]$anchor.grid_position.y) "$sourceLabel / $($scheduleEntry.id) / anchor:$($scheduleEntry.anchor_id)"
+            $resolvedByAnchor = $true
+        }
+    }
+
+    if ($scheduleEntry.grid_position) {
+        Test-LocationCell $locationRecord ([int]$scheduleEntry.grid_position.x) ([int]$scheduleEntry.grid_position.y) "$sourceLabel / $($scheduleEntry.id)"
+        return
+    }
+
+    if (-not $resolvedByAnchor) {
+        $errors.Add("Schedule entry missing grid_position or valid anchor_id '$($scheduleEntry.id)': $sourceLabel")
     }
 }
 
@@ -251,6 +342,35 @@ foreach ($file in Get-ChildItem -LiteralPath $locationDir -Filter "*.json") {
         }
     }
 
+    $anchorIds = @{}
+    foreach ($anchor in @($json.anchors)) {
+        if (-not $anchor.id) {
+            $errors.Add("Anchor missing id: $($file.Name)")
+            continue
+        }
+
+        $anchorId = [string]$anchor.id
+        if ($anchorIds.ContainsKey($anchorId)) {
+            $errors.Add("Duplicate anchor id '$anchorId': $($file.Name)")
+        }
+        $anchorIds[$anchorId] = $true
+
+        if (-not $anchor.grid_position) {
+            $errors.Add("Anchor missing grid_position '$anchorId': $($file.Name)")
+            continue
+        }
+
+        Test-LocationCell @{ Json = $json; File = $file.Name } ([int]$anchor.grid_position.x) ([int]$anchor.grid_position.y) "$($file.Name) / anchor:$anchorId"
+
+        foreach ($activityCell in @($anchor.activity_cells)) {
+            Test-LocationCell @{ Json = $json; File = $file.Name } ([int]$activityCell.x) ([int]$activityCell.y) "$($file.Name) / anchor:$anchorId / activity_cell"
+        }
+
+        foreach ($patrolCell in @($anchor.patrol_cells)) {
+            Test-LocationCell @{ Json = $json; File = $file.Name } ([int]$patrolCell.x) ([int]$patrolCell.y) "$($file.Name) / anchor:$anchorId / patrol_cell"
+        }
+    }
+
     foreach ($exit in @($json.exits)) {
         $targetPath = $exit.target_scene_path -replace "^res://", ""
         if (-not (Test-Path -LiteralPath (Join-Path $root $targetPath))) {
@@ -398,34 +518,13 @@ foreach ($file in Get-ChildItem -LiteralPath $locationDir -Filter "*.json") {
 
         if ($characterJson.schedule) {
             foreach ($scheduleEntry in @($characterJson.schedule)) {
-                if (-not $scheduleEntry.id) {
-                    $errors.Add("Schedule entry missing id '$($character.source)': $($file.Name)")
-                }
+                Test-ScheduleEntry $scheduleEntry ([string]$character.source) ([string]$json.id)
+            }
+        }
 
-                if (-not $scheduleEntry.start -or [string]$scheduleEntry.start -notmatch "^\d{2}:\d{2}$") {
-                    $errors.Add("Schedule entry has invalid start '$($scheduleEntry.id)': $($character.source)")
-                }
-
-                if (-not $scheduleEntry.end -or [string]$scheduleEntry.end -notmatch "^\d{2}:\d{2}$") {
-                    $errors.Add("Schedule entry has invalid end '$($scheduleEntry.id)': $($character.source)")
-                }
-
-                $scheduledLocationId = [string]$json.id
-                if ($scheduleEntry.location_id) {
-                    $scheduledLocationId = [string]$scheduleEntry.location_id
-                }
-
-                if (-not $locationsById.ContainsKey($scheduledLocationId)) {
-                    $errors.Add("Schedule references unknown location '$scheduledLocationId': $($character.source)")
-                    continue
-                }
-
-                if (-not $scheduleEntry.grid_position) {
-                    $errors.Add("Schedule entry missing grid_position '$($scheduleEntry.id)': $($character.source)")
-                    continue
-                }
-
-                Test-LocationCell $locationsById[$scheduledLocationId] ([int]$scheduleEntry.grid_position.x) ([int]$scheduleEntry.grid_position.y) "$($character.source) / $($scheduleEntry.id)"
+        if ($character.schedule) {
+            foreach ($scheduleEntry in @($character.schedule)) {
+                Test-ScheduleEntry $scheduleEntry "$($file.Name) / $($character.id)" ([string]$json.id)
             }
         }
     }

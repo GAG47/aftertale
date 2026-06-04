@@ -23,6 +23,10 @@
   "entrances": [
     { "id": "west_gate", "grid_position": { "x": 1, "y": 3 }, "facing": "right" }
   ],
+  "anchors": [
+    { "id": "clearing_guard_post", "kind": "guard_post", "grid_position": { "x": 6, "y": 3 }, "facing": "left", "activity_cells": [{ "x": 5, "y": 3 }, { "x": 6, "y": 3 }] },
+    { "id": "clearing_night_patrol", "kind": "patrol", "grid_position": { "x": 6, "y": 4 }, "facing": "right", "activity_cells": [{ "x": 5, "y": 4 }, { "x": 6, "y": 4 }] }
+  ],
   "exits": [
     {
       "id": "west_gate",

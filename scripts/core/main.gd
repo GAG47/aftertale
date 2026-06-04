@@ -22,6 +22,7 @@ func _ready() -> void:
 
 func _start_new_game() -> void:
 	GameState.start_new_session()
+	NpcScheduleSystem.reset_schedule_state()
 	PartySystem.reset_party("debug_player")
 	GameState.set_scene_context("boot", "none")
 

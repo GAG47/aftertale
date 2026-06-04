@@ -1,13 +1,13 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene format=3 uid="uid://d2gyj2jntu3i4"]
 
-[ext_resource type="Script" path="res://scripts/core/main.gd" id="1_main"]
+[ext_resource type="Script" uid="uid://dms8cwpyl0o2e" path="res://scripts/core/main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://scenes/ui/screens/ui_root.tscn" id="2_ui_root"]
 
-[node name="Main" type="Node"]
+[node name="Main" type="Node" unique_id=1174567260]
 script = ExtResource("1_main")
 
-[node name="WorldRoot" type="Node2D" parent="."]
+[node name="WorldRoot" type="Node2D" parent="." unique_id=960744457]
 
-[node name="UILayer" type="CanvasLayer" parent="."]
+[node name="UILayer" type="CanvasLayer" parent="." unique_id=604522925]
 
-[node name="UIRoot" parent="UILayer" instance=ExtResource("2_ui_root")]
+[node name="UIRoot" parent="UILayer" unique_id=544921358 instance=ExtResource("2_ui_root")]

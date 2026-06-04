@@ -9,6 +9,7 @@ var tile_size: int = 32
 var tiles: Array[String] = []
 var terrain: Dictionary = {}
 var entrances: Dictionary = {}
+var anchors_by_id: Dictionary = {}
 var exits_by_cell: Dictionary = {}
 var state: Dictionary = {}
 var structure_blockers_by_cell: Dictionary = {}
@@ -45,6 +46,14 @@ static func from_dictionary(data: Dictionary) -> LocationGrid:
 		if entrance_id.is_empty():
 			continue
 		grid.entrances[entrance_id] = entrance.duplicate(true)
+
+	var anchor_rows: Array = data.get("anchors", []) as Array
+	for anchor_value in anchor_rows:
+		var anchor: Dictionary = anchor_value as Dictionary
+		var anchor_id := str(anchor.get("id", ""))
+		if anchor_id.is_empty():
+			continue
+		grid.anchors_by_id[anchor_id] = anchor.duplicate(true)
 
 	var exit_rows: Array = data.get("exits", []) as Array
 	for exit_value in exit_rows:
@@ -348,6 +357,18 @@ func get_exit_at(cell: Vector2i) -> Dictionary:
 
 func get_entrance(entrance_id: String) -> Dictionary:
 	return entrances.get(entrance_id, {}) as Dictionary
+
+
+func get_anchor(anchor_id: String) -> Dictionary:
+	return anchors_by_id.get(anchor_id, {}) as Dictionary
+
+
+func resolve_anchor_cell(anchor_id: String) -> Vector2i:
+	var anchor: Dictionary = get_anchor(anchor_id)
+	if anchor.is_empty():
+		return Vector2i(-1, -1)
+
+	return _cell_from_dict(anchor.get("grid_position", {}) as Dictionary)
 
 
 func get_entrance_cell(entrance_id: String) -> Vector2i:

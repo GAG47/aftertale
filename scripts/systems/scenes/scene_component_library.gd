@@ -272,11 +272,58 @@ static func _draw_wall_ring(canvas: CanvasItem, grid: LocationGrid, structure: D
 
 static func _draw_door(canvas: CanvasItem, rect: Rect2, _structure: Dictionary) -> void:
 	_draw_wall(canvas, rect, {})
-	var door_rect := Rect2(rect.position + Vector2(8.0, 5.0), Vector2(rect.size.x - 16.0, rect.size.y - 7.0))
-	canvas.draw_rect(door_rect, Color(0.35, 0.19, 0.09), true)
-	canvas.draw_rect(door_rect, LINE_COLOR, false, 1.4)
-	canvas.draw_circle(door_rect.position + Vector2(door_rect.size.x - 5.0, door_rect.size.y * 0.55), 1.6, Color(0.96, 0.74, 0.26))
-	canvas.draw_arc(Vector2(door_rect.get_center().x, door_rect.position.y + 4.0), door_rect.size.x * 0.35, PI, TAU, 10, Color(0.58, 0.36, 0.18), 2.0)
+	var unit: float = min(rect.size.x, rect.size.y) / 32.0
+	var origin: Vector2 = rect.position
+	var center_x: float = rect.get_center().x
+
+	var outline := Color(0.12, 0.07, 0.04, 0.96)
+	var frame_dark := Color(0.27, 0.14, 0.06, 0.98)
+	var frame_mid := Color(0.52, 0.30, 0.12, 0.98)
+	var frame_light := Color(0.74, 0.47, 0.20, 0.88)
+	var plank_dark := Color(0.30, 0.15, 0.06, 0.98)
+	var plank_mid := Color(0.46, 0.24, 0.09, 0.98)
+	var plank_alt := Color(0.56, 0.31, 0.12, 0.98)
+	var plank_light := Color(0.82, 0.52, 0.22, 0.70)
+	var metal := Color(0.45, 0.57, 0.62, 0.95)
+	var metal_light := Color(0.76, 0.86, 0.88, 0.80)
+
+	canvas.draw_rect(Rect2(Vector2(center_x - 10.0 * unit, origin.y + 7.0 * unit), Vector2(20.0 * unit, 23.0 * unit)), Color(0.0, 0.0, 0.0, 0.18), true)
+
+	canvas.draw_rect(Rect2(Vector2(center_x - 5.0 * unit, origin.y + 4.0 * unit), Vector2(10.0 * unit, 3.0 * unit)), outline, true)
+	canvas.draw_rect(Rect2(Vector2(center_x - 8.0 * unit, origin.y + 7.0 * unit), Vector2(16.0 * unit, 3.0 * unit)), outline, true)
+	canvas.draw_rect(Rect2(Vector2(center_x - 10.0 * unit, origin.y + 10.0 * unit), Vector2(20.0 * unit, 20.0 * unit)), outline, true)
+
+	canvas.draw_rect(Rect2(Vector2(center_x - 4.0 * unit, origin.y + 5.0 * unit), Vector2(8.0 * unit, 2.0 * unit)), frame_mid, true)
+	canvas.draw_rect(Rect2(Vector2(center_x - 7.0 * unit, origin.y + 7.0 * unit), Vector2(14.0 * unit, 3.0 * unit)), frame_mid, true)
+	canvas.draw_rect(Rect2(Vector2(center_x - 9.0 * unit, origin.y + 10.0 * unit), Vector2(18.0 * unit, 19.0 * unit)), frame_dark, true)
+
+	canvas.draw_rect(Rect2(Vector2(center_x - 6.0 * unit, origin.y + 8.0 * unit), Vector2(12.0 * unit, 3.0 * unit)), plank_mid, true)
+	canvas.draw_rect(Rect2(Vector2(center_x - 7.0 * unit, origin.y + 11.0 * unit), Vector2(14.0 * unit, 17.0 * unit)), plank_mid, true)
+	canvas.draw_rect(Rect2(Vector2(center_x - 1.0 * unit, origin.y + 11.0 * unit), Vector2(5.0 * unit, 17.0 * unit)), plank_alt, true)
+	canvas.draw_rect(Rect2(Vector2(center_x - 6.0 * unit, origin.y + 12.0 * unit), Vector2(2.0 * unit, 15.0 * unit)), Color(0.64, 0.36, 0.14, 0.72), true)
+
+	for offset in [-3.0, 2.0]:
+		var line_x: float = center_x + offset * unit
+		canvas.draw_line(Vector2(line_x, origin.y + 11.0 * unit), Vector2(line_x, origin.y + 28.0 * unit), plank_dark, 1.0 * unit)
+
+	canvas.draw_rect(Rect2(Vector2(center_x - 6.0 * unit, origin.y + 8.0 * unit), Vector2(12.0 * unit, 1.0 * unit)), plank_light, true)
+	canvas.draw_rect(Rect2(Vector2(center_x - 8.0 * unit, origin.y + 10.0 * unit), Vector2(2.0 * unit, 18.0 * unit)), frame_light, true)
+	canvas.draw_rect(Rect2(Vector2(center_x + 7.0 * unit, origin.y + 11.0 * unit), Vector2(1.0 * unit, 17.0 * unit)), Color(0.15, 0.08, 0.04, 0.42), true)
+	canvas.draw_rect(Rect2(Vector2(center_x - 7.0 * unit, origin.y + 28.0 * unit), Vector2(14.0 * unit, 1.0 * unit)), Color(0.09, 0.05, 0.03, 0.64), true)
+
+	canvas.draw_rect(Rect2(Vector2(center_x - 6.0 * unit, origin.y + 15.0 * unit), Vector2(3.0 * unit, 1.0 * unit)), Color(0.86, 0.56, 0.24, 0.34), true)
+	canvas.draw_rect(Rect2(Vector2(center_x + 1.0 * unit, origin.y + 21.0 * unit), Vector2(3.0 * unit, 1.0 * unit)), Color(0.92, 0.62, 0.28, 0.28), true)
+	canvas.draw_rect(Rect2(Vector2(center_x - 2.0 * unit, origin.y + 25.0 * unit), Vector2(2.0 * unit, 1.0 * unit)), Color(0.12, 0.06, 0.03, 0.34), true)
+
+	var knob_center := Vector2(center_x + 5.0 * unit, origin.y + 18.0 * unit)
+	canvas.draw_rect(Rect2(knob_center + Vector2(-2.0, -2.0) * unit, Vector2(4.0, 4.0) * unit), Color(0.12, 0.08, 0.06, 0.55), true)
+	canvas.draw_circle(knob_center, 1.8 * unit, metal)
+	canvas.draw_circle(knob_center + Vector2(-0.6, -0.6) * unit, 0.7 * unit, metal_light)
+	canvas.draw_rect(Rect2(Vector2(center_x + 3.0 * unit, origin.y + 17.0 * unit), Vector2(2.0 * unit, 1.0 * unit)), Color(0.24, 0.30, 0.32, 0.80), true)
+
+	for hinge_y in [12.0, 22.0]:
+		canvas.draw_rect(Rect2(Vector2(center_x - 9.0 * unit, origin.y + hinge_y * unit), Vector2(3.0 * unit, 2.0 * unit)), Color(0.16, 0.10, 0.05, 0.78), true)
+		canvas.draw_rect(Rect2(Vector2(center_x - 8.0 * unit, origin.y + hinge_y * unit), Vector2(1.0 * unit, 1.0 * unit)), frame_light, true)
 
 
 static func _draw_window(canvas: CanvasItem, rect: Rect2) -> void:
