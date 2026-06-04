@@ -8,6 +8,9 @@ signal facility_requested(facility_data: Dictionary)
 const NpcMovementAgentScript := preload("res://scripts/systems/schedules/npc_movement_agent.gd")
 const NpcActivityAgentScript := preload("res://scripts/systems/schedules/npc_activity_agent.gd")
 const NpcAutonomyAgentScript := preload("res://scripts/systems/schedules/npc_autonomy_agent.gd")
+const CAMERA_ZOOM_MIN := 0.75
+const CAMERA_ZOOM_MAX := 3.0
+const CAMERA_ZOOM_STEP := 0.15
 
 @export_file("*.json") var location_data_path: String = ""
 @export var entrance_id: String = ""
@@ -37,6 +40,7 @@ var _party_follower_ids: Array[String] = []
 var _npc_movement_agent
 var _npc_activity_agent
 var _npc_autonomy_agent
+var _camera_default_zoom: Vector2 = Vector2.ONE
 
 
 func _ready() -> void:
@@ -59,6 +63,8 @@ func _ready() -> void:
 	InputManager.move_requested.connect(_on_move_requested)
 	InputManager.primary_action_requested.connect(_on_primary_action_requested)
 	InputManager.rest_requested.connect(_on_rest_requested)
+	InputManager.camera_zoom_requested.connect(_on_camera_zoom_requested)
+	InputManager.camera_zoom_reset_requested.connect(_on_camera_zoom_reset_requested)
 	ActionSystem.action_executed.connect(_on_action_result_for_presentation)
 	ActionSystem.action_failed.connect(_on_action_result_for_presentation)
 	PartySystem.party_changed.connect(_on_party_changed)
@@ -98,6 +104,10 @@ func _exit_tree() -> void:
 		InputManager.primary_action_requested.disconnect(_on_primary_action_requested)
 	if InputManager.rest_requested.is_connected(_on_rest_requested):
 		InputManager.rest_requested.disconnect(_on_rest_requested)
+	if InputManager.camera_zoom_requested.is_connected(_on_camera_zoom_requested):
+		InputManager.camera_zoom_requested.disconnect(_on_camera_zoom_requested)
+	if InputManager.camera_zoom_reset_requested.is_connected(_on_camera_zoom_reset_requested):
+		InputManager.camera_zoom_reset_requested.disconnect(_on_camera_zoom_reset_requested)
 	if ActionSystem.action_executed.is_connected(_on_action_result_for_presentation):
 		ActionSystem.action_executed.disconnect(_on_action_result_for_presentation)
 	if ActionSystem.action_failed.is_connected(_on_action_result_for_presentation):
@@ -250,7 +260,7 @@ func get_interaction_prompt() -> String:
 	var target_character: CharacterEntity = grid.get_character_at(target_cell)
 	if target_character != null:
 		if PartySystem.is_member(target_character.character_id):
-			return "E/Enter 调查前方  B 背包  J 任务  C 角色"
+			return "E/Enter 调查前方  B 背包  J 任务  C 角色  滚轮/+/- 缩放"
 		if target_character.is_combatable:
 			return "E/Enter 攻击：%s" % target_character.display_name
 		if target_character.is_interactable:
@@ -278,7 +288,7 @@ func get_interaction_prompt() -> String:
 	if not exit_data.is_empty():
 		return "向前移动：前往 %s" % str(exit_data.get("target_entrance_id", "下一个地点"))
 
-	return "E/Enter 调查前方  B 背包  J 任务  C 角色"
+	return "E/Enter 调查前方  B 背包  J 任务  C 角色  滚轮/+/- 缩放"
 
 
 func _load_location_data() -> void:
@@ -299,6 +309,26 @@ func _load_location_data() -> void:
 	_configure_scene_layer_renderer(structure_renderer)
 	_configure_scene_layer_renderer(building_renderer)
 	camera.position = Vector2(grid.width * grid.tile_size, grid.height * grid.tile_size) * 0.5
+	_camera_default_zoom = camera.zoom
+
+
+func _on_camera_zoom_requested(steps: int) -> void:
+	if camera == null or steps == 0:
+		return
+
+	var target_zoom := clampf(camera.zoom.x + CAMERA_ZOOM_STEP * float(steps), CAMERA_ZOOM_MIN, CAMERA_ZOOM_MAX)
+	_set_camera_zoom(target_zoom)
+
+
+func _on_camera_zoom_reset_requested() -> void:
+	if camera == null:
+		return
+
+	_set_camera_zoom(clampf(_camera_default_zoom.x, CAMERA_ZOOM_MIN, CAMERA_ZOOM_MAX))
+
+
+func _set_camera_zoom(value: float) -> void:
+	camera.zoom = Vector2(value, value)
 
 
 func _setup_npc_movement_agent() -> void:

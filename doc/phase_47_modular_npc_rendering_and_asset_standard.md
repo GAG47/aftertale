@@ -17,6 +17,8 @@ Implemented in this phase:
 - Individual layers can already be replaced by 64x64 transparent PNGs through `appearance.layers`.
 - Activity state can influence the procedural held item layer.
 - Existing training dummy rendering remains special-cased.
+- External transparent PNG parts can be normalized into the shared 256x256 standard canvas with `tools/art/standardize_character_part.ps1`.
+- Location cameras now support scene zoom for art inspection: mouse wheel or `+` zooms in, `-` zooms out, and `0` resets to the scene default zoom.
 
 ## Runtime Layer Order
 
@@ -66,8 +68,10 @@ Character art should use:
 
 ```text
 source canvas: 512x512 px or 1024x1024 px
-game canvas: 64x64 px
-grid anchor: (32, 46)
+standard part canvas: 256x256 px
+runtime display canvas: 64x64 px
+standard grid anchor: (128, 184)
+runtime grid anchor: (32, 46)
 display footprint: one 32x32 grid cell
 primary direction for v47/v48: down/front
 background: transparent
@@ -76,7 +80,7 @@ head height: 14-16 px
 body and outfit height: 28-30 px
 ```
 
-The anchor means pixel `(32, 46)` in the 64x64 asset aligns to `LocationGrid.grid_to_world(cell)`.
+The standard part canvas is four times the runtime display canvas. Pixel `(128, 184)` in the 256x256 source corresponds to runtime pixel `(32, 46)` and aligns to `LocationGrid.grid_to_world(cell)`.
 
 Collision and pathfinding still use one grid cell. The sprite can extend above that cell to create a standing character silhouette.
 
@@ -99,7 +103,59 @@ head : body/outfit = 1 : 1.8 to 1 : 2
 
 This gives clothing enough readable space while keeping the character compact on a 32px tile map.
 
-Every part should keep the same 64x64 canvas, even if the visible pixels are small. Stable full-canvas parts are easier to layer than tightly cropped sprites.
+Every part should keep the same 256x256 canvas, even if the visible pixels are small. Stable full-canvas parts are easier to layer than tightly cropped sprites.
+
+## Standardization Tool
+
+AI or external art does not need to hit the Aftertale anchor perfectly. It should have a transparent background and be roughly centered. Before entering the game, run the standardization tool:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools\art\standardize_character_part.ps1 `
+  -Source source.png `
+  -Output assets\art\characters\head\example_head_std256.png `
+  -Part head
+```
+
+Supported part types:
+
+```text
+head
+hair_front
+hair_back
+outfit
+accessory
+held_item
+```
+
+The tool:
+
+- reads the alpha channel;
+- finds the non-transparent bounds;
+- crops the visible content;
+- fits it into a part-specific target region;
+- writes a 256x256 transparent PNG using the shared `(128, 184)` anchor standard.
+
+This is the intended bridge between AI-generated art and the strict in-game layering format.
+
+The tool does not split a complete character illustration into separate layers. Hair, head, outfit, held items, and accessories should be exported or cut out as separate transparent PNGs first. Runtime rendering only stacks already-prepared parts.
+
+The current Ratkin test parts are examples of this flow:
+
+```text
+assets/art/characters/head/rk_test_head_01_south.png
+assets/art/characters/hair_front/rk_test_hair_long_b_south.png
+assets/art/characters/outfits/rk_test_garden_wear_south.png
+```
+
+Their standardized runtime sources are:
+
+```text
+assets/art/characters/head/rk_test_head_01_south_std256.png
+assets/art/characters/hair_front/rk_test_hair_long_b_south_std256.png
+assets/art/characters/outfits/rk_test_garden_wear_south_std256.png
+```
+
+Part-specific target regions are currently defined inside `tools/art/standardize_character_part.ps1`. For example, if a hair asset sits too high or low after standardization, adjust the `hair_front` target region there, then regenerate the `*_std256.png` file.
 
 ## Supported Texture Override Format
 
@@ -123,7 +179,7 @@ An important NPC or future asset resolver can override individual layers:
 }
 ```
 
-Layer source files must follow the 64x64 canvas and `(32, 46)` anchor standard.
+Layer source files should follow the 256x256 standard part canvas and `(128, 184)` anchor standard. The renderer displays the full standard part canvas inside the 64x64 runtime character canvas.
 
 ## Appearance Profile
 
@@ -237,8 +293,8 @@ assets/art/characters/held_items/
 AI may be used to generate candidates, but final in-game parts must be standardized:
 
 - transparent background;
-- 64x64 exported part;
-- same `(32, 46)` anchor;
+- 256x256 standardized part;
+- same `(128, 184)` standard anchor;
 - ordinary character body proportion near `head : body/outfit = 1 : 2`;
 - front/down direction only for v47/v48;
 - consistent outline and shading;
@@ -246,6 +302,22 @@ AI may be used to generate candidates, but final in-game parts must be standardi
 - no tightly cropped sprite canvases.
 
 Important NPCs may use custom generated parts, but they must still follow this same canvas and anchor standard.
+
+For practical AI workflows, a good prompt/output target is "one isolated transparent-background part, centered on canvas" rather than "a complete character sprite". The alignment does not need to be exact at generation time; the standardization tool is the place where Aftertale-specific anchors are applied.
+
+## Scene Zoom For Art Review
+
+Scene zoom is a development convenience added alongside the modular character art pass so small character details can be checked in game.
+
+Controls:
+
+```text
+Mouse wheel up / + / keypad +: zoom in
+Mouse wheel down / - / keypad -: zoom out
+0: reset to the current scene default zoom
+```
+
+The zoom is applied to the active location `Camera2D` only. It does not change map tile size, collision, pathfinding, character scale, or asset standards.
 
 ## Phase 48 Boundary
 

@@ -10,6 +10,8 @@ signal character_toggle_requested()
 signal debug_toggle_requested()
 signal save_requested()
 signal load_requested()
+signal camera_zoom_requested(steps: int)
+signal camera_zoom_reset_requested()
 
 const ACTION_MOVE_UP := "move_up"
 const ACTION_MOVE_DOWN := "move_down"
@@ -24,6 +26,9 @@ const ACTION_CHARACTER_TOGGLE := "character_toggle"
 const ACTION_DEBUG_TOGGLE := "debug_toggle"
 const ACTION_SAVE := "save_game"
 const ACTION_LOAD := "load_game"
+const ACTION_CAMERA_ZOOM_IN := "camera_zoom_in"
+const ACTION_CAMERA_ZOOM_OUT := "camera_zoom_out"
+const ACTION_CAMERA_ZOOM_RESET := "camera_zoom_reset"
 
 var input_locked: bool = false
 
@@ -34,6 +39,10 @@ func _ready() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if input_locked:
+		return
+
+	if _handle_camera_zoom_event(event):
+		get_viewport().set_input_as_handled()
 		return
 
 	if event.is_action_pressed(ACTION_DEBUG_TOGGLE):
@@ -119,6 +128,38 @@ func _register_default_actions() -> void:
 	_register_key_action(ACTION_DEBUG_TOGGLE, KEY_F3)
 	_register_key_action(ACTION_SAVE, KEY_F5)
 	_register_key_action(ACTION_LOAD, KEY_F9)
+	_register_key_action(ACTION_CAMERA_ZOOM_IN, KEY_EQUAL)
+	_register_key_action(ACTION_CAMERA_ZOOM_IN, KEY_KP_ADD)
+	_register_key_action(ACTION_CAMERA_ZOOM_OUT, KEY_MINUS)
+	_register_key_action(ACTION_CAMERA_ZOOM_OUT, KEY_KP_SUBTRACT)
+	_register_key_action(ACTION_CAMERA_ZOOM_RESET, KEY_0)
+
+
+func _handle_camera_zoom_event(event: InputEvent) -> bool:
+	if event.is_action_pressed(ACTION_CAMERA_ZOOM_IN):
+		camera_zoom_requested.emit(1)
+		return true
+
+	if event.is_action_pressed(ACTION_CAMERA_ZOOM_OUT):
+		camera_zoom_requested.emit(-1)
+		return true
+
+	if event.is_action_pressed(ACTION_CAMERA_ZOOM_RESET):
+		camera_zoom_reset_requested.emit()
+		return true
+
+	if event is InputEventMouseButton:
+		var mouse_event: InputEventMouseButton = event as InputEventMouseButton
+		if not mouse_event.pressed:
+			return false
+		if mouse_event.button_index == MOUSE_BUTTON_WHEEL_UP:
+			camera_zoom_requested.emit(1)
+			return true
+		if mouse_event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			camera_zoom_requested.emit(-1)
+			return true
+
+	return false
 
 
 func _register_key_action(action_name: String, physical_keycode: int) -> void:

@@ -578,7 +578,7 @@ func _refresh_interaction_prompt() -> void:
 			prompt = str(_scene_loader.current_scene.get_interaction_prompt())
 
 	if prompt.is_empty():
-		prompt = "WASD/方向键移动  E/Enter 互动  B 背包  J 任务  C 角色  R 等待"
+		prompt = "WASD/方向键移动  E/Enter 互动  B 背包  J 任务  C 角色  R 等待  滚轮/+/- 缩放"
 
 	interaction_label.text = prompt
 	interaction_panel.visible = true

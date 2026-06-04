@@ -4,6 +4,8 @@ extends RefCounted
 const CANVAS_SIZE := Vector2(64.0, 64.0)
 const GRID_ANCHOR := Vector2(32.0, 46.0)
 
+static var _texture_cache: Dictionary = {}
+
 
 static func draw_character(canvas: CanvasItem, context: Dictionary) -> void:
 	var appearance: Dictionary = _dictionary(context.get("appearance", {}))
@@ -20,9 +22,10 @@ static func draw_character(canvas: CanvasItem, context: Dictionary) -> void:
 		_draw_body(canvas, context)
 	if not _draw_texture_layer(canvas, appearance, "outfit"):
 		_draw_outfit(canvas, context)
+	var has_head_texture: bool = _has_texture_layer(appearance, "head")
 	if not _draw_texture_layer(canvas, appearance, "head"):
 		_draw_head(canvas, context)
-	if not _draw_texture_layer(canvas, appearance, "face"):
+	if not has_head_texture and not _draw_texture_layer(canvas, appearance, "face"):
 		_draw_face(canvas, context)
 	if not _draw_texture_layer(canvas, appearance, "hair_front"):
 		_draw_hair_front(canvas, context)
@@ -234,21 +237,54 @@ static func _draw_training_dummy(canvas: CanvasItem) -> void:
 
 
 static func _draw_texture_layer(canvas: CanvasItem, appearance: Dictionary, layer_id: String) -> bool:
-	var layers: Dictionary = _dictionary(appearance.get("layers", {}))
-	var layer_data: Dictionary = _dictionary(layers.get(layer_id, {}))
+	var layer_data: Dictionary = _texture_layer_data(appearance, layer_id)
 	var source: String = str(layer_data.get("source", layer_data.get("path", "")))
 	if source.is_empty() or not ResourceLoader.exists(source):
 		return false
 
-	var texture: Texture2D = load(source) as Texture2D
+	var texture: Texture2D = _load_layer_texture(source)
 	if texture == null:
 		return false
 
 	var offset_data: Dictionary = _dictionary(layer_data.get("offset", {}))
 	var offset := Vector2(float(offset_data.get("x", 0.0)), float(offset_data.get("y", 0.0)))
+	var size: Vector2 = CANVAS_SIZE
+	var size_data: Dictionary = _dictionary(layer_data.get("size", {}))
+	if not size_data.is_empty():
+		size = Vector2(float(size_data.get("x", CANVAS_SIZE.x)), float(size_data.get("y", CANVAS_SIZE.y)))
+	elif layer_data.has("scale"):
+		var scale_value: float = float(layer_data.get("scale", 1.0))
+		size = CANVAS_SIZE * scale_value
 	var modulate: Color = _color_from_value(layer_data.get("modulate", "#ffffffff"), Color.WHITE)
-	canvas.draw_texture_rect(texture, Rect2(-GRID_ANCHOR + offset, CANVAS_SIZE), false, modulate)
+	canvas.draw_texture_rect(texture, Rect2(-GRID_ANCHOR + offset, size), false, modulate)
 	return true
+
+
+static func _load_layer_texture(source: String) -> Texture2D:
+	if _texture_cache.has(source):
+		return _texture_cache.get(source, null) as Texture2D
+
+	var image := Image.new()
+	var error: Error = image.load(source)
+	if error == OK:
+		var image_texture: ImageTexture = ImageTexture.create_from_image(image)
+		_texture_cache[source] = image_texture
+		return image_texture
+
+	var imported_texture: Texture2D = load(source) as Texture2D
+	_texture_cache[source] = imported_texture
+	return imported_texture
+
+
+static func _has_texture_layer(appearance: Dictionary, layer_id: String) -> bool:
+	var layer_data: Dictionary = _texture_layer_data(appearance, layer_id)
+	var source: String = str(layer_data.get("source", layer_data.get("path", "")))
+	return not source.is_empty() and ResourceLoader.exists(source)
+
+
+static func _texture_layer_data(appearance: Dictionary, layer_id: String) -> Dictionary:
+	var layers: Dictionary = _dictionary(appearance.get("layers", {}))
+	return _dictionary(layers.get(layer_id, {}))
 
 
 static func _skin_color(context: Dictionary) -> Color:
