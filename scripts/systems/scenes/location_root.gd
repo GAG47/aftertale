@@ -14,6 +14,7 @@ const NpcAutonomyAgentScript := preload("res://scripts/systems/schedules/npc_aut
 
 @onready var tile_renderer: DebugTileRenderer = $DebugTileRenderer
 @onready var floor_decoration_renderer: Node = get_node_or_null("FloorDecorationRenderer")
+@onready var structure_renderer: Node = get_node_or_null("StructureRenderer")
 @onready var building_renderer: Node = get_node_or_null("BuildingRenderer")
 @onready var objects_root: Node2D = $Objects
 @onready var characters_root: Node2D = $Characters
@@ -79,7 +80,10 @@ func _setup_scene_layer_order() -> void:
 	if floor_decoration_renderer != null:
 		floor_decoration_renderer.z_index = -50
 	objects_root.z_index = 0
+	if structure_renderer != null:
+		structure_renderer.z_index = 5
 	characters_root.z_index = 10
+	characters_root.y_sort_enabled = true
 	if building_renderer != null:
 		building_renderer.z_index = 30
 
@@ -292,6 +296,7 @@ func _load_location_data() -> void:
 	_setup_npc_autonomy_agent()
 	tile_renderer.configure(grid)
 	_configure_scene_layer_renderer(floor_decoration_renderer)
+	_configure_scene_layer_renderer(structure_renderer)
 	_configure_scene_layer_renderer(building_renderer)
 	camera.position = Vector2(grid.width * grid.tile_size, grid.height * grid.tile_size) * 0.5
 
@@ -623,7 +628,7 @@ func _build_spawn_data(spawn_data: Dictionary, definition: Dictionary) -> Dictio
 
 func _spawn_character(definition: Dictionary, resolved_spawn_data: Dictionary) -> CharacterEntity:
 	var character: CharacterEntity = CharacterEntity.new()
-	character.z_index = 10
+	character.z_index = 0
 	characters_root.add_child(character)
 	character.configure(definition, resolved_spawn_data, self)
 

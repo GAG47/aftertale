@@ -17,6 +17,27 @@
     "occupation": "guard",
     "personality": "watchful"
   },
+  "appearance_profile": {
+    "importance": "common",
+    "role": "guard",
+    "gender_hint": "neutral",
+    "age_hint": "adult",
+    "wealth": "common",
+    "culture": "village",
+    "neatness": "high",
+    "faction": "militia"
+  },
+  "appearance": {
+    "body_id": "body_common_01",
+    "head_id": "head_round_01",
+    "hair_front_id": "hair_front_short_neat_01",
+    "outfit_id": "outfit_guard_militia_01",
+    "palette": {
+      "hair": "#2f2c28",
+      "outfit": "#65717d",
+      "trim": "#cfc08a"
+    }
+  },
   "faction_id": "field_neutral",
   "relation_slots": {
     "personal": {},

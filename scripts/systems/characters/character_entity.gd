@@ -13,6 +13,7 @@ const FACING_UP := "up"
 const FACING_DOWN := "down"
 const FACING_LEFT := "left"
 const FACING_RIGHT := "right"
+const CharacterAppearanceRendererScript := preload("res://scripts/systems/characters/character_appearance_renderer.gd")
 
 @export var character_id: String = ""
 @export var display_name: String = ""
@@ -30,6 +31,8 @@ const FACING_RIGHT := "right"
 var attributes: Dictionary = {}
 var identity: Dictionary = {}
 var relation_slots: Dictionary = {}
+var appearance_profile: Dictionary = {}
+var appearance: Dictionary = {}
 var skills: Array[String] = []
 var schedule: Array[Dictionary] = []
 var current_schedule_entry_id: String = ""
@@ -93,6 +96,16 @@ func configure(definition: Dictionary, spawn_data: Dictionary, parent_location: 
 	var spawn_relations: Dictionary = spawn_data.get("relation_slots", {}) as Dictionary
 	relation_slots = definition_relations.duplicate(true)
 	relation_slots.merge(spawn_relations, true)
+
+	appearance_profile = _merge_dictionaries_deep(
+		definition.get("appearance_profile", {}) as Dictionary,
+		spawn_data.get("appearance_profile", {}) as Dictionary
+	)
+	_fill_default_appearance_profile()
+	appearance = _merge_dictionaries_deep(
+		definition.get("appearance", {}) as Dictionary,
+		spawn_data.get("appearance", {}) as Dictionary
+	)
 
 	skills.clear()
 	var skill_rows: Array = spawn_data.get("skills", definition.get("skills", ["basic_attack"])) as Array
@@ -206,11 +219,13 @@ func set_schedule_state(entry: Dictionary, location_id: String) -> void:
 	current_activity = str(entry.get("activity", current_activity))
 	current_movement_mode = str(entry.get("movement", current_movement_mode))
 	scheduled_location_id = location_id
+	queue_redraw()
 
 
 func set_interruption_state(reason: String, priority: int) -> void:
 	current_interruption_reason = reason
 	current_interruption_priority = max(0, priority)
+	queue_redraw()
 
 
 func clear_interruption_state(reason: String = "") -> void:
@@ -219,6 +234,7 @@ func clear_interruption_state(reason: String = "") -> void:
 
 	current_interruption_reason = ""
 	current_interruption_priority = 0
+	queue_redraw()
 
 
 func set_combat_stats(new_hp: int, new_max_hp: int, defeated: bool) -> void:
@@ -312,6 +328,8 @@ func get_summary() -> Dictionary:
 		"attributes": attributes,
 		"identity": identity,
 		"relation_slots": relation_slots,
+		"appearance_profile": appearance_profile,
+		"appearance": appearance,
 		"skills": skills.duplicate(),
 		"schedule_entry_id": current_schedule_entry_id,
 		"anchor_id": current_schedule_anchor_id,
@@ -353,6 +371,57 @@ func get_equipment_bonus_summary() -> Dictionary:
 	return equipment_slots.get_attribute_bonuses()
 
 
+func _get_appearance_context() -> Dictionary:
+	return {
+		"character_id": character_id,
+		"display_name": display_name,
+		"kind": character_kind,
+		"facing": facing,
+		"identity": identity,
+		"appearance_profile": appearance_profile,
+		"appearance": appearance,
+		"activity_type": current_activity_type,
+		"activity": current_activity,
+		"interruption_reason": current_interruption_reason,
+		"is_training_dummy": _is_training_dummy(),
+	}
+
+
+func _fill_default_appearance_profile() -> void:
+	if not appearance_profile.has("importance"):
+		appearance_profile["importance"] = "important" if character_kind == KIND_PLAYER else "common"
+	if not appearance_profile.has("role"):
+		appearance_profile["role"] = str(identity.get("occupation", character_kind))
+	if not appearance_profile.has("species"):
+		appearance_profile["species"] = str(identity.get("species", "human"))
+	if not appearance_profile.has("gender_hint"):
+		appearance_profile["gender_hint"] = str(identity.get("gender", "neutral"))
+	if not appearance_profile.has("age_hint"):
+		appearance_profile["age_hint"] = _age_hint(int(identity.get("age", 30)))
+
+
+func _age_hint(age: int) -> String:
+	if age <= 14:
+		return "child"
+	if age >= 60:
+		return "elder"
+	if age <= 25:
+		return "young"
+	return "adult"
+
+
+func _merge_dictionaries_deep(base: Dictionary, override: Dictionary) -> Dictionary:
+	var result: Dictionary = base.duplicate(true)
+	for key in override.keys():
+		var override_value: Variant = override.get(key)
+		var base_value: Variant = result.get(key)
+		if typeof(base_value) == TYPE_DICTIONARY and typeof(override_value) == TYPE_DICTIONARY:
+			result[key] = _merge_dictionaries_deep(base_value as Dictionary, override_value as Dictionary)
+		else:
+			result[key] = override_value
+	return result
+
+
 func _update_world_position(animated: bool = false) -> void:
 	if location_root == null or not location_root.has_method("grid_to_world"):
 		return
@@ -372,13 +441,7 @@ func _update_world_position(animated: bool = false) -> void:
 
 
 func _draw() -> void:
-	_draw_token_shadow()
-	_draw_token_base()
-
-	if _is_training_dummy():
-		_draw_training_dummy_token()
-	else:
-		_draw_character_token()
+	CharacterAppearanceRendererScript.draw_character(self, _get_appearance_context())
 
 	_draw_facing_marker()
 

@@ -17,6 +17,26 @@
     "occupation": "wanderer",
     "personality": "undefined"
   },
+  "appearance_profile": {
+    "importance": "important",
+    "role": "wanderer",
+    "gender_hint": "neutral",
+    "age_hint": "young",
+    "wealth": "common",
+    "culture": "village",
+    "neatness": "medium"
+  },
+  "appearance": {
+    "body_id": "body_common_01",
+    "head_id": "head_round_01",
+    "hair_front_id": "hair_front_short_01",
+    "outfit_id": "outfit_wanderer_common_01",
+    "palette": {
+      "hair": "#4a3b2f",
+      "outfit": "#6f86bd",
+      "trim": "#f0d56c"
+    }
+  },
   "faction_id": "player",
   "relation_slots": {
     "personal": {},

@@ -17,6 +17,26 @@
     "occupation": "villager",
     "personality": "calm"
   },
+  "appearance_profile": {
+    "importance": "common",
+    "role": "villager",
+    "gender_hint": "neutral",
+    "age_hint": "adult",
+    "wealth": "common",
+    "culture": "village",
+    "neatness": "medium"
+  },
+  "appearance": {
+    "body_id": "body_common_01",
+    "head_id": "head_round_01",
+    "hair_front_id": "hair_front_short_01",
+    "outfit_id": "outfit_villager_common_01",
+    "palette": {
+      "hair": "#74502e",
+      "outfit": "#6a9a64",
+      "trim": "#d7bd63"
+    }
+  },
   "faction_id": "field_neutral",
   "relation_slots": {
     "personal": {},

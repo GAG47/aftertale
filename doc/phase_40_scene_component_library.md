@@ -18,7 +18,15 @@ The scene now follows a clear layer model. Conceptually it still keeps floor, lo
 - Structure / object layer: things standing on the floor. This includes building walls, doors, windows, fences, signposts, counters, beds, workbenches, save points, shop counters, and other interactive or blocking objects.
 - Roof layer: visual-only building roofs. Roofs do not define collision or interaction, and they disappear when the player is inside their configured hidden area.
 
-The render order follows that model: floors, floor overlays, and floor decorations are drawn below objects and characters. Structures and roofs are drawn above the floor layers. Characters therefore belong to the same broad interaction layer as structures and interactive objects, not to the floor decoration layer.
+The render order follows that model: floors, floor overlays, and floor decorations are drawn below objects and characters. Structures and roofs are drawn above the floor layers.
+
+After the modular NPC presentation pass, standing structures and roofs are split into separate scene renderers:
+
+- `StructureRenderer` draws walls, doors, windows, signs, fences, and other standing structures below characters.
+- `Characters` is a dedicated y-sorted layer above structures.
+- `BuildingRenderer` draws roofs above characters.
+
+This keeps taller character sprites readable in front of building walls while preserving roof occlusion. It also gives character-to-character overlap the expected order: lower characters render above upper characters.
 
 The library groups scene drawing into semantic components:
 
@@ -29,7 +37,7 @@ The library groups scene drawing into semantic components:
 
 `DebugTileRenderer` now delegates ground tile drawing to the component library.
 
-`BuildingRenderer` now delegates floor decoration, structure, roof, and zone hint drawing to the component library. It still keeps the existing scene hook, so the broader scene loading and interaction system is not reworked.
+`BuildingRenderer` now delegates floor decoration, structure, roof, and zone hint drawing to the component library. It supports dedicated `floor`, `structures`, and `roofs` render modes in addition to compatibility modes. This lets a location split lower building structure and upper roof occlusion without changing the data format or interaction system.
 
 `LocationGrid` now supports structure blockers generated from explicit `structures` rows. This keeps floor tiles and movement collision separated:
 

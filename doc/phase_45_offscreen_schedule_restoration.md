@@ -6,7 +6,7 @@ Phase 45 makes NPC schedule state recover correctly when the player leaves and l
 
 Earlier phases focus on visible current-map behavior. Phase 45 handles the hidden time between scene visits.
 
-## What Changed
+## What Changed5
 
 `NpcScheduleSystem` now owns persistent offscreen schedule summaries.
 

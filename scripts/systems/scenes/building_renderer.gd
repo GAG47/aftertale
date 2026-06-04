@@ -3,7 +3,7 @@ extends Node2D
 
 const SceneComponents := preload("res://scripts/systems/scenes/scene_component_library.gd")
 
-@export_enum("floor", "upper", "all") var render_mode: String = "all"
+@export_enum("floor", "structures", "roofs", "upper", "all") var render_mode: String = "all"
 
 var grid: LocationGrid
 var floor_overlays: Array[Dictionary] = []
@@ -53,10 +53,11 @@ func _draw() -> void:
 		for decoration in floor_decorations:
 			SceneComponents.draw_floor_decoration(self, grid, decoration)
 
-	if render_mode == "upper" or render_mode == "all":
+	if render_mode == "structures" or render_mode == "upper" or render_mode == "all":
 		for structure in structures:
 			SceneComponents.draw_structure(self, grid, structure)
 
+	if render_mode == "roofs" or render_mode == "upper" or render_mode == "all":
 		for roof in roofs:
 			SceneComponents.draw_roof(self, grid, roof, active_cell)
 
