@@ -1,0 +1,31 @@
+{
+  "id": "debug_fire_burst",
+  "display_name": "烈焰爆发",
+  "description": "对小范围内的敌人造成伤害，并向范围内的地格施加火元素。",
+  "skill_type": "battle",
+  "target_type": "enemy",
+  "target_policy": "cell",
+  "path_blocking": "terrain_and_units",
+  "range": 4,
+  "area": "radius",
+  "radius": 1,
+  "ap_cost": 1,
+  "mp_cost": 2,
+  "cooldown": 1,
+  "ends_turn": false,
+  "element": "fire",
+  "tags": ["magic", "fire", "surface"],
+  "effects": [
+    {
+      "type": "damage_unit",
+      "formula": "intellect",
+      "power": 1
+    },
+    {
+      "type": "apply_element",
+      "element": "fire",
+      "intensity": 1
+    }
+  ],
+  "feedback": "{actor}释放烈焰，火焰席卷了周围地面。"
+}

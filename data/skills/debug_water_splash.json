@@ -1,0 +1,26 @@
+{
+  "id": "debug_water_splash",
+  "display_name": "水流冲击",
+  "description": "向小范围地格施加水元素，可以制造湿润地面或扑灭火焰。",
+  "skill_type": "battle",
+  "target_type": "enemy",
+  "target_policy": "cell",
+  "path_blocking": "terrain_only",
+  "range": 4,
+  "area": "radius",
+  "radius": 1,
+  "ap_cost": 1,
+  "mp_cost": 1,
+  "cooldown": 0,
+  "ends_turn": false,
+  "element": "water",
+  "tags": ["magic", "water", "surface"],
+  "effects": [
+    {
+      "type": "apply_element",
+      "element": "water",
+      "intensity": 1
+    }
+  ],
+  "feedback": "{actor}召来水流，浸湿了周围地面。"
+}

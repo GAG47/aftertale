@@ -54,6 +54,12 @@
     "quick_shot",
     "first_aid",
     "shockwave",
+    "debug_fire_patch",
+    "debug_fire_burst",
+    "debug_water_splash",
+    "debug_frost_field",
+    "debug_meteor",
+    "debug_line_beam",
     "guard"
   ],
   "inventory": [

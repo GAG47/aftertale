@@ -5,6 +5,7 @@ signal battle_turn_started(character_id: String, round_number: int)
 signal battle_ended(battle_id: String, result_status: String)
 signal battle_state_changed()
 
+const BattleEffectResolverScript := preload("res://scripts/systems/battle/battle_effect_resolver.gd")
 const MOVE_AP_COST := 1
 const FLEE_AP_COST := 1
 const TACTICAL_MODE_COMMAND := "command"
@@ -322,6 +323,7 @@ func get_player_tactical_preview() -> Dictionary:
 			"attack_cells": [],
 			"current_cell": Vector2i.ZERO,
 			"tactical_mode": tactical_mode,
+			"tile_states": active_state.get_tile_state_summaries() if active_state != null else [],
 		}
 
 	var move_cells: Array[Vector2i] = []
@@ -339,6 +341,7 @@ func get_player_tactical_preview() -> Dictionary:
 		"current_cell": unit.character.grid_position,
 		"selected_skill_id": selected_skill_id,
 		"tactical_mode": tactical_mode,
+		"tile_states": active_state.get_tile_state_summaries(),
 	}
 
 
@@ -390,7 +393,7 @@ func get_area_cells_for_current_skill(target_cell: Vector2i) -> Array[Vector2i]:
 	if not failed_requirement.is_empty():
 		return result
 
-	return SkillSystem.get_area_cells(selected_skill_id, target_cell, active_state)
+	return SkillSystem.get_area_cells(selected_skill_id, target_cell, active_state, unit.character.grid_position)
 
 
 func get_target_preview_summary(target_cell: Vector2i) -> Dictionary:
@@ -406,6 +409,7 @@ func get_target_preview_summary(target_cell: Vector2i) -> Dictionary:
 		"selected_skill_id": selected_skill_id,
 		"skill_display_name": str(skill.get("display_name", selected_skill_id)) if not skill.is_empty() else selected_skill_id,
 		"unit": target_unit.get_summary() if target_unit != null else {},
+		"tile_state": active_state.get_tile_state_at(target_cell).get_summary() if active_state.get_tile_state_at(target_cell) != null else {},
 		"failure_reason": "",
 		"estimated_damage": 0,
 		"estimated_heal": 0,
@@ -419,9 +423,9 @@ func get_target_preview_summary(target_cell: Vector2i) -> Dictionary:
 	summary["failure_reason"] = failure_reason
 	summary["can_confirm"] = failure_reason.is_empty()
 	if target_unit != null and failure_reason.is_empty():
-		if SkillSystem.skill_has_effect(selected_skill_id, "damage"):
+		if SkillSystem.skill_has_effect(selected_skill_id, "damage_unit"):
 			summary["estimated_damage"] = SkillSystem.estimate_damage(actor, target_unit, selected_skill_id)
-		if SkillSystem.skill_has_effect(selected_skill_id, "heal"):
+		if SkillSystem.skill_has_effect(selected_skill_id, "heal_unit"):
 			summary["estimated_heal"] = SkillSystem.estimate_heal(actor, selected_skill_id)
 
 	return summary
@@ -542,6 +546,7 @@ func _move_unit_to(unit: BattleUnitState, target_cell: Vector2i, move_cost: int)
 		"cost": final_cost,
 		"remaining_ap": unit.action_points,
 	})
+	active_state.on_unit_enters_cell(unit, target_cell, result)
 	result.add_feedback("%s 移动到 %s。" % [unit.display_name, target_cell])
 	if unit.team == BattleUnitState.TEAM_PLAYER:
 		tactical_mode = TACTICAL_MODE_MOVE
@@ -565,7 +570,9 @@ func _execute_skill_for_unit(unit: BattleUnitState, skill_id: String, target_cel
 		return _fail("UseSkillAction", failed_requirement)
 
 	var ap_cost: int = max(0, int(skill.get("ap_cost", 0)))
+	var mp_cost: int = max(0, int(skill.get("mp_cost", 0)))
 	unit.spend_action_points(ap_cost)
+	unit.spend_magic_points(mp_cost)
 	var cooldown: int = max(0, int(skill.get("cooldown", 0)))
 	if cooldown > 0:
 		unit.set_skill_cooldown(skill_id, cooldown)
@@ -580,6 +587,8 @@ func _execute_skill_for_unit(unit: BattleUnitState, skill_id: String, target_cel
 		"skill_id": skill_id,
 		"target_cell": target_cell,
 		"target_id": str(affected_units[0].character_id) if not affected_units.is_empty() else unit.character_id,
+		"ap_cost": ap_cost,
+		"mp_cost": mp_cost,
 	})
 	result.add_world_change({
 		"type": "battle_skill_used",
@@ -587,13 +596,22 @@ func _execute_skill_for_unit(unit: BattleUnitState, skill_id: String, target_cel
 		"character_id": unit.character_id,
 		"skill_id": skill_id,
 		"target_cell": target_cell,
+		"ap_cost": ap_cost,
+		"mp_cost": mp_cost,
 		"remaining_ap": unit.action_points,
+		"remaining_mp": unit.magic_points,
 	})
 
-	var effects: Array = skill.get("effects", []) as Array
-	for effect_value in effects:
-		var effect: Dictionary = effect_value as Dictionary
-		_apply_skill_effect(unit, affected_units, skill, effect, result)
+	var effect_context: Dictionary = {
+		"battle_state": active_state,
+		"caster": unit,
+		"skill": skill,
+		"skill_id": skill_id,
+		"target_cell": target_cell,
+		"affected_units": affected_units,
+		"affected_cells": SkillSystem.get_area_cells(skill_id, target_cell, active_state, unit.character.grid_position),
+	}
+	BattleEffectResolverScript.resolve_skill_effects(effect_context, result)
 
 	var feedback_template: String = str(skill.get("feedback", ""))
 	if feedback_template.is_empty():
@@ -617,106 +635,6 @@ func _get_skill_target_name(unit: BattleUnitState, affected_units: Array[BattleU
 		return affected_units[0].display_name
 
 	return "%d targets" % affected_units.size()
-
-
-func _apply_skill_effect(unit: BattleUnitState, affected_units: Array[BattleUnitState], skill: Dictionary, effect: Dictionary, result: ActionResult) -> void:
-	var effect_type: String = str(effect.get("type", ""))
-	match effect_type:
-		"damage":
-			for target_unit in affected_units:
-				_apply_damage_effect(unit, target_unit, skill, effect, result)
-		"heal":
-			for target_unit in affected_units:
-				_apply_heal_effect(unit, target_unit, skill, effect, result)
-		"status":
-			for target_unit in affected_units:
-				_apply_status_effect(unit, target_unit, skill, effect, result)
-		_:
-			result.add_world_change({
-				"type": "battle_skill_effect_ignored",
-				"battle_id": active_state.battle_id,
-				"character_id": unit.character_id,
-				"skill_id": str(skill.get("id", "")),
-				"effect_type": effect_type,
-			})
-
-
-func _apply_damage_effect(unit: BattleUnitState, target_unit: BattleUnitState, skill: Dictionary, effect: Dictionary, result: ActionResult) -> void:
-	if target_unit == null:
-		return
-
-	var damage: int = SkillSystem.calculate_damage(unit, target_unit, effect)
-	var actual_damage: int = target_unit.apply_damage(damage)
-	result.add_world_change({
-		"type": "battle_unit_damaged",
-		"battle_id": active_state.battle_id,
-		"skill_id": str(skill.get("id", "")),
-		"attacker_id": unit.character_id,
-		"target_id": target_unit.character_id,
-		"damage": actual_damage,
-		"hp": target_unit.hp,
-		"max_hp": target_unit.max_hp,
-		"remaining_ap": unit.action_points,
-	})
-	result.add_world_change({
-		"type": "relation_delta",
-		"scope": "character",
-		"source_id": target_unit.character_id,
-		"target_id": unit.character_id,
-		"delta": { "affinity": -15, "trust": -10, "hostility": 35 },
-		"reason": "attacked",
-	})
-	result.add_feedback("%s 对 %s 造成 %d 点伤害。" % [unit.display_name, target_unit.display_name, actual_damage])
-
-	if target_unit.defeated:
-		result.add_world_change({
-			"type": "battle_unit_defeated",
-			"battle_id": active_state.battle_id,
-			"character_id": target_unit.character_id,
-			"defeated_by": unit.character_id,
-		})
-		result.add_feedback("%s 被击败了。" % target_unit.display_name)
-
-
-func _apply_heal_effect(unit: BattleUnitState, target_unit: BattleUnitState, skill: Dictionary, effect: Dictionary, result: ActionResult) -> void:
-	if target_unit == null:
-		return
-
-	var heal_amount: int = SkillSystem.calculate_heal(unit, effect)
-	var actual_heal: int = target_unit.apply_heal(heal_amount)
-	result.add_world_change({
-		"type": "battle_unit_healed",
-		"battle_id": active_state.battle_id,
-		"skill_id": str(skill.get("id", "")),
-		"source_id": unit.character_id,
-		"target_id": target_unit.character_id,
-		"healing": actual_heal,
-		"hp": target_unit.hp,
-		"max_hp": target_unit.max_hp,
-		"remaining_ap": unit.action_points,
-	})
-	result.add_feedback("%s 恢复了 %d 点生命。" % [target_unit.display_name, actual_heal])
-
-
-func _apply_status_effect(unit: BattleUnitState, target_unit: BattleUnitState, skill: Dictionary, effect: Dictionary, result: ActionResult) -> void:
-	var status_target: BattleUnitState = target_unit
-	if status_target == null:
-		status_target = unit
-
-	status_target.add_status_effect(effect)
-	result.add_world_change({
-		"type": "battle_status_applied",
-		"battle_id": active_state.battle_id,
-		"skill_id": str(skill.get("id", "")),
-		"source_id": unit.character_id,
-		"target_id": status_target.character_id,
-		"status_id": str(effect.get("status_id", effect.get("id", ""))),
-		"status": effect.duplicate(true),
-	})
-	result.add_feedback("%s 获得了状态：%s。" % [
-		status_target.display_name,
-		str(effect.get("display_name", effect.get("status_id", "a status"))),
-	])
 
 
 func _after_unit_action(unit: BattleUnitState, force_end_turn: bool) -> void:
@@ -820,6 +738,7 @@ func _run_enemy_turn(unit: BattleUnitState) -> void:
 					"to": target_cell,
 					"remaining_ap": unit.action_points,
 				})
+				active_state.on_unit_enters_cell(unit, target_cell, result)
 				result.add_feedback("%s 向目标靠近。" % unit.display_name)
 				_publish_result(result)
 				await _delay_enemy_followup()
@@ -884,7 +803,7 @@ func _choose_enemy_offensive_skill(unit: BattleUnitState) -> Dictionary:
 	var best_choice: Dictionary = {}
 	var best_score: int = 0
 	for skill_id in unit.skills:
-		if not SkillSystem.skill_has_effect(str(skill_id), "damage"):
+		if not SkillSystem.skill_has_effect(str(skill_id), "damage_unit"):
 			continue
 
 		var target_cells: Array[Vector2i] = SkillSystem.get_target_cells(unit, str(skill_id), active_state)
@@ -1208,6 +1127,7 @@ func _emit_turn_started() -> void:
 		"round": active_state.round_number,
 		"action_points": unit.action_points,
 	})
+	active_state.on_unit_starts_turn_on_cell(unit, result)
 	result.add_feedback("轮到 %s 行动。" % unit.display_name)
 	_publish_result(result)
 	battle_turn_started.emit(unit.character_id, active_state.round_number)

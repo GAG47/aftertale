@@ -2,115 +2,139 @@
 
 ## Status
 
-Planned.
+Complete.
 
 ## Goal
 
-Create a centralized elemental reaction system so skills apply elements and the battle rules decide how elements interact with tile states, units, and existing surfaces.
-
-This phase should make fire, water, ice, and lightning tactically meaningful without scattering special cases through individual skill definitions.
-
-## Core Rule
-
-Skills should not own reaction logic.
-
-Preferred flow:
+Centralize elemental rules so ordinary skills only declare elemental intent. Skills do not know which surface should be created, removed, refreshed, or transformed.
 
 ```text
-skill applies element
--> reaction system reads target cell, tile state, units, and tags
--> reaction system emits deterministic changes
--> BattleSystem applies those changes through ActionResult
+skill effect: apply_element
+-> BattleEffectResolver
+-> BattleElementReactionSystem
+-> BattleState tile-state operations
+-> reaction_event in ActionResult
 ```
 
-## Minimum Reaction Table
+## Skill Interface
 
-Fire:
+Elemental skills use this effect:
 
-- fire on empty flammable or neutral surface can create burning;
-- fire on wet removes wet or fails to ignite;
-- fire on frozen melts frozen into wet;
-- fire on poison cloud can later trigger explosion, deferred.
+```json
+{
+  "type": "apply_element",
+  "element": "fire",
+  "intensity": 1
+}
+```
 
-Water:
-
-- water on burning extinguishes burning and creates wet;
-- water on empty ground creates wet;
-- water on electrified may spread or refresh electrified, deferred if too large.
-
-Ice:
-
-- ice on wet creates frozen;
-- ice on water-like surfaces creates frozen;
-- ice on a unit standing on wet may apply frozen or chilled unit status in Phase 53.
-
-Lightning:
-
-- lightning on wet creates electrified and can spread;
-- lightning on conductive tags can spread;
-- lightning on a wet unit gains bonus damage or area chaining;
-- lightning on normal dry ground behaves as ordinary damage.
-
-## Reaction Input
-
-Recommended reaction request:
+Supported elements are strict:
 
 ```text
+fire
+water
+ice
+lightning
+```
+
+`SkillSystem` rejects unsupported element names and intensity values below 1. Ordinary skill JSON does not write `reaction_event` and does not choose `burning`, `wet`, `frozen`, or `electrified`.
+
+## Implemented Reaction Rules
+
+| Applied element | Existing surface | Result |
+| --- | --- | --- |
+| Fire | none or neutral | Burning |
+| Fire | Wet | Wet is evaporated |
+| Fire | Frozen | Frozen becomes Wet |
+| Fire | Burning | Burning is refreshed |
+| Water | none or neutral | Wet |
+| Water | Burning | Burning becomes Wet |
+| Water | Electrified | Electrified is refreshed |
+| Water | Frozen | Frozen remains |
+| Ice | Wet | Wet becomes Frozen |
+| Ice | Burning | Burning is removed |
+| Ice | Frozen | Frozen is refreshed |
+| Ice | dry ground | No surface change |
+| Lightning | Wet | Wet becomes Electrified |
+| Lightning | Electrified | Electrified is refreshed |
+| Lightning | dry ground | No surface change |
+
+## Lightning Spread
+
+Lightning spreads from an electrified target through orthogonally connected Wet cells.
+
+- maximum spread distance: 2 cells;
+- each cell is processed once;
+- map bounds are respected;
+- only connected Wet cells conduct;
+- every converted cell emits its own deterministic reaction event.
+
+## Reaction Events
+
+`BattleState.record_reaction()` stores the latest 24 reactions and writes a `reaction_event` world change into the current `ActionResult`.
+
+Each event includes:
+
+```text
+reaction_id
 element
+cell
+previous_state_id
+result_state_id
 source_character_id
 source_skill_id
-target_cell
-target_unit_id
-intensity
-area_cells
-```
-
-The reaction system should inspect:
-
-```text
-current tile state
-cell tags
-unit tags or statuses
-skill tags
-```
-
-## Reaction Output
-
-Recommended output events:
-
-```text
-apply_tile_state
-remove_tile_state
-refresh_tile_state
-apply_unit_status
-deal_reaction_damage
-spawn_reaction_cells
+round
+turn_index
 feedback
 ```
 
-These outputs should be consumed by `BattleSystem` or a battle rule helper, then written into `ActionResult` world changes and feedback.
+`BattleState.get_summary()` exposes these records as `recent_reactions`, so future UI, debugging tools, and enemy AI can inspect the same authoritative facts.
 
-## Spread Rules
+## Test Skills
 
-Start with conservative spread:
+```text
+debug_fire_patch: single-cell fire application
+debug_fire_burst: radius fire plus unit damage
+debug_meteor: radius fire with terrain-only path blocking
+debug_water_splash: radius water application
+debug_frost_field: radius ice application
+debug_line_beam: straight-line lightning plus unit damage
+```
 
-- wet lightning spreads only through directly adjacent wet cells;
-- maximum spread distance is small, such as 2 cells;
-- each cell is processed once;
-- friendly fire rules should be explicit and deterministic.
+All elemental test skills use `apply_element`. None directly creates or removes an elemental tile state.
 
-This keeps the system readable and prevents one lightning skill from becoming an accidental full-map solver.
+Recommended manual chains:
 
-## Acceptance
+```text
+Water Splash -> Frost Field
+Wet -> Frozen
 
-Phase 52 is complete when:
+Fire Patch -> Water Splash
+Burning -> Wet
 
-- fire, water, ice, and lightning have centralized reaction rules;
-- the minimum four test skills can create visible and rule-owned reactions;
-- reaction output is deterministic and debuggable;
-- reaction results appear in `ActionResult` feedback and battle summaries;
-- unsupported reactions fall back to a harmless default.
+Water Splash -> Line Beam
+Wet -> Electrified, with connected Wet spread
+
+Frost Field on Wet -> Fire Patch
+Frozen -> Wet
+```
+
+## Implemented Files
+
+```text
+scripts/systems/battle/battle_element_reaction_system.gd
+scripts/systems/battle/battle_effect_resolver.gd
+scripts/systems/battle/battle_state.gd
+scripts/systems/skills/skill_system.gd
+data/skills/debug_fire_patch.json
+data/skills/debug_fire_burst.json
+data/skills/debug_meteor.json
+data/skills/debug_water_splash.json
+data/skills/debug_frost_field.json
+data/skills/debug_line_beam.json
+data/characters/debug_player.json
+```
 
 ## Boundary
 
-This phase may create or remove tile states and may produce reaction damage. It should not yet make enemy AI intentionally plan around reactions; that belongs to Phase 54.
+Phase 52 owns element-to-surface reactions and reaction events. Unit statuses, damage from standing on surfaces, frozen units, and reaction timing on movement or turn start belong to Phase 53. Enemy planning around these facts belongs to Phase 54.

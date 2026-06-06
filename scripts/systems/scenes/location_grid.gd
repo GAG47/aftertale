@@ -155,6 +155,37 @@ func has_line_of_sight(from_cell: Vector2i, to_cell: Vector2i) -> bool:
 	return true
 
 
+func has_clear_skill_path(from_cell: Vector2i, to_cell: Vector2i, block_units: bool = true) -> bool:
+	if not in_bounds(from_cell) or not in_bounds(to_cell):
+		return false
+	if from_cell == to_cell:
+		return true
+
+	var cells: Array[Vector2i] = _line_cells(from_cell, to_cell)
+	for cell in cells:
+		if cell == from_cell:
+			continue
+
+		var terrain_data: Dictionary = terrain_at(cell)
+		if bool(terrain_data.get("blocks_sight", not bool(terrain_data.get("walkable", false)))):
+			return false
+
+		var structure_blocker: Dictionary = structure_blockers_by_cell.get(cell_key(cell), {}) as Dictionary
+		if bool(structure_blocker.get("blocks_sight", false)):
+			return false
+
+		if cell == to_cell:
+			continue
+
+		var occupant_id: String = str(blocking_occupants.get(cell_key(cell), ""))
+		if occupant_id.begins_with("object:"):
+			return false
+		if block_units and occupant_id.begins_with("character:"):
+			return false
+
+	return true
+
+
 func register_object(object_id: String, cell: Vector2i, object: Node, blocks_movement: bool) -> bool:
 	if object_id.is_empty() or not in_bounds(cell):
 		return false

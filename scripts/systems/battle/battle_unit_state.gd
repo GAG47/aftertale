@@ -11,6 +11,8 @@ var team: String = TEAM_ENEMY
 var speed: int = 1
 var max_hp: int = 1
 var hp: int = 1
+var max_magic_points: int = 0
+var magic_points: int = 0
 var max_action_points: int = 2
 var action_points: int = 2
 var defeated: bool = false
@@ -30,6 +32,8 @@ static func from_character(source_character: CharacterEntity, team_id: String) -
 	var effective_attributes: Dictionary = source_character.get_effective_attributes()
 	unit.max_hp = max(1, int(effective_attributes.get("max_hp", int(effective_attributes.get("vitality", 1)) * 4)))
 	unit.hp = clampi(int(source_character.attributes.get("hp", unit.max_hp)), 0, unit.max_hp)
+	unit.max_magic_points = max(0, int(effective_attributes.get("max_mp", int(effective_attributes.get("intellect", 1)) * 3)))
+	unit.magic_points = clampi(int(source_character.attributes.get("mp", unit.max_magic_points)), 0, unit.max_magic_points)
 	unit.max_action_points = max(1, int(effective_attributes.get("action_points", 2)))
 	unit.action_points = unit.max_action_points
 	unit.skills.clear()
@@ -57,6 +61,18 @@ func spend_action_points(amount: int) -> bool:
 		return false
 
 	action_points -= amount
+	return true
+
+
+func spend_magic_points(amount: int) -> bool:
+	if amount <= 0:
+		return true
+
+	if magic_points < amount:
+		return false
+
+	magic_points -= amount
+	_sync_magic_points_to_character()
 	return true
 
 
@@ -125,6 +141,14 @@ func has_status_effect(status_id: String) -> bool:
 	return status_effects.has(status_id)
 
 
+func remove_status_effect(status_id: String) -> bool:
+	if status_id.is_empty() or not status_effects.has(status_id):
+		return false
+
+	status_effects.erase(status_id)
+	return true
+
+
 func get_summary() -> Dictionary:
 	var has_character: bool = _has_character()
 	return {
@@ -134,6 +158,8 @@ func get_summary() -> Dictionary:
 		"speed": speed,
 		"hp": hp,
 		"max_hp": max_hp,
+		"mp": magic_points,
+		"max_mp": max_magic_points,
 		"action_points": action_points,
 		"max_action_points": max_action_points,
 		"defeated": defeated,
@@ -161,6 +187,15 @@ func _read_speed(source_character: CharacterEntity) -> int:
 
 func _has_character() -> bool:
 	return character != null and is_instance_valid(character)
+
+
+func _sync_magic_points_to_character() -> void:
+	if not _has_character():
+		return
+
+	character.attributes["mp"] = magic_points
+	character.attributes["max_mp"] = max_magic_points
+	GameState.save_character_runtime(character)
 
 
 func _get_status_text() -> String:

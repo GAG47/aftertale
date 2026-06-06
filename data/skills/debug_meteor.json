@@ -1,0 +1,31 @@
+{
+  "id": "debug_meteor",
+  "display_name": "陨火术",
+  "description": "召唤陨火打击一片区域。单位不会阻挡该技能的施法路径。",
+  "skill_type": "battle",
+  "target_type": "enemy",
+  "target_policy": "cell",
+  "path_blocking": "terrain_only",
+  "range": 4,
+  "area": "radius",
+  "radius": 1,
+  "ap_cost": 1,
+  "mp_cost": 3,
+  "cooldown": 2,
+  "ends_turn": false,
+  "element": "fire",
+  "tags": ["magic", "fire", "surface", "ground_targeted"],
+  "effects": [
+    {
+      "type": "damage_unit",
+      "formula": "intellect",
+      "power": 2
+    },
+    {
+      "type": "apply_element",
+      "element": "fire",
+      "intensity": 1
+    }
+  ],
+  "feedback": "{actor}召来陨火，轰击了目标区域。"
+}

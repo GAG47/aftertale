@@ -4,14 +4,17 @@
   "description": "可靠的近身攻击。",
   "skill_type": "battle",
   "target_type": "enemy",
+  "target_policy": "unit_required",
+  "path_blocking": "terrain_and_units",
   "range": 1,
   "area": "single",
   "ap_cost": 1,
+  "mp_cost": 0,
   "cooldown": 0,
   "ends_turn": false,
   "effects": [
     {
-      "type": "damage",
+      "type": "damage_unit",
       "formula": "strength",
       "power": 0
     }

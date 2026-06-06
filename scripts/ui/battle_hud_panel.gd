@@ -121,6 +121,17 @@ func _refresh_unit_card() -> void:
 		int(current_unit.get("speed", 0)),
 		_get_status_suffix(current_unit),
 	]
+	if int(current_unit.get("max_mp", 0)) > 0:
+		unit_status_label.text = "HP %d/%d   MP %d/%d   AP %d/%d   SPD %d%s" % [
+			int(current_unit.get("hp", 0)),
+			int(current_unit.get("max_hp", 0)),
+			int(current_unit.get("mp", 0)),
+			int(current_unit.get("max_mp", 0)),
+			int(current_unit.get("action_points", 0)),
+			int(current_unit.get("max_action_points", 0)),
+			int(current_unit.get("speed", 0)),
+			_get_status_suffix(current_unit),
+		]
 	_set_bar(
 		current_hp_bar,
 		int(current_unit.get("hp", 0)),
@@ -208,6 +219,9 @@ func _refresh_skill_menu() -> void:
 			str(skill.get("display_name", skill_id)),
 			int(skill.get("ap_cost", 0)),
 		]
+		var mp_cost: int = int(skill.get("mp_cost", 0))
+		if mp_cost > 0:
+			button.text += "   MP %d" % mp_cost
 		var cooldown: int = int(skill.get("cooldown_remaining", 0))
 		if cooldown > 0:
 			button.text += "   CD %d" % cooldown
@@ -233,6 +247,11 @@ func _refresh_status_menu() -> void:
 		int(current_unit.get("speed", 0)),
 		_get_status_text(current_unit),
 	]
+	if int(current_unit.get("max_mp", 0)) > 0:
+		status_detail_label.text += "\nMP %d/%d" % [
+			int(current_unit.get("mp", 0)),
+			int(current_unit.get("max_mp", 0)),
+		]
 
 
 func _sync_menu_visibility() -> void:
@@ -334,6 +353,9 @@ func _build_skill_detail(skill: Dictionary) -> String:
 		int(skill.get("range", 0)),
 		_area_label(skill),
 	]
+	var mp_cost: int = int(skill.get("mp_cost", 0))
+	if mp_cost > 0:
+		details += " / MP %d" % mp_cost
 	var failure_reason: String = str(skill.get("failure_reason", ""))
 	if not failure_reason.is_empty():
 		details += "\n暂不可用：%s" % failure_reason

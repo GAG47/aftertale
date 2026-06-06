@@ -12,6 +12,9 @@ signal save_requested()
 signal load_requested()
 signal camera_zoom_requested(steps: int)
 signal camera_zoom_reset_requested()
+signal camera_pan_requested(direction: Vector2i)
+signal camera_drag_requested(screen_delta: Vector2)
+signal camera_recenter_requested()
 
 const ACTION_MOVE_UP := "move_up"
 const ACTION_MOVE_DOWN := "move_down"
@@ -29,19 +32,40 @@ const ACTION_LOAD := "load_game"
 const ACTION_CAMERA_ZOOM_IN := "camera_zoom_in"
 const ACTION_CAMERA_ZOOM_OUT := "camera_zoom_out"
 const ACTION_CAMERA_ZOOM_RESET := "camera_zoom_reset"
+const ACTION_CAMERA_RECENTER := "camera_recenter"
+const MOVE_REPEAT_INITIAL_DELAY := 0.18
+const MOVE_REPEAT_INTERVAL := 0.12
 
 var input_locked: bool = false
+var _camera_drag_active: bool = false
+var _held_move_direction: Vector2i = Vector2i.ZERO
+var _move_repeat_timer: float = 0.0
+var _move_repeat_ready: bool = false
 
 
 func _ready() -> void:
 	_register_default_actions()
 
 
+func _process(delta: float) -> void:
+	_update_held_move_repeat(delta)
+
+
 func _unhandled_input(event: InputEvent) -> void:
 	if input_locked:
+		_clear_held_move_repeat()
 		return
 
 	if _handle_camera_zoom_event(event):
+		get_viewport().set_input_as_handled()
+		return
+
+	if _handle_camera_drag_event(event):
+		get_viewport().set_input_as_handled()
+		return
+
+	if event.is_action_pressed(ACTION_CAMERA_RECENTER):
+		camera_recenter_requested.emit()
 		get_viewport().set_input_as_handled()
 		return
 
@@ -101,12 +125,23 @@ func _unhandled_input(event: InputEvent) -> void:
 		direction = Vector2i.RIGHT
 
 	if direction != Vector2i.ZERO:
+		if _is_camera_pan_modifier_pressed(event):
+			_clear_held_move_repeat()
+			camera_pan_requested.emit(direction)
+			get_viewport().set_input_as_handled()
+			return
+		if _is_key_echo(event):
+			get_viewport().set_input_as_handled()
+			return
+		_start_held_move_repeat(direction)
 		move_requested.emit(direction)
 		get_viewport().set_input_as_handled()
 
 
 func set_input_locked(value: bool) -> void:
 	input_locked = value
+	if input_locked:
+		_clear_held_move_repeat()
 
 
 func _register_default_actions() -> void:
@@ -133,6 +168,7 @@ func _register_default_actions() -> void:
 	_register_key_action(ACTION_CAMERA_ZOOM_OUT, KEY_MINUS)
 	_register_key_action(ACTION_CAMERA_ZOOM_OUT, KEY_KP_SUBTRACT)
 	_register_key_action(ACTION_CAMERA_ZOOM_RESET, KEY_0)
+	_register_key_action(ACTION_CAMERA_RECENTER, KEY_HOME)
 
 
 func _handle_camera_zoom_event(event: InputEvent) -> bool:
@@ -159,6 +195,90 @@ func _handle_camera_zoom_event(event: InputEvent) -> bool:
 			camera_zoom_requested.emit(-1)
 			return true
 
+	return false
+
+
+func _handle_camera_drag_event(event: InputEvent) -> bool:
+	if event is InputEventMouseButton:
+		var mouse_button: InputEventMouseButton = event as InputEventMouseButton
+		if mouse_button.button_index != MOUSE_BUTTON_MIDDLE:
+			return false
+		_camera_drag_active = mouse_button.pressed
+		return true
+
+	if event is InputEventMouseMotion and _camera_drag_active:
+		if not Input.is_mouse_button_pressed(MOUSE_BUTTON_MIDDLE):
+			_camera_drag_active = false
+			return false
+		var mouse_motion: InputEventMouseMotion = event as InputEventMouseMotion
+		camera_drag_requested.emit(mouse_motion.relative)
+		return true
+
+	return false
+
+
+func _is_camera_pan_modifier_pressed(event: InputEvent) -> bool:
+	if event is InputEventKey:
+		var key_event: InputEventKey = event as InputEventKey
+		return key_event.shift_pressed
+
+	return Input.is_key_pressed(KEY_SHIFT)
+
+
+func _update_held_move_repeat(delta: float) -> void:
+	if input_locked:
+		_clear_held_move_repeat()
+		return
+	if Input.is_key_pressed(KEY_SHIFT):
+		_clear_held_move_repeat()
+		return
+
+	var direction: Vector2i = _get_pressed_move_direction()
+	if direction == Vector2i.ZERO:
+		_clear_held_move_repeat()
+		return
+
+	if direction != _held_move_direction:
+		_start_held_move_repeat(direction)
+		return
+
+	_move_repeat_timer -= delta
+	if _move_repeat_timer > 0.0:
+		return
+
+	move_requested.emit(direction)
+	_move_repeat_timer = MOVE_REPEAT_INTERVAL
+	_move_repeat_ready = true
+
+
+func _start_held_move_repeat(direction: Vector2i) -> void:
+	_held_move_direction = direction
+	_move_repeat_timer = MOVE_REPEAT_INTERVAL if _move_repeat_ready else MOVE_REPEAT_INITIAL_DELAY
+	_move_repeat_ready = false
+
+
+func _clear_held_move_repeat() -> void:
+	_held_move_direction = Vector2i.ZERO
+	_move_repeat_timer = 0.0
+	_move_repeat_ready = false
+
+
+func _get_pressed_move_direction() -> Vector2i:
+	if Input.is_action_pressed(ACTION_MOVE_UP):
+		return Vector2i.UP
+	if Input.is_action_pressed(ACTION_MOVE_DOWN):
+		return Vector2i.DOWN
+	if Input.is_action_pressed(ACTION_MOVE_LEFT):
+		return Vector2i.LEFT
+	if Input.is_action_pressed(ACTION_MOVE_RIGHT):
+		return Vector2i.RIGHT
+	return Vector2i.ZERO
+
+
+func _is_key_echo(event: InputEvent) -> bool:
+	if event is InputEventKey:
+		var key_event: InputEventKey = event as InputEventKey
+		return key_event.echo
 	return false
 
 

@@ -11,6 +11,10 @@ const NpcAutonomyAgentScript := preload("res://scripts/systems/schedules/npc_aut
 const CAMERA_ZOOM_MIN := 0.75
 const CAMERA_ZOOM_MAX := 3.0
 const CAMERA_ZOOM_STEP := 0.15
+const CAMERA_DEAD_ZONE_RATIO := Vector2(0.42, 0.42)
+const CAMERA_MANUAL_PAN_SPEED := 520.0
+const CAMERA_SMOOTH_SPEED := 8.0
+const CAMERA_SNAP_DISTANCE := 0.35
 
 @export_file("*.json") var location_data_path: String = ""
 @export var entrance_id: String = ""
@@ -41,6 +45,8 @@ var _npc_movement_agent
 var _npc_activity_agent
 var _npc_autonomy_agent
 var _camera_default_zoom: Vector2 = Vector2.ONE
+var _camera_detached: bool = false
+var _camera_target_position: Vector2 = Vector2.ZERO
 
 
 func _ready() -> void:
@@ -58,6 +64,8 @@ func _ready() -> void:
 	refresh_crop_markers()
 	_spawn_characters_from_data()
 	_sync_party_followers()
+	_recenter_camera_to_focus(true)
+	_set_camera_target(_camera_target_position, true)
 	_refresh_interaction_overlay()
 
 	InputManager.move_requested.connect(_on_move_requested)
@@ -65,6 +73,9 @@ func _ready() -> void:
 	InputManager.rest_requested.connect(_on_rest_requested)
 	InputManager.camera_zoom_requested.connect(_on_camera_zoom_requested)
 	InputManager.camera_zoom_reset_requested.connect(_on_camera_zoom_reset_requested)
+	InputManager.camera_pan_requested.connect(_on_camera_pan_requested)
+	InputManager.camera_drag_requested.connect(_on_camera_drag_requested)
+	InputManager.camera_recenter_requested.connect(_on_camera_recenter_requested)
 	ActionSystem.action_executed.connect(_on_action_result_for_presentation)
 	ActionSystem.action_failed.connect(_on_action_result_for_presentation)
 	PartySystem.party_changed.connect(_on_party_changed)
@@ -76,6 +87,8 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	_update_manual_camera_keyboard_pan(delta)
+	_update_camera_smoothing(delta)
 	_update_npc_schedule_movement(delta)
 	_update_npc_autonomy(delta)
 	_update_npc_activities(delta)
@@ -108,6 +121,12 @@ func _exit_tree() -> void:
 		InputManager.camera_zoom_requested.disconnect(_on_camera_zoom_requested)
 	if InputManager.camera_zoom_reset_requested.is_connected(_on_camera_zoom_reset_requested):
 		InputManager.camera_zoom_reset_requested.disconnect(_on_camera_zoom_reset_requested)
+	if InputManager.camera_pan_requested.is_connected(_on_camera_pan_requested):
+		InputManager.camera_pan_requested.disconnect(_on_camera_pan_requested)
+	if InputManager.camera_drag_requested.is_connected(_on_camera_drag_requested):
+		InputManager.camera_drag_requested.disconnect(_on_camera_drag_requested)
+	if InputManager.camera_recenter_requested.is_connected(_on_camera_recenter_requested):
+		InputManager.camera_recenter_requested.disconnect(_on_camera_recenter_requested)
 	if ActionSystem.action_executed.is_connected(_on_action_result_for_presentation):
 		ActionSystem.action_executed.disconnect(_on_action_result_for_presentation)
 	if ActionSystem.action_failed.is_connected(_on_action_result_for_presentation):
@@ -309,7 +328,9 @@ func _load_location_data() -> void:
 	_configure_scene_layer_renderer(structure_renderer)
 	_configure_scene_layer_renderer(building_renderer)
 	camera.position = Vector2(grid.width * grid.tile_size, grid.height * grid.tile_size) * 0.5
+	_camera_target_position = camera.position
 	_camera_default_zoom = camera.zoom
+	_clamp_camera_to_map()
 
 
 func _on_camera_zoom_requested(steps: int) -> void:
@@ -329,6 +350,194 @@ func _on_camera_zoom_reset_requested() -> void:
 
 func _set_camera_zoom(value: float) -> void:
 	camera.zoom = Vector2(value, value)
+	_set_camera_target(_camera_target_position, true)
+	if not _camera_detached:
+		_recenter_camera_to_focus(false)
+
+
+func _on_camera_pan_requested(direction: Vector2i) -> void:
+	_pan_camera(Vector2(direction), CAMERA_MANUAL_PAN_SPEED / maxf(0.1, camera.zoom.x) * 0.12)
+
+
+func _on_camera_drag_requested(screen_delta: Vector2) -> void:
+	if camera == null:
+		return
+
+	camera.position = _clamp_camera_position(camera.position - screen_delta / maxf(0.1, camera.zoom.x))
+	_camera_target_position = camera.position
+	_camera_detached = true
+
+
+func _on_camera_recenter_requested() -> void:
+	_recenter_camera_to_focus(true)
+
+
+func _update_manual_camera_keyboard_pan(delta: float) -> void:
+	if camera == null:
+		return
+	if not Input.is_key_pressed(KEY_SHIFT):
+		return
+	if InputManager.input_locked:
+		return
+
+	var direction := Vector2.ZERO
+	if Input.is_action_pressed(InputManager.ACTION_MOVE_UP):
+		direction.y -= 1.0
+	if Input.is_action_pressed(InputManager.ACTION_MOVE_DOWN):
+		direction.y += 1.0
+	if Input.is_action_pressed(InputManager.ACTION_MOVE_LEFT):
+		direction.x -= 1.0
+	if Input.is_action_pressed(InputManager.ACTION_MOVE_RIGHT):
+		direction.x += 1.0
+	if direction == Vector2.ZERO:
+		return
+
+	_pan_camera(direction.normalized(), CAMERA_MANUAL_PAN_SPEED / maxf(0.1, camera.zoom.x) * delta)
+
+
+func _pan_camera(direction: Vector2, amount: float) -> void:
+	if camera == null or direction == Vector2.ZERO:
+		return
+
+	camera.position = _clamp_camera_position(camera.position + direction * amount)
+	_camera_target_position = camera.position
+	_camera_detached = true
+
+
+func _update_camera_smoothing(delta: float) -> void:
+	if camera == null:
+		return
+
+	_camera_target_position = _clamp_camera_position(_camera_target_position)
+	var distance: float = camera.position.distance_to(_camera_target_position)
+	if distance <= CAMERA_SNAP_DISTANCE:
+		camera.position = _camera_target_position
+		return
+
+	var weight: float = 1.0 - exp(-CAMERA_SMOOTH_SPEED * maxf(0.0, delta))
+	camera.position = camera.position.lerp(_camera_target_position, clampf(weight, 0.0, 1.0))
+
+
+func _set_camera_target(target_position: Vector2, snap: bool = false) -> void:
+	if camera == null:
+		return
+
+	_camera_target_position = _clamp_camera_position(target_position)
+	if snap:
+		camera.position = _camera_target_position
+
+
+func _recenter_camera_to_focus(force_center: bool = true) -> void:
+	var focus_position: Vector2 = _get_camera_focus_world_position()
+	if focus_position == Vector2.INF:
+		return
+
+	_camera_detached = false
+	if force_center:
+		_set_camera_target(focus_position)
+		return
+
+	_ensure_camera_contains_world_position(focus_position)
+
+
+func _get_camera_focus_world_position() -> Vector2:
+	if camera == null:
+		return Vector2.INF
+
+	if GameState.current_mode == GameState.GameMode.COMBAT and BattleSystem.is_active():
+		var battle_summary: Dictionary = BattleSystem.get_summary()
+		var current_unit: Dictionary = battle_summary.get("current_unit", {}) as Dictionary
+		var current_id: String = str(current_unit.get("character_id", ""))
+		var current_character: CharacterEntity = grid.get_character_by_id(current_id) if grid != null else null
+		if current_character != null:
+			return current_character.position
+
+	if _has_controlled_character():
+		return controlled_character.position
+
+	if grid != null:
+		return Vector2(grid.width * grid.tile_size, grid.height * grid.tile_size) * 0.5
+
+	return Vector2.INF
+
+
+func _ensure_camera_contains_world_position(world_position: Vector2) -> void:
+	if camera == null or world_position == Vector2.INF:
+		return
+
+	var dead_zone: Rect2 = _get_camera_dead_zone_world_rect()
+	if dead_zone.has_point(world_position):
+		return
+
+	var target_position: Vector2 = _camera_target_position
+	if world_position.x < dead_zone.position.x:
+		target_position.x -= dead_zone.position.x - world_position.x
+	elif world_position.x > dead_zone.position.x + dead_zone.size.x:
+		target_position.x += world_position.x - (dead_zone.position.x + dead_zone.size.x)
+
+	if world_position.y < dead_zone.position.y:
+		target_position.y -= dead_zone.position.y - world_position.y
+	elif world_position.y > dead_zone.position.y + dead_zone.size.y:
+		target_position.y += world_position.y - (dead_zone.position.y + dead_zone.size.y)
+
+	_set_camera_target(target_position)
+
+
+func _is_world_position_visible(world_position: Vector2, margin_ratio: float = 0.08) -> bool:
+	if camera == null:
+		return true
+
+	var visible_rect: Rect2 = _get_camera_visible_world_rect()
+	var shrink_amount: Vector2 = visible_rect.size * clampf(margin_ratio, 0.0, 0.45)
+	visible_rect.position += shrink_amount
+	visible_rect.size -= shrink_amount * 2.0
+	return visible_rect.has_point(world_position)
+
+
+func _get_camera_dead_zone_world_rect() -> Rect2:
+	var visible_rect: Rect2 = _get_camera_visible_world_rect()
+	var dead_zone_size: Vector2 = visible_rect.size * CAMERA_DEAD_ZONE_RATIO
+	return Rect2(_camera_target_position - dead_zone_size * 0.5, dead_zone_size)
+
+
+func _get_camera_visible_world_rect() -> Rect2:
+	if camera == null:
+		return Rect2()
+
+	var viewport_size: Vector2 = get_viewport_rect().size
+	var zoom_value: float = maxf(0.1, camera.zoom.x)
+	var visible_size: Vector2 = viewport_size / zoom_value
+	return Rect2(_camera_target_position - visible_size * 0.5, visible_size)
+
+
+func _clamp_camera_to_map() -> void:
+	if camera == null or grid == null:
+		return
+
+	camera.position = _clamp_camera_position(camera.position)
+	_camera_target_position = _clamp_camera_position(_camera_target_position)
+
+
+func _clamp_camera_position(position_value: Vector2) -> Vector2:
+	if camera == null or grid == null:
+		return position_value
+
+	var map_size := Vector2(grid.width * grid.tile_size, grid.height * grid.tile_size)
+	var visible_size: Vector2 = get_viewport_rect().size / maxf(0.1, camera.zoom.x)
+	var half_visible: Vector2 = visible_size * 0.5
+	var result: Vector2 = position_value
+
+	if map_size.x <= visible_size.x:
+		result.x = map_size.x * 0.5
+	else:
+		result.x = clampf(result.x, half_visible.x, map_size.x - half_visible.x)
+
+	if map_size.y <= visible_size.y:
+		result.y = map_size.y * 0.5
+	else:
+		result.y = clampf(result.y, half_visible.y, map_size.y - half_visible.y)
+
+	return result
 
 
 func _setup_npc_movement_agent() -> void:
@@ -1000,6 +1209,7 @@ func _on_move_requested(direction: Vector2i) -> void:
 		return
 
 	if _try_swap_with_party_follower(direction):
+		_recenter_camera_to_focus(false)
 		_refresh_interaction_overlay()
 		return
 
@@ -1007,6 +1217,8 @@ func _on_move_requested(direction: Vector2i) -> void:
 	var context: Dictionary = { "location_root": self }
 	var action: GameAction = ActionSystem.create_action("MoveAction", controlled_character, target, context) as GameAction
 	var result: ActionResult = ActionSystem.submit(action) as ActionResult
+	if _has_controlled_character() and not _result_has_change_type(result, "location_exit_requested"):
+		_recenter_camera_to_focus(false)
 	_refresh_interaction_overlay()
 	if result.success and _result_has_change_type(result, "character_moved") and not _result_has_change_type(result, "location_exit_requested") and _has_controlled_character():
 		current_grid_position = controlled_character.grid_position
@@ -1464,9 +1676,11 @@ func _build_battle_target_info_text(summary: Dictionary) -> String:
 	var lines: PackedStringArray = PackedStringArray()
 	var team_label: String = "敌方" if str(unit_summary.get("team", "")) == BattleUnitState.TEAM_ENEMY else "我方"
 	lines.append("%s  %s" % [str(unit_summary.get("display_name", unit_summary.get("character_id", ""))), team_label])
-	lines.append("HP %d/%d  AP %d/%d" % [
+	lines.append("HP %d/%d  MP %d/%d  AP %d/%d" % [
 		int(unit_summary.get("hp", 0)),
 		int(unit_summary.get("max_hp", 0)),
+		int(unit_summary.get("mp", 0)),
+		int(unit_summary.get("max_mp", 0)),
 		int(unit_summary.get("action_points", 0)),
 		int(unit_summary.get("max_action_points", 0)),
 	])
@@ -1504,6 +1718,8 @@ func _refresh_battle_overlay() -> void:
 
 	battle_overlay.set_preview(BattleSystem.get_player_tactical_preview())
 	_refresh_battle_character_presentations()
+	if not _camera_detached:
+		_recenter_camera_to_focus(false)
 	_refresh_interaction_overlay()
 
 
@@ -1556,6 +1772,8 @@ func _submit_talk_interaction(target_character: CharacterEntity) -> void:
 
 func _submit_battle_start(target_character: CharacterEntity) -> void:
 	BattleSystem.start_battle(self, controlled_character, target_character)
+	if target_character != null:
+		_focus_camera_on_world_position_if_needed(target_character.position, true)
 	_refresh_interaction_overlay()
 
 
@@ -1631,11 +1849,58 @@ func _on_action_result_for_presentation(_action_type: String, _actor_id: String,
 
 	_refresh_battle_character_presentations()
 	if result.success:
+		_focus_camera_from_action_result(result)
 		_spawn_battle_feedback_from_result(result)
 		return
 
 	if GameState.current_mode == GameState.GameMode.COMBAT and _has_controlled_character():
 		_spawn_battle_feedback(controlled_character.character_id, "无效", Color(0.92, 0.92, 0.92, 0.95))
+
+
+func _focus_camera_from_action_result(result: ActionResult) -> void:
+	if result == null or GameState.current_mode != GameState.GameMode.COMBAT:
+		return
+
+	var focus_cell: Vector2i = Vector2i(-9999, -9999)
+	if result.target.has("target_cell"):
+		focus_cell = _variant_to_cell(result.target.get("target_cell"))
+
+	for change in result.world_changes:
+		var change_type: String = str(change.get("type", ""))
+		match change_type:
+			"battle_unit_moved":
+				focus_cell = _variant_to_cell(change.get("to", focus_cell))
+			"battle_skill_used":
+				focus_cell = _variant_to_cell(change.get("target_cell", focus_cell))
+			"battle_unit_damaged", "battle_unit_healed", "battle_status_applied":
+				var target_id: String = str(change.get("target_id", change.get("character_id", "")))
+				var target_character: CharacterEntity = grid.get_character_by_id(target_id) if grid != null else null
+				if target_character != null:
+					_focus_camera_on_world_position_if_needed(target_character.position, false)
+					return
+
+	if grid != null and grid.in_bounds(focus_cell):
+		_focus_camera_on_world_position_if_needed(grid.grid_to_world(focus_cell), false)
+
+
+func _focus_camera_on_world_position_if_needed(world_position: Vector2, force_center: bool = false) -> void:
+	if camera == null:
+		return
+	if force_center or not _is_world_position_visible(world_position):
+		_camera_detached = false
+		_set_camera_target(world_position)
+
+
+func _variant_to_cell(value: Variant) -> Vector2i:
+	if typeof(value) == TYPE_VECTOR2I:
+		return value as Vector2i
+	if typeof(value) == TYPE_VECTOR2:
+		var vector_value: Vector2 = value as Vector2
+		return Vector2i(floori(vector_value.x), floori(vector_value.y))
+	if typeof(value) == TYPE_DICTIONARY:
+		var dict_value: Dictionary = value as Dictionary
+		return Vector2i(int(dict_value.get("x", -9999)), int(dict_value.get("y", -9999)))
+	return Vector2i(-9999, -9999)
 
 
 func _get_controlled_character_summary() -> Dictionary:

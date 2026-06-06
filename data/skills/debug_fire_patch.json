@@ -1,0 +1,25 @@
+{
+  "id": "debug_fire_patch",
+  "display_name": "引燃",
+  "description": "点燃一处空地，使地面进入燃烧状态。",
+  "skill_type": "battle",
+  "target_type": "enemy",
+  "target_policy": "empty_required",
+  "path_blocking": "terrain_only",
+  "range": 3,
+  "area": "single",
+  "ap_cost": 1,
+  "mp_cost": 1,
+  "cooldown": 0,
+  "ends_turn": false,
+  "element": "fire",
+  "tags": ["magic", "fire", "surface"],
+  "effects": [
+    {
+      "type": "apply_element",
+      "element": "fire",
+      "intensity": 1
+    }
+  ],
+  "feedback": "{actor}点燃了地面。"
+}

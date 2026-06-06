@@ -1,0 +1,26 @@
+{
+  "id": "debug_frost_field",
+  "display_name": "霜冻领域",
+  "description": "向小范围地格施加冰元素，可以冻结湿润地面。",
+  "skill_type": "battle",
+  "target_type": "enemy",
+  "target_policy": "cell",
+  "path_blocking": "terrain_only",
+  "range": 4,
+  "area": "radius",
+  "radius": 1,
+  "ap_cost": 1,
+  "mp_cost": 1,
+  "cooldown": 0,
+  "ends_turn": false,
+  "element": "ice",
+  "tags": ["magic", "ice", "surface"],
+  "effects": [
+    {
+      "type": "apply_element",
+      "element": "ice",
+      "intensity": 1
+    }
+  ],
+  "feedback": "{actor}释放寒气，冰霜覆盖了周围地面。"
+}

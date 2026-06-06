@@ -1,10 +1,14 @@
 class_name BattleState
 extends RefCounted
 
+const MAX_REACTION_HISTORY := 24
+
 var battle_id: String = ""
 var location_root: Node
 var grid: LocationGrid
 var units: Array[BattleUnitState] = []
+var tile_states_by_cell: Dictionary = {}
+var recent_reactions: Array[Dictionary] = []
 var turn_index: int = 0
 var round_number: int = 1
 var active: bool = false
@@ -18,6 +22,8 @@ func configure(new_battle_id: String, battle_location_root: Node, battle_grid: L
 	units.clear()
 	for unit in battle_units:
 		units.append(unit)
+	tile_states_by_cell.clear()
+	recent_reactions.clear()
 	_sort_units_by_speed()
 	turn_index = 0
 	round_number = 1
@@ -126,6 +132,139 @@ func get_unit_at(cell: Vector2i) -> BattleUnitState:
 	return null
 
 
+func cell_key(cell: Vector2i) -> String:
+	if grid != null:
+		return grid.cell_key(cell)
+	return "%d,%d" % [cell.x, cell.y]
+
+
+func get_tile_state_at(cell: Vector2i):
+	return tile_states_by_cell.get(cell_key(cell))
+
+
+func has_tile_state(cell: Vector2i, state_id: String = "") -> bool:
+	var tile_state = get_tile_state_at(cell)
+	if tile_state == null:
+		return false
+	if state_id.is_empty():
+		return true
+	return tile_state.id == state_id
+
+
+func apply_tile_state(tile_state, result: ActionResult = null) -> bool:
+	if tile_state == null or tile_state.id.is_empty():
+		return false
+	if grid != null and not grid.in_bounds(tile_state.cell):
+		return false
+
+	var key: String = cell_key(tile_state.cell)
+	var existing = tile_states_by_cell.get(key)
+	var previous_state_id: String = existing.id if existing != null else ""
+	var refreshed: bool = existing != null and existing.id == tile_state.id
+	if refreshed:
+		existing.refresh_from(tile_state)
+		tile_state = existing
+	else:
+		tile_states_by_cell[key] = tile_state
+
+	if result != null:
+		result.add_world_change({
+			"type": "battle_tile_state_applied",
+			"battle_id": battle_id,
+			"cell": tile_state.cell,
+			"state_id": tile_state.id,
+			"previous_state_id": previous_state_id,
+			"refreshed": refreshed,
+			"tile_state": tile_state.get_summary(),
+		})
+		result.add_feedback("Tile %s is now %s." % [tile_state.cell, tile_state.id])
+
+	on_tile_state_created(tile_state, result)
+	return true
+
+
+func remove_tile_state(cell: Vector2i, state_id: String = "", result: ActionResult = null, reason: String = "removed") -> bool:
+	var key: String = cell_key(cell)
+	var existing = tile_states_by_cell.get(key)
+	if existing == null:
+		return false
+	if not state_id.is_empty() and existing.id != state_id:
+		return false
+
+	tile_states_by_cell.erase(key)
+	if result != null:
+		result.add_world_change({
+			"type": "battle_tile_state_removed",
+			"battle_id": battle_id,
+			"cell": cell,
+			"state_id": existing.id,
+			"reason": reason,
+			"tile_state": existing.get_summary(),
+		})
+	return true
+
+
+func record_reaction(reaction: Dictionary, result: ActionResult = null) -> void:
+	var recorded_reaction: Dictionary = reaction.duplicate(true)
+	recorded_reaction["battle_id"] = battle_id
+	recent_reactions.append(recorded_reaction)
+	while recent_reactions.size() > MAX_REACTION_HISTORY:
+		recent_reactions.pop_front()
+
+	if result == null:
+		return
+
+	var world_change: Dictionary = recorded_reaction.duplicate(true)
+	world_change["type"] = "reaction_event"
+	result.add_world_change(world_change)
+	var feedback: String = str(recorded_reaction.get("feedback", ""))
+	if not feedback.is_empty():
+		result.add_feedback(feedback)
+
+
+func get_reaction_summaries() -> Array[Dictionary]:
+	var summaries: Array[Dictionary] = []
+	for reaction in recent_reactions:
+		summaries.append(reaction.duplicate(true))
+	return summaries
+
+
+func on_tile_state_created(_tile_state, _result: ActionResult = null) -> void:
+	pass
+
+
+func on_unit_enters_cell(_unit: BattleUnitState, _cell: Vector2i, _result: ActionResult = null) -> void:
+	pass
+
+
+func on_unit_starts_turn_on_cell(unit: BattleUnitState, result: ActionResult = null) -> void:
+	if unit == null:
+		return
+	_tick_tile_state_durations(result)
+
+
+func on_unit_ends_turn_on_cell(_unit: BattleUnitState, _result: ActionResult = null) -> void:
+	pass
+
+
+func on_round_ends(_result: ActionResult = null) -> void:
+	pass
+
+
+func on_tile_state_expires(_tile_state, _result: ActionResult = null) -> void:
+	pass
+
+
+func get_tile_state_summaries() -> Array[Dictionary]:
+	var summaries: Array[Dictionary] = []
+	for key_value in tile_states_by_cell.keys():
+		var tile_state = tile_states_by_cell[key_value]
+		if tile_state != null:
+			summaries.append(tile_state.get_summary())
+	summaries.sort_custom(Callable(self, "_compare_tile_state_summaries"))
+	return summaries
+
+
 func get_active_units_for_team(team: String) -> Array[BattleUnitState]:
 	var result: Array[BattleUnitState] = []
 	for unit in units:
@@ -208,6 +347,8 @@ func get_summary() -> Dictionary:
 		"current_unit": current_unit.get_summary() if current_unit != null else {},
 		"units": unit_summaries,
 		"turn_order": get_turn_order_summary(),
+		"tile_states": get_tile_state_summaries(),
+		"recent_reactions": get_reaction_summaries(),
 		"result_status": result_status,
 	}
 
@@ -225,3 +366,41 @@ func _compare_units(a: BattleUnitState, b: BattleUnitState) -> bool:
 		return a.character_id < b.character_id
 
 	return a.speed > b.speed
+
+
+func _tick_tile_state_durations(result: ActionResult = null) -> void:
+	var expired_keys: Array[String] = []
+	for key_value in tile_states_by_cell.keys():
+		var key: String = str(key_value)
+		var tile_state = tile_states_by_cell[key]
+		if tile_state == null:
+			expired_keys.append(key)
+			continue
+		if tile_state.should_skip_tick(round_number, turn_index):
+			continue
+		if tile_state.tick_duration():
+			expired_keys.append(key)
+
+	for key in expired_keys:
+		var expired_state = tile_states_by_cell.get(key)
+		tile_states_by_cell.erase(key)
+		if expired_state == null:
+			continue
+		on_tile_state_expires(expired_state, result)
+		if result != null:
+			result.add_world_change({
+				"type": "battle_tile_state_expired",
+				"battle_id": battle_id,
+				"cell": expired_state.cell,
+				"state_id": expired_state.id,
+				"tile_state": expired_state.get_summary(),
+			})
+			result.add_feedback("%s at %s faded." % [expired_state.id, expired_state.cell])
+
+
+func _compare_tile_state_summaries(a: Dictionary, b: Dictionary) -> bool:
+	var a_cell: Vector2i = a.get("cell", Vector2i.ZERO) as Vector2i
+	var b_cell: Vector2i = b.get("cell", Vector2i.ZERO) as Vector2i
+	if a_cell.y == b_cell.y:
+		return a_cell.x < b_cell.x
+	return a_cell.y < b_cell.y

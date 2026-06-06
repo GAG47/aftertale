@@ -2,7 +2,7 @@
 
 ## Status
 
-Planned.
+Complete.
 
 ## Goal
 
@@ -66,6 +66,8 @@ air_states_by_cell
 
 Do not store tile state only in renderer nodes. The battle rules layer must own the facts.
 
+The implemented first pass keeps these states battle-local. `LocationGrid.state` remains available for map-defined or long-lived world facts, but temporary combat surfaces such as fire, wet ground, frozen ground, and electrified ground are not written into `LocationGrid`.
+
 ## Timing Hooks
 
 Phase 51 should define hooks even if some are no-ops until Phase 53:
@@ -92,6 +94,8 @@ display_color or semantic display id
 ```
 
 The UI may render highlights from these summaries, but must not mutate tile state.
+
+`BattleGridOverlay` reads `tile_states` from the tactical preview and draws semantic colors for the current minimum state set. It does not own or mutate state.
 
 ## Minimum States
 
@@ -126,6 +130,30 @@ Phase 51 is complete when:
 - existing battles still work when no tile states exist;
 - no presentation node owns authoritative tile state.
 
+## Implemented Files
+
+```text
+scripts/systems/battle/battle_tile_state.gd
+scripts/systems/battle/battle_state.gd
+scripts/systems/battle/battle_effect_resolver.gd
+scripts/systems/battle/battle_system.gd
+scripts/systems/scenes/battle_grid_overlay.gd
+data/characters/debug_player.json
+```
+
+## Implemented API
+
+```text
+BattleState.tile_states_by_cell
+BattleState.get_tile_state_at(cell)
+BattleState.has_tile_state(cell, state_id = "")
+BattleState.apply_tile_state(tile_state, result = null)
+BattleState.remove_tile_state(cell, state_id = "", result = null, reason = "removed")
+BattleState.get_tile_state_summaries()
+```
+
+The resolver executes `apply_tile_state` and `remove_tile_state` directly against `BattleState` for explicit rule-owned surface operations. Since Phase 52, ordinary elemental skills use `apply_element`, which delegates surface creation and replacement to the reaction system.
+
 ## Boundary
 
-This phase does not need full elemental reactions. A debug or test skill may apply a state directly, but the reaction table belongs to Phase 52.
+This phase established surface storage and lifecycle only. The Phase 52 reaction system now owns elemental surface creation and replacement.

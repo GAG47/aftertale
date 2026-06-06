@@ -1,0 +1,30 @@
+{
+  "id": "debug_line_beam",
+  "display_name": "雷霆射线",
+  "description": "攻击直线上的敌人，并向沿途地格施加雷元素。",
+  "skill_type": "battle",
+  "target_type": "enemy",
+  "target_policy": "cell",
+  "path_blocking": "terrain_only",
+  "range": 4,
+  "area": "line",
+  "ap_cost": 1,
+  "mp_cost": 2,
+  "cooldown": 1,
+  "ends_turn": false,
+  "element": "lightning",
+  "tags": ["magic", "lightning", "line", "surface"],
+  "effects": [
+    {
+      "type": "damage_unit",
+      "formula": "intellect",
+      "power": 1
+    },
+    {
+      "type": "apply_element",
+      "element": "lightning",
+      "intensity": 1
+    }
+  ],
+  "feedback": "{actor}释放雷霆射线，电光贯穿了前方。"
+}

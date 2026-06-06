@@ -470,6 +470,7 @@ func _refresh_attributes(summary: Dictionary) -> void:
 	var max_hp: int = int(summary.get("max_hp", effective.get("max_hp", 1)))
 
 	_attribute_box.add_child(_make_bar_row("HP", hp, max(1, max_hp), Color(0.86, 0.24, 0.28)))
+	_attribute_box.add_child(_make_text_row("MP", str(effective.get("max_mp", int(effective.get("intellect", 1)) * 3))))
 	_attribute_box.add_child(_make_text_row("AP", str(effective.get("action_points", 2))))
 	_attribute_box.add_child(_make_text_row("速度", str(effective.get("speed", effective.get("agility", 1)))))
 	_attribute_box.add_child(_make_separator())

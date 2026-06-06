@@ -4,14 +4,17 @@
   "description": "为自己或友方恢复少量生命。",
   "skill_type": "battle",
   "target_type": "ally_or_self",
+  "target_policy": "unit_required",
+  "path_blocking": "terrain_and_units",
   "range": 2,
   "area": "single",
   "ap_cost": 1,
+  "mp_cost": 1,
   "cooldown": 1,
   "ends_turn": false,
   "effects": [
     {
-      "type": "heal",
+      "type": "heal_unit",
       "formula": "intellect",
       "power": 2
     }

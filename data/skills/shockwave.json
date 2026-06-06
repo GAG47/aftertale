@@ -4,15 +4,18 @@
   "description": "攻击一个敌人，并伤害目标周围的敌人。",
   "skill_type": "battle",
   "target_type": "enemy",
+  "target_policy": "unit_required",
+  "path_blocking": "terrain_and_units",
   "range": 2,
   "area": "radius",
   "radius": 1,
   "ap_cost": 2,
+  "mp_cost": 2,
   "cooldown": 1,
   "ends_turn": false,
   "effects": [
     {
-      "type": "damage",
+      "type": "damage_unit",
       "formula": "intellect",
       "power": 2
     }

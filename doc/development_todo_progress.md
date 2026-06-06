@@ -15,9 +15,9 @@ The implementation order intentionally starts with battlefield state before smar
 
 | Phase | Status | Development Log | Purpose |
 | --- | --- | --- | --- |
-| v50 | Planned | `doc/phase_50_skill_effect_data_model.md` | Make battle skills easier to extend through data-driven effect lists and elemental metadata. |
-| v51 | Planned | `doc/phase_51_battle_tile_surface_states.md` | Add battle tile surface state storage, lifetime rules, triggers, and preview summaries. |
-| v52 | Planned | `doc/phase_52_elemental_reactions.md` | Centralize fire, water, ice, and lightning reactions so skills apply elements instead of hard-coding reactions. |
+| v50 | Complete | `doc/phase_50_skill_effect_data_model.md` | Add battle MP costs and route skill effects through a resolver pipeline. |
+| v51 | Complete | `doc/phase_51_battle_tile_surface_states.md` | Add battle tile surface state storage, lifetime rules, triggers, and preview summaries. |
+| v52 | Complete | `doc/phase_52_elemental_reactions.md` | Centralize fire, water, ice, and lightning reactions so skills apply elements instead of hard-coding reactions. |
 | v53 | Planned | `doc/phase_53_status_effects_on_units.md` | Let tile states and reactions affect units at clear battle timing points. |
 | v54 | Planned | `doc/phase_54_enemy_ai_scoring.md` | Replace the simple enemy priority chain with a debuggable action scoring model. |
 
