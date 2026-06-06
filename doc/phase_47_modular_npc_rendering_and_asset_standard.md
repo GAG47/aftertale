@@ -1,4 +1,4 @@
-# Phase 47: Modular NPC Rendering And Asset Standard
+﻿# Phase 47: Modular NPC Rendering And Asset Standard
 
 ## Goal
 
@@ -26,12 +26,11 @@ The renderer uses this order:
 
 ```text
 shadow
-hair_back
 body
 outfit
 head
 face
-hair_front
+hair
 accessory
 held_item
 status_overlay
@@ -119,9 +118,9 @@ powershell -ExecutionPolicy Bypass -File tools\art\standardize_character_part.ps
 Supported part types:
 
 ```text
+body
 head
-hair_front
-hair_back
+hair
 outfit
 accessory
 held_item
@@ -129,10 +128,9 @@ held_item
 
 The tool:
 
-- reads the alpha channel;
-- finds the non-transparent bounds;
-- crops the visible content;
-- fits it into a part-specific target region;
+- preserves the full source canvas;
+- scales the full source canvas into the 256x256 standard canvas;
+- applies optional batch/asset `offset_x`, `offset_y`, and `scale` values;
 - writes a 256x256 transparent PNG using the shared `(128, 184)` anchor standard.
 
 This is the intended bridge between AI-generated art and the strict in-game layering format.
@@ -142,20 +140,22 @@ The tool does not split a complete character illustration into separate layers. 
 The current Ratkin test parts are examples of this flow:
 
 ```text
+assets/art/characters/body/body_axolotl_male_01_south.png
 assets/art/characters/head/rk_test_head_01_south.png
-assets/art/characters/hair_front/rk_test_hair_long_b_south.png
+assets/art/characters/hair/rk_test_hair_long_b_south.png
 assets/art/characters/outfits/rk_test_garden_wear_south.png
 ```
 
 Their standardized runtime sources are:
 
 ```text
+assets/art/characters/body/body_axolotl_male_01_south_std256.png
 assets/art/characters/head/rk_test_head_01_south_std256.png
-assets/art/characters/hair_front/rk_test_hair_long_b_south_std256.png
+assets/art/characters/hair/rk_test_hair_long_b_south_std256.png
 assets/art/characters/outfits/rk_test_garden_wear_south_std256.png
 ```
 
-Part-specific target regions are currently defined inside `tools/art/standardize_character_part.ps1`. For example, if a hair asset sits too high or low after standardization, adjust the `hair_front` target region there, then regenerate the `*_std256.png` file.
+The standardization tool no longer crops to non-transparent pixels. If a hair asset sits too high or low after standardization, adjust the source batch or asset offset, then regenerate the `*_std256.png` file.
 
 ## Supported Texture Override Format
 
@@ -165,8 +165,8 @@ An important NPC or future asset resolver can override individual layers:
 {
   "appearance": {
     "layers": {
-      "hair_front": {
-        "source": "res://assets/art/characters/hair_front/hair_front_short_01.png"
+      "hair": {
+        "source": "res://assets/art/characters/hair/hair_short_01.png"
       },
       "outfit": {
         "source": "res://assets/art/characters/outfits/outfit_guard_militia_01.png"
@@ -217,7 +217,7 @@ Example:
   "appearance": {
     "body_id": "body_common_01",
     "head_id": "head_round_01",
-    "hair_front_id": "hair_front_short_neat_01",
+    "hair_id": "hair_short_neat_01",
     "outfit_id": "outfit_guard_militia_01",
     "accessory_ids": [],
     "held_item_id": "held_spear_01",
@@ -252,11 +252,11 @@ body_short_01
 head_round_01
 head_soft_01
 
-hair_front_short_01
-hair_front_short_neat_01
-hair_front_bangs_01
-hair_back_long_01
-hair_back_twin_tail_01
+hair_short_01
+hair_short_neat_01
+hair_bangs_01
+hair_long_01
+hair_twin_tail_01
 
 outfit_villager_common_01
 outfit_farmer_work_01
@@ -281,8 +281,7 @@ Texture files should live under:
 ```text
 assets/art/characters/body/
 assets/art/characters/head/
-assets/art/characters/hair_front/
-assets/art/characters/hair_back/
+assets/art/characters/hair/
 assets/art/characters/outfits/
 assets/art/characters/accessories/
 assets/art/characters/held_items/
@@ -328,3 +327,4 @@ Phase 48 should add:
 - deterministic tag-based selection for ordinary NPCs;
 - role/activity mapping for held items;
 - optional validation for missing part ids or missing texture paths.
+

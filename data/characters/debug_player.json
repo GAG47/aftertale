@@ -27,21 +27,16 @@
     "neatness": "medium"
   },
   "appearance": {
-    "body_id": "body_common_01",
-    "head_id": "head_round_01",
-    "hair_front_id": "hair_front_short_01",
-    "outfit_id": "outfit_wanderer_common_01",
-    "layers": {
-      "head": {
-        "source": "res://assets/art/characters/head/rk_test_head_01_south_std256.png"
-      },
-      "outfit": {
-        "source": "res://assets/art/characters/outfits/rk_test_garden_wear_south_std256.png"
-      },
-      "hair_front": {
-        "source": "res://assets/art/characters/hair_front/rk_test_hair_long_b_south_std256.png"
-      }
+    "display_mode": "badge",
+    "portrait_id": "player_mage_001",
+    "portrait": {
+      "full": "res://assets/art/characters/portraits/full/player_mage_001.png",
+      "badge": "res://assets/art/characters/portraits/badges/player_mage_001_badge.png"
     },
+    "badge_source": "res://assets/art/characters/portraits/badges/player_mage_001_badge.png",
+    "badge_ring": "#d9b86f",
+    "badge_highlight": "#fff1bd",
+    "badge_size": 28,
     "palette": {
       "hair": "#4a3b2f",
       "outfit": "#6f86bd",

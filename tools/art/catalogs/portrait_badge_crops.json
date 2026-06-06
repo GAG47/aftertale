@@ -1,0 +1,45 @@
+{
+	"entries": [
+		{
+			"center": {
+				"x": 0.508,
+				"y": 0.163
+			},
+			"crop_size": 0.34,
+			"highlight": "#fff1bd",
+			"id": "player_mage_001",
+			"output": "assets/art/characters/portraits/badges/player_mage_001_badge.png",
+			"ring": "#d9b86f",
+			"role": "player",
+			"source": "assets/art/characters/portraits/full/player_mage_001.png"
+		},
+		{
+			"center": {
+				"x": 0.492,
+				"y": 0.056
+			},
+			"crop_size": 0.34,
+			"highlight": "#f2d392",
+			"id": "npc_merchant_001",
+			"output": "assets/art/characters/portraits/badges/npc_merchant_001_badge.png",
+			"ring": "#8a5f2e",
+			"role": "villager",
+			"source": "assets/art/characters/portraits/full/npc_merchant_001.png"
+		},
+		{
+			"center": {
+				"x": 0.51,
+				"y": 0.046
+			},
+			"crop_size": 0.34,
+			"highlight": "#d8e7ff",
+			"id": "npc_guard_001",
+			"output": "assets/art/characters/portraits/badges/npc_guard_001_badge.png",
+			"ring": "#405376",
+			"role": "guard",
+			"source": "assets/art/characters/portraits/full/npc_guard_001.png"
+		}
+	],
+	"output_size": 128.0,
+	"version": 1.0
+}

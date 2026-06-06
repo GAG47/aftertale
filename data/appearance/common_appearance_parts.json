@@ -1,0 +1,1095 @@
+{
+    "version":  1,
+    "description":  "Phase 48 common NPC modular appearance pool. Hair entries are promoted from staged standardized runtime textures; outfits remain pending.",
+    "parts":  [
+                  {
+                      "id":  "body_axolotl_male_01",
+                      "layer":  "body",
+                      "source":  "res://assets/art/characters/body/body_axolotl_male_01_south_std256.png",
+                      "category":  "body",
+                      "roles":  [
+                                    "villager",
+                                    "farmer",
+                                    "worker",
+                                    "merchant",
+                                    "shopkeeper",
+                                    "guard",
+                                    "scholar",
+                                    "traveler"
+                                ],
+                      "tags":  [
+                                   "common",
+                                   "base_body"
+                               ],
+                      "dye_mode":  "fixed",
+                      "rarity":  "common"
+                  },
+                  {
+                      "id":  "head_rk_test_01",
+                      "layer":  "head",
+                      "source":  "res://assets/art/characters/head/rk_test_head_01_south_std256.png",
+                      "category":  "head",
+                      "roles":  [
+                                    "villager",
+                                    "farmer",
+                                    "worker",
+                                    "merchant",
+                                    "shopkeeper",
+                                    "guard",
+                                    "scholar",
+                                    "traveler"
+                                ],
+                      "tags":  [
+                                   "common",
+                                   "face",
+                                   "test_head"
+                               ],
+                      "dye_mode":  "fixed",
+                      "rarity":  "common"
+                  },
+                  {
+                      "id":  "outfit_daily_014",
+                      "layer":  "outfit",
+                      "source":  "res://assets/art/characters/outfits/outfit_daily_014_south_std256.png",
+                      "category":  "daily",
+                      "roles":  "villager",
+                      "tags":  "common",
+                      "dye_mode":  "fixed",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/source/characters/apparels/outfit/daily/outfit_daily_014_south.png",
+                      "original_name":  "OA_RK_Apparel_A.png"
+                  },
+                  {
+                      "id":  "outfit_daily_015",
+                      "layer":  "outfit",
+                      "source":  "res://assets/art/characters/outfits/outfit_daily_015_south_std256.png",
+                      "category":  "daily",
+                      "roles":  "villager",
+                      "tags":  "common",
+                      "dye_mode":  "fixed",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/source/characters/apparels/outfit/daily/outfit_daily_015_south.png",
+                      "original_name":  "OA_RK_Apparel_B.png"
+                  },
+                  {
+                      "id":  "outfit_daily_020",
+                      "layer":  "outfit",
+                      "source":  "res://assets/art/characters/outfits/outfit_daily_020_south_std256.png",
+                      "category":  "daily",
+                      "roles":  "villager",
+                      "tags":  "common",
+                      "dye_mode":  "fixed",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/source/characters/apparels/outfit/daily/outfit_daily_020_south.png",
+                      "original_name":  "OA_RK_New_Apparel_A.png"
+                  },
+                  {
+                      "id":  "outfit_workwear_007",
+                      "layer":  "outfit",
+                      "source":  "res://assets/art/characters/outfits/outfit_workwear_007_south_std256.png",
+                      "category":  "workwear",
+                      "roles":  [
+                                    "worker",
+                                    "merchant",
+                                    "scholar"
+                                ],
+                      "tags":  [
+                                   "daily",
+                                   "workwear"
+                               ],
+                      "dye_mode":  "fixed",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/source/characters/apparels/outfit/workwear/outfit_workwear_007_south.png",
+                      "original_name":  "OA_RK_Professional_Uniforms_A.png"
+                  },
+                  {
+                      "id":  "outfit_workwear_012",
+                      "layer":  "outfit",
+                      "source":  "res://assets/art/characters/outfits/outfit_workwear_012_south_std256.png",
+                      "category":  "workwear",
+                      "roles":  [
+                                    "worker",
+                                    "villager"
+                                ],
+                      "tags":  [
+                                   "daily",
+                                   "workwear"
+                               ],
+                      "dye_mode":  "fixed",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/source/characters/apparels/outfit/workwear/outfit_workwear_012_south.png",
+                      "original_name":  "RK_ChefSuit.png"
+                  },
+                  {
+                      "id":  "outfit_workwear_013",
+                      "layer":  "outfit",
+                      "source":  "res://assets/art/characters/outfits/outfit_workwear_013_south_std256.png",
+                      "category":  "workwear",
+                      "roles":  [
+                                    "worker",
+                                    "villager"
+                                ],
+                      "tags":  [
+                                   "daily",
+                                   "workwear"
+                               ],
+                      "dye_mode":  "fixed",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/source/characters/apparels/outfit/workwear/outfit_workwear_013_south.png",
+                      "original_name":  "RK_ChefSuit_Thin.png"
+                  },
+                  {
+                      "id":  "outfit_workwear_014",
+                      "layer":  "outfit",
+                      "source":  "res://assets/art/characters/outfits/outfit_workwear_014_south_std256.png",
+                      "category":  "workwear",
+                      "roles":  [
+                                    "worker",
+                                    "merchant",
+                                    "scholar"
+                                ],
+                      "tags":  [
+                                   "daily",
+                                   "workwear"
+                               ],
+                      "dye_mode":  "fixed",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/source/characters/apparels/outfit/workwear/outfit_workwear_014_south.png",
+                      "original_name":  "RK_GardenWear.png"
+                  },
+                  {
+                      "id":  "outfit_workwear_015",
+                      "layer":  "outfit",
+                      "source":  "res://assets/art/characters/outfits/outfit_workwear_015_south_std256.png",
+                      "category":  "workwear",
+                      "roles":  [
+                                    "worker",
+                                    "merchant",
+                                    "scholar"
+                                ],
+                      "tags":  [
+                                   "daily",
+                                   "workwear"
+                               ],
+                      "dye_mode":  "fixed",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/source/characters/apparels/outfit/workwear/outfit_workwear_015_south.png",
+                      "original_name":  "RK_GardenWear_Thin.png"
+                  },
+                  {
+                      "id":  "outfit_workwear_018",
+                      "layer":  "outfit",
+                      "source":  "res://assets/art/characters/outfits/outfit_workwear_018_south_std256.png",
+                      "category":  "workwear",
+                      "roles":  [
+                                    "worker",
+                                    "merchant",
+                                    "scholar"
+                                ],
+                      "tags":  [
+                                   "daily",
+                                   "workwear"
+                               ],
+                      "dye_mode":  "fixed",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/source/characters/apparels/outfit/workwear/outfit_workwear_018_south.png",
+                      "original_name":  "RK_WhiteCoat.png"
+                  },
+                  {
+                      "id":  "outfit_coat_travel_007",
+                      "layer":  "outfit",
+                      "source":  "res://assets/art/characters/outfits/outfit_coat_travel_007_south_std256.png",
+                      "category":  "coat_travel",
+                      "roles":  [
+                                    "traveler",
+                                    "villager"
+                                ],
+                      "tags":  [
+                                   "daily",
+                                   "outerwear"
+                               ],
+                      "dye_mode":  "fixed",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/source/characters/apparels/outfit/coat_travel/outfit_coat_travel_007_south.png",
+                      "original_name":  "OA_RK_Traveller_A.png"
+                  },
+                  {
+                      "id":  "outfit_coat_travel_009",
+                      "layer":  "outfit",
+                      "source":  "res://assets/art/characters/outfits/outfit_coat_travel_009_south_std256.png",
+                      "category":  "coat_travel",
+                      "roles":  [
+                                    "traveler",
+                                    "villager"
+                                ],
+                      "tags":  [
+                                   "daily",
+                                   "outerwear"
+                               ],
+                      "dye_mode":  "fixed",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/source/characters/apparels/outfit/coat_travel/outfit_coat_travel_009_south.png",
+                      "original_name":  "OA_RK_Windbreaker_A.png"
+                  },
+                  {
+                      "id":  "outfit_coat_travel_016",
+                      "layer":  "outfit",
+                      "source":  "res://assets/art/characters/outfits/outfit_coat_travel_016_south_std256.png",
+                      "category":  "coat_travel",
+                      "roles":  [
+                                    "traveler",
+                                    "villager"
+                                ],
+                      "tags":  [
+                                   "daily",
+                                   "outerwear"
+                               ],
+                      "dye_mode":  "fixed",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/source/characters/apparels/outfit/coat_travel/outfit_coat_travel_016_south.png",
+                      "original_name":  "RK_Cardigan.png"
+                  },
+                  {
+                      "id":  "outfit_robe_dress_005",
+                      "layer":  "outfit",
+                      "source":  "res://assets/art/characters/outfits/outfit_robe_dress_005_south_std256.png",
+                      "category":  "robe_dress",
+                      "roles":  [
+                                    "villager",
+                                    "scholar"
+                                ],
+                      "tags":  [
+                                   "robe",
+                                   "dress"
+                               ],
+                      "dye_mode":  "fixed",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/source/characters/apparels/outfit/robe_dress/outfit_robe_dress_005_south.png",
+                      "original_name":  "RK_ResearchGown.png"
+                  },
+                  {
+                      "id":  "outfit_robe_dress_006",
+                      "layer":  "outfit",
+                      "source":  "res://assets/art/characters/outfits/outfit_robe_dress_006_south_std256.png",
+                      "category":  "robe_dress",
+                      "roles":  [
+                                    "villager",
+                                    "scholar"
+                                ],
+                      "tags":  [
+                                   "robe",
+                                   "dress"
+                               ],
+                      "dye_mode":  "fixed",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/source/characters/apparels/outfit/robe_dress/outfit_robe_dress_006_south.png",
+                      "original_name":  "RK_ResearchGown_Thin.png"
+                  },
+                  {
+                      "id":  "outfit_robe_dress_013",
+                      "layer":  "outfit",
+                      "source":  "res://assets/art/characters/outfits/outfit_robe_dress_013_south_std256.png",
+                      "category":  "robe_dress",
+                      "roles":  [
+                                    "villager",
+                                    "scholar"
+                                ],
+                      "tags":  [
+                                   "robe",
+                                   "dress"
+                               ],
+                      "dye_mode":  "fixed",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/source/characters/apparels/outfit/robe_dress/outfit_robe_dress_013_south.png",
+                      "original_name":  "RK_SummerDress.png"
+                  },
+                  {
+                      "id":  "outfit_armor_003",
+                      "layer":  "outfit",
+                      "source":  "res://assets/art/characters/outfits/outfit_armor_003_south_std256.png",
+                      "category":  "armor",
+                      "roles":  "guard",
+                      "tags":  [
+                                   "combat",
+                                   "armor"
+                               ],
+                      "dye_mode":  "fixed",
+                      "rarity":  "uncommon",
+                      "source_asset":  "assets/art/source/characters/apparels/outfit/armor/outfit_armor_003_south.png",
+                      "original_name":  "Combatnunarmor.png"
+                  },
+                  {
+                      "id":  "outfit_armor_013",
+                      "layer":  "outfit",
+                      "source":  "res://assets/art/characters/outfits/outfit_armor_013_south_std256.png",
+                      "category":  "armor",
+                      "roles":  "guard",
+                      "tags":  [
+                                   "combat",
+                                   "armor"
+                               ],
+                      "dye_mode":  "fixed",
+                      "rarity":  "uncommon",
+                      "source_asset":  "assets/art/source/characters/apparels/outfit/armor/outfit_armor_013_south.png",
+                      "original_name":  "RK_BattleSuit.png"
+                  },
+                  {
+                      "id":  "outfit_armor_014",
+                      "layer":  "outfit",
+                      "source":  "res://assets/art/characters/outfits/outfit_armor_014_south_std256.png",
+                      "category":  "armor",
+                      "roles":  "guard",
+                      "tags":  [
+                                   "combat",
+                                   "armor"
+                               ],
+                      "dye_mode":  "fixed",
+                      "rarity":  "uncommon",
+                      "source_asset":  "assets/art/source/characters/apparels/outfit/armor/outfit_armor_014_south.png",
+                      "original_name":  "RK_Plate.png"
+                  },
+                  {
+                      "id":  "headgear_hat_012",
+                      "layer":  "accessory",
+                      "source":  "res://assets/art/characters/accessories/headgear_hat_012_south_std256.png",
+                      "category":  "hat",
+                      "roles":  "villager",
+                      "tags":  "headgear",
+                      "dye_mode":  "fixed",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/source/characters/apparels/headgear/hat/headgear_hat_012_south.png",
+                      "original_name":  "RK_ChefHat.png"
+                  },
+                  {
+                      "id":  "headgear_hat_013",
+                      "layer":  "accessory",
+                      "source":  "res://assets/art/characters/accessories/headgear_hat_013_south_std256.png",
+                      "category":  "hat",
+                      "roles":  "villager",
+                      "tags":  "headgear",
+                      "dye_mode":  "fixed",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/source/characters/apparels/headgear/hat/headgear_hat_013_south.png",
+                      "original_name":  "RK_ExplorerHat.png"
+                  },
+                  {
+                      "id":  "headgear_hat_016",
+                      "layer":  "accessory",
+                      "source":  "res://assets/art/characters/accessories/headgear_hat_016_south_std256.png",
+                      "category":  "hat",
+                      "roles":  "villager",
+                      "tags":  "headgear",
+                      "dye_mode":  "fixed",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/source/characters/apparels/headgear/hat/headgear_hat_016_south.png",
+                      "original_name":  "RK_StrawHat.png"
+                  },
+                  {
+                      "id":  "headgear_helmet_012",
+                      "layer":  "accessory",
+                      "source":  "res://assets/art/characters/accessories/headgear_helmet_012_south_std256.png",
+                      "category":  "helmet",
+                      "roles":  "guard",
+                      "tags":  "headgear",
+                      "dye_mode":  "fixed",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/source/characters/apparels/headgear/helmet/headgear_helmet_012_south.png",
+                      "original_name":  "RK_BulletProofHelmet.png"
+                  },
+                  {
+                      "id":  "headgear_helmet_013",
+                      "layer":  "accessory",
+                      "source":  "res://assets/art/characters/accessories/headgear_helmet_013_south_std256.png",
+                      "category":  "helmet",
+                      "roles":  "guard",
+                      "tags":  "headgear",
+                      "dye_mode":  "fixed",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/source/characters/apparels/headgear/helmet/headgear_helmet_013_south.png",
+                      "original_name":  "RK_PlateHelmet1.png"
+                  },
+                  {
+                      "id":  "headgear_helmet_014",
+                      "layer":  "accessory",
+                      "source":  "res://assets/art/characters/accessories/headgear_helmet_014_south_std256.png",
+                      "category":  "helmet",
+                      "roles":  "guard",
+                      "tags":  "headgear",
+                      "dye_mode":  "fixed",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/source/characters/apparels/headgear/helmet/headgear_helmet_014_south.png",
+                      "original_name":  "RK_PlateHelmet2.png"
+                  },
+                  {
+                      "id":  "headgear_helmet_015",
+                      "layer":  "accessory",
+                      "source":  "res://assets/art/characters/accessories/headgear_helmet_015_south_std256.png",
+                      "category":  "helmet",
+                      "roles":  "guard",
+                      "tags":  "headgear",
+                      "dye_mode":  "fixed",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/source/characters/apparels/headgear/helmet/headgear_helmet_015_south.png",
+                      "original_name":  "RK_PlateHelmet3.png"
+                  },
+                  {
+                      "id":  "hair_common_bob_001",
+                      "layer":  "hair",
+                      "source":  "res://assets/art/characters/hair/hair_common_bob_001_south_std256.png",
+                      "category":  "bob",
+                      "roles":  [
+                                    "villager",
+                                    "farmer",
+                                    "worker",
+                                    "merchant",
+                                    "shopkeeper",
+                                    "guard",
+                                    "scholar",
+                                    "traveler",
+                                    "common"
+                                ],
+                      "tags":  [
+                                   "bob",
+                                   "common",
+                                   "single_piece_hair",
+                                   "source_staging_hair",
+                                   "v1"
+                               ],
+                      "dye_mode":  "tint",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/characters/_staging/hair/src_hair_hair_v1_base_hair1_south_south_std256.png",
+                      "original_name":  "base_hair1_south.png",
+                      "batch_id":  "hair/hair_v1_"
+                  },
+                  {
+                      "id":  "hair_common_twin_tail_001",
+                      "layer":  "hair",
+                      "source":  "res://assets/art/characters/hair/hair_common_twin_tail_001_south_std256.png",
+                      "category":  "twin_tail",
+                      "roles":  [
+                                    "villager",
+                                    "farmer",
+                                    "worker",
+                                    "merchant",
+                                    "shopkeeper",
+                                    "guard",
+                                    "scholar",
+                                    "traveler",
+                                    "common"
+                                ],
+                      "tags":  [
+                                   "twin_tail",
+                                   "common",
+                                   "single_piece_hair",
+                                   "source_staging_hair",
+                                   "v1",
+                                   "large_silhouette"
+                               ],
+                      "dye_mode":  "tint",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/characters/_staging/hair/src_hair_hair_v1_base_hair10_south_south_std256.png",
+                      "original_name":  "base_hair10_south.png",
+                      "batch_id":  "hair/hair_v1_"
+                  },
+                  {
+                      "id":  "hair_common_long_wavy_001",
+                      "layer":  "hair",
+                      "source":  "res://assets/art/characters/hair/hair_common_long_wavy_001_south_std256.png",
+                      "category":  "long",
+                      "roles":  [
+                                    "villager",
+                                    "farmer",
+                                    "worker",
+                                    "merchant",
+                                    "shopkeeper",
+                                    "guard",
+                                    "scholar",
+                                    "traveler",
+                                    "common"
+                                ],
+                      "tags":  [
+                                   "long",
+                                   "wavy",
+                                   "common",
+                                   "single_piece_hair",
+                                   "source_staging_hair",
+                                   "v1",
+                                   "large_silhouette"
+                               ],
+                      "dye_mode":  "tint",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/characters/_staging/hair/src_hair_hair_v1_base_hair11_south_south_std256.png",
+                      "original_name":  "base_hair11_south.png",
+                      "batch_id":  "hair/hair_v1_"
+                  },
+                  {
+                      "id":  "hair_common_long_001",
+                      "layer":  "hair",
+                      "source":  "res://assets/art/characters/hair/hair_common_long_001_south_std256.png",
+                      "category":  "long",
+                      "roles":  [
+                                    "villager",
+                                    "farmer",
+                                    "worker",
+                                    "merchant",
+                                    "shopkeeper",
+                                    "guard",
+                                    "scholar",
+                                    "traveler",
+                                    "common"
+                                ],
+                      "tags":  [
+                                   "long",
+                                   "common",
+                                   "single_piece_hair",
+                                   "source_staging_hair",
+                                   "v4"
+                               ],
+                      "dye_mode":  "tint",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/characters/_staging/hair/src_hair_hair_v4_longa_south_south_std256.png",
+                      "original_name":  "longa_south.png",
+                      "batch_id":  "hair/hair_v4_"
+                  },
+                  {
+                      "id":  "hair_common_medium_layered_001",
+                      "layer":  "hair",
+                      "source":  "res://assets/art/characters/hair/hair_common_medium_layered_001_south_std256.png",
+                      "category":  "medium",
+                      "roles":  [
+                                    "villager",
+                                    "farmer",
+                                    "worker",
+                                    "merchant",
+                                    "shopkeeper",
+                                    "guard",
+                                    "scholar",
+                                    "traveler",
+                                    "common"
+                                ],
+                      "tags":  [
+                                   "medium",
+                                   "layered",
+                                   "common",
+                                   "single_piece_hair",
+                                   "source_staging_hair",
+                                   "v4"
+                               ],
+                      "dye_mode":  "tint",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/characters/_staging/hair/src_hair_hair_v4_longb_south_south_std256.png",
+                      "original_name":  "longb_south.png",
+                      "batch_id":  "hair/hair_v4_"
+                  },
+                  {
+                      "id":  "hair_common_long_002",
+                      "layer":  "hair",
+                      "source":  "res://assets/art/characters/hair/hair_common_long_002_south_std256.png",
+                      "category":  "long",
+                      "roles":  [
+                                    "villager",
+                                    "farmer",
+                                    "worker",
+                                    "merchant",
+                                    "shopkeeper",
+                                    "guard",
+                                    "scholar",
+                                    "traveler",
+                                    "common"
+                                ],
+                      "tags":  [
+                                   "long",
+                                   "common",
+                                   "single_piece_hair",
+                                   "source_staging_hair",
+                                   "v4"
+                               ],
+                      "dye_mode":  "tint",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/characters/_staging/hair/src_hair_hair_v4_longd_south_south_std256.png",
+                      "original_name":  "longd_south.png",
+                      "batch_id":  "hair/hair_v4_"
+                  },
+                  {
+                      "id":  "hair_common_long_003",
+                      "layer":  "hair",
+                      "source":  "res://assets/art/characters/hair/hair_common_long_003_south_std256.png",
+                      "category":  "long",
+                      "roles":  [
+                                    "villager",
+                                    "farmer",
+                                    "worker",
+                                    "merchant",
+                                    "shopkeeper",
+                                    "guard",
+                                    "scholar",
+                                    "traveler",
+                                    "common"
+                                ],
+                      "tags":  [
+                                   "long",
+                                   "common",
+                                   "single_piece_hair",
+                                   "source_staging_hair",
+                                   "v4"
+                               ],
+                      "dye_mode":  "tint",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/characters/_staging/hair/src_hair_hair_v4_longe_south_south_std256.png",
+                      "original_name":  "longe_south.png",
+                      "batch_id":  "hair/hair_v4_"
+                  },
+                  {
+                      "id":  "hair_common_ponytail_001",
+                      "layer":  "hair",
+                      "source":  "res://assets/art/characters/hair/hair_common_ponytail_001_south_std256.png",
+                      "category":  "ponytail",
+                      "roles":  [
+                                    "villager",
+                                    "farmer",
+                                    "worker",
+                                    "merchant",
+                                    "shopkeeper",
+                                    "guard",
+                                    "scholar",
+                                    "traveler",
+                                    "common"
+                                ],
+                      "tags":  [
+                                   "ponytail",
+                                   "short",
+                                   "common",
+                                   "single_piece_hair",
+                                   "source_staging_hair",
+                                   "v4"
+                               ],
+                      "dye_mode":  "tint",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/characters/_staging/hair/src_hair_hair_v4_pony_south_south_std256.png",
+                      "original_name":  "pony_south.png",
+                      "batch_id":  "hair/hair_v4_"
+                  },
+                  {
+                      "id":  "hair_common_ponytail_002",
+                      "layer":  "hair",
+                      "source":  "res://assets/art/characters/hair/hair_common_ponytail_002_south_std256.png",
+                      "category":  "ponytail",
+                      "roles":  [
+                                    "villager",
+                                    "farmer",
+                                    "worker",
+                                    "merchant",
+                                    "shopkeeper",
+                                    "guard",
+                                    "scholar",
+                                    "traveler",
+                                    "common"
+                                ],
+                      "tags":  [
+                                   "ponytail",
+                                   "common",
+                                   "single_piece_hair",
+                                   "source_staging_hair",
+                                   "v4"
+                               ],
+                      "dye_mode":  "tint",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/characters/_staging/hair/src_hair_hair_v4_ponya_south_south_std256.png",
+                      "original_name":  "ponya_south.png",
+                      "batch_id":  "hair/hair_v4_"
+                  },
+                  {
+                      "id":  "hair_common_braid_001",
+                      "layer":  "hair",
+                      "source":  "res://assets/art/characters/hair/hair_common_braid_001_south_std256.png",
+                      "category":  "braid",
+                      "roles":  [
+                                    "villager",
+                                    "farmer",
+                                    "worker",
+                                    "merchant",
+                                    "shopkeeper",
+                                    "guard",
+                                    "scholar",
+                                    "traveler",
+                                    "common"
+                                ],
+                      "tags":  [
+                                   "braid",
+                                   "common",
+                                   "single_piece_hair",
+                                   "source_staging_hair",
+                                   "v4"
+                               ],
+                      "dye_mode":  "tint",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/characters/_staging/hair/src_hair_hair_v4_rk_braided_south_south_std256.png",
+                      "original_name":  "rk_braided_south.png",
+                      "batch_id":  "hair/hair_v4_"
+                  },
+                  {
+                      "id":  "hair_common_braid_002",
+                      "layer":  "hair",
+                      "source":  "res://assets/art/characters/hair/hair_common_braid_002_south_std256.png",
+                      "category":  "braid",
+                      "roles":  [
+                                    "villager",
+                                    "farmer",
+                                    "worker",
+                                    "merchant",
+                                    "shopkeeper",
+                                    "guard",
+                                    "scholar",
+                                    "traveler",
+                                    "common"
+                                ],
+                      "tags":  [
+                                   "braid",
+                                   "common",
+                                   "single_piece_hair",
+                                   "source_staging_hair",
+                                   "v4"
+                               ],
+                      "dye_mode":  "tint",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/characters/_staging/hair/src_hair_hair_v4_rk_braidedb_south_south_std256.png",
+                      "original_name":  "rk_braidedb_south.png",
+                      "batch_id":  "hair/hair_v4_"
+                  },
+                  {
+                      "id":  "hair_common_medium_001",
+                      "layer":  "hair",
+                      "source":  "res://assets/art/characters/hair/hair_common_medium_001_south_std256.png",
+                      "category":  "medium",
+                      "roles":  [
+                                    "villager",
+                                    "farmer",
+                                    "worker",
+                                    "merchant",
+                                    "shopkeeper",
+                                    "guard",
+                                    "scholar",
+                                    "traveler",
+                                    "common"
+                                ],
+                      "tags":  [
+                                   "medium",
+                                   "common",
+                                   "single_piece_hair",
+                                   "source_staging_hair",
+                                   "v4"
+                               ],
+                      "dye_mode":  "tint",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/characters/_staging/hair/src_hair_hair_v4_rk_middl_south_south_std256.png",
+                      "original_name":  "rk_middl_south.png",
+                      "batch_id":  "hair/hair_v4_"
+                  },
+                  {
+                      "id":  "hair_common_medium_002",
+                      "layer":  "hair",
+                      "source":  "res://assets/art/characters/hair/hair_common_medium_002_south_std256.png",
+                      "category":  "medium",
+                      "roles":  [
+                                    "villager",
+                                    "farmer",
+                                    "worker",
+                                    "merchant",
+                                    "shopkeeper",
+                                    "guard",
+                                    "scholar",
+                                    "traveler",
+                                    "common"
+                                ],
+                      "tags":  [
+                                   "medium",
+                                   "common",
+                                   "single_piece_hair",
+                                   "source_staging_hair",
+                                   "v4"
+                               ],
+                      "dye_mode":  "tint",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/characters/_staging/hair/src_hair_hair_v4_rk_middl2_south_south_std256.png",
+                      "original_name":  "rk_middl2_south.png",
+                      "batch_id":  "hair/hair_v4_"
+                  },
+                  {
+                      "id":  "hair_common_side_tail_001",
+                      "layer":  "hair",
+                      "source":  "res://assets/art/characters/hair/hair_common_side_tail_001_south_std256.png",
+                      "category":  "side_tail",
+                      "roles":  [
+                                    "villager",
+                                    "farmer",
+                                    "worker",
+                                    "merchant",
+                                    "shopkeeper",
+                                    "guard",
+                                    "scholar",
+                                    "traveler",
+                                    "common"
+                                ],
+                      "tags":  [
+                                   "side_tail",
+                                   "common",
+                                   "single_piece_hair",
+                                   "source_staging_hair",
+                                   "v4"
+                               ],
+                      "dye_mode":  "tint",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/characters/_staging/hair/src_hair_hair_v4_rk_side_tail_south_south_std256.png",
+                      "original_name":  "rk_side_tail_south.png",
+                      "batch_id":  "hair/hair_v4_"
+                  },
+                  {
+                      "id":  "hair_common_twin_braid_001",
+                      "layer":  "hair",
+                      "source":  "res://assets/art/characters/hair/hair_common_twin_braid_001_south_std256.png",
+                      "category":  "twin_tail",
+                      "roles":  [
+                                    "villager",
+                                    "farmer",
+                                    "worker",
+                                    "merchant",
+                                    "shopkeeper",
+                                    "guard",
+                                    "scholar",
+                                    "traveler",
+                                    "common"
+                                ],
+                      "tags":  [
+                                   "twin_tail",
+                                   "braid",
+                                   "common",
+                                   "single_piece_hair",
+                                   "source_staging_hair",
+                                   "v4"
+                               ],
+                      "dye_mode":  "tint",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/characters/_staging/hair/src_hair_hair_v4_rk_twin5_south_south_std256.png",
+                      "original_name":  "rk_twin5_south.png",
+                      "batch_id":  "hair/hair_v4_"
+                  },
+                  {
+                      "id":  "hair_common_long_wavy_002",
+                      "layer":  "hair",
+                      "source":  "res://assets/art/characters/hair/hair_common_long_wavy_002_south_std256.png",
+                      "category":  "long",
+                      "roles":  [
+                                    "villager",
+                                    "farmer",
+                                    "worker",
+                                    "merchant",
+                                    "shopkeeper",
+                                    "guard",
+                                    "scholar",
+                                    "traveler",
+                                    "common"
+                                ],
+                      "tags":  [
+                                   "long",
+                                   "wavy",
+                                   "common",
+                                   "single_piece_hair",
+                                   "source_staging_hair",
+                                   "v4",
+                                   "large_silhouette"
+                               ],
+                      "dye_mode":  "tint",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/characters/_staging/hair/src_hair_hair_v4_rk_wavelonga_south_south_std256.png",
+                      "original_name":  "rk_wavelonga_south.png",
+                      "batch_id":  "hair/hair_v4_"
+                  },
+                  {
+                      "id":  "hair_common_side_tail_002",
+                      "layer":  "hair",
+                      "source":  "res://assets/art/characters/hair/hair_common_side_tail_002_south_std256.png",
+                      "category":  "side_tail",
+                      "roles":  [
+                                    "villager",
+                                    "farmer",
+                                    "worker",
+                                    "merchant",
+                                    "shopkeeper",
+                                    "guard",
+                                    "scholar",
+                                    "traveler",
+                                    "common"
+                                ],
+                      "tags":  [
+                                   "side_tail",
+                                   "common",
+                                   "single_piece_hair",
+                                   "source_staging_hair",
+                                   "v4"
+                               ],
+                      "dye_mode":  "tint",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/characters/_staging/hair/src_hair_hair_v4_side_ponya_south_south_std256.png",
+                      "original_name":  "side_ponya_south.png",
+                      "batch_id":  "hair/hair_v4_"
+                  },
+                  {
+                      "id":  "hair_common_twin_tail_002",
+                      "layer":  "hair",
+                      "source":  "res://assets/art/characters/hair/hair_common_twin_tail_002_south_std256.png",
+                      "category":  "twin_tail",
+                      "roles":  [
+                                    "villager",
+                                    "farmer",
+                                    "worker",
+                                    "merchant",
+                                    "shopkeeper",
+                                    "guard",
+                                    "scholar",
+                                    "traveler",
+                                    "common"
+                                ],
+                      "tags":  [
+                                   "twin_tail",
+                                   "common",
+                                   "single_piece_hair",
+                                   "source_staging_hair",
+                                   "v4",
+                                   "large_silhouette"
+                               ],
+                      "dye_mode":  "tint",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/characters/_staging/hair/src_hair_hair_v4_twin2_south_south_std256.png",
+                      "original_name":  "twin2_south.png",
+                      "batch_id":  "hair/hair_v4_"
+                  },
+                  {
+                      "id":  "hair_common_twin_tail_003",
+                      "layer":  "hair",
+                      "source":  "res://assets/art/characters/hair/hair_common_twin_tail_003_south_std256.png",
+                      "category":  "twin_tail",
+                      "roles":  [
+                                    "villager",
+                                    "farmer",
+                                    "worker",
+                                    "merchant",
+                                    "shopkeeper",
+                                    "guard",
+                                    "scholar",
+                                    "traveler",
+                                    "common"
+                                ],
+                      "tags":  [
+                                   "twin_tail",
+                                   "common",
+                                   "single_piece_hair",
+                                   "source_staging_hair",
+                                   "v4"
+                               ],
+                      "dye_mode":  "tint",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/characters/_staging/hair/src_hair_hair_v4_twin3_south_south_std256.png",
+                      "original_name":  "twin3_south.png",
+                      "batch_id":  "hair/hair_v4_"
+                  },
+                  {
+                      "id":  "hair_common_twin_tail_004",
+                      "layer":  "hair",
+                      "source":  "res://assets/art/characters/hair/hair_common_twin_tail_004_south_std256.png",
+                      "category":  "twin_tail",
+                      "roles":  [
+                                    "villager",
+                                    "farmer",
+                                    "worker",
+                                    "merchant",
+                                    "shopkeeper",
+                                    "guard",
+                                    "scholar",
+                                    "traveler",
+                                    "common"
+                                ],
+                      "tags":  [
+                                   "twin_tail",
+                                   "common",
+                                   "single_piece_hair",
+                                   "source_staging_hair",
+                                   "v4",
+                                   "large_silhouette"
+                               ],
+                      "dye_mode":  "tint",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/characters/_staging/hair/src_hair_hair_v4_twin4_south_south_std256.png",
+                      "original_name":  "twin4_south.png",
+                      "batch_id":  "hair/hair_v4_"
+                  },
+                  {
+                      "id":  "hair_common_twin_tail_005",
+                      "layer":  "hair",
+                      "source":  "res://assets/art/characters/hair/hair_common_twin_tail_005_south_std256.png",
+                      "category":  "twin_tail",
+                      "roles":  [
+                                    "villager",
+                                    "farmer",
+                                    "worker",
+                                    "merchant",
+                                    "shopkeeper",
+                                    "guard",
+                                    "scholar",
+                                    "traveler",
+                                    "common"
+                                ],
+                      "tags":  [
+                                   "twin_tail",
+                                   "common",
+                                   "single_piece_hair",
+                                   "source_staging_hair",
+                                   "v4",
+                                   "large_silhouette"
+                               ],
+                      "dye_mode":  "tint",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/characters/_staging/hair/src_hair_hair_v4_twin5_south_south_std256.png",
+                      "original_name":  "twin5_south.png",
+                      "batch_id":  "hair/hair_v4_"
+                  },
+                  {
+                      "id":  "hair_common_twin_tail_006",
+                      "layer":  "hair",
+                      "source":  "res://assets/art/characters/hair/hair_common_twin_tail_006_south_std256.png",
+                      "category":  "twin_tail",
+                      "roles":  [
+                                    "villager",
+                                    "farmer",
+                                    "worker",
+                                    "merchant",
+                                    "shopkeeper",
+                                    "guard",
+                                    "scholar",
+                                    "traveler",
+                                    "common"
+                                ],
+                      "tags":  [
+                                   "twin_tail",
+                                   "common",
+                                   "single_piece_hair",
+                                   "source_staging_hair",
+                                   "v4"
+                               ],
+                      "dye_mode":  "tint",
+                      "rarity":  "common",
+                      "source_asset":  "assets/art/characters/_staging/hair/src_hair_hair_v4_twina_south_south_std256.png",
+                      "original_name":  "twina_south.png",
+                      "batch_id":  "hair/hair_v4_"
+                  }
+              ],
+    "hair_palettes":  [
+                          "#2f2c28",
+                          "#74502e",
+                          "#8f6840",
+                          "#c7a76a",
+                          "#d8d8d8",
+                          "#5f4b3b",
+                          "#2d3440",
+                          "#8b4b42"
+                      ]
+}

@@ -1,0 +1,36 @@
+[
+	{
+		"align": "",
+		"asset_id": "head_rk_test_01",
+		"category": "head",
+		"layer": "head",
+		"notes": "Default base head sits too low against body; keep this as the body/head calibration anchor.",
+		"offset_x": "0",
+		"offset_y": -40.0,
+		"review_status": "base_adjusted",
+		"scale": "0.7",
+		"source_path": "assets/art/source/head/head_v10_/RK_Texture_Head1_south.png",
+		"standard_part": "head",
+		"target_height": "",
+		"target_width": "",
+		"target_x": "",
+		"target_y": ""
+	},
+	{
+		"align": "",
+		"asset_id": "src_apparel_apparel_v10_rk_apparel_vacsuit",
+		"category": "armor",
+		"layer": "outfit",
+		"notes": "",
+		"offset_x": 0.0,
+		"offset_y": 35.0,
+		"review_status": "adjusted",
+		"scale": 0.65,
+		"source_path": "assets/art/source/apparel/Apparel_v10_/RK_Apparel_Vacsuit.png",
+		"standard_part": "outfit",
+		"target_height": "",
+		"target_width": "",
+		"target_x": "",
+		"target_y": ""
+	}
+]

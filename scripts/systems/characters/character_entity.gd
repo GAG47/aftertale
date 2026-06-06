@@ -14,6 +14,7 @@ const FACING_DOWN := "down"
 const FACING_LEFT := "left"
 const FACING_RIGHT := "right"
 const CharacterAppearanceRendererScript := preload("res://scripts/systems/characters/character_appearance_renderer.gd")
+const CharacterAppearanceResolverScript := preload("res://scripts/systems/characters/character_appearance_resolver.gd")
 
 @export var character_id: String = ""
 @export var display_name: String = ""
@@ -106,6 +107,7 @@ func configure(definition: Dictionary, spawn_data: Dictionary, parent_location: 
 		definition.get("appearance", {}) as Dictionary,
 		spawn_data.get("appearance", {}) as Dictionary
 	)
+	appearance = CharacterAppearanceResolverScript.resolve(character_id, character_kind, appearance_profile, appearance)
 
 	skills.clear()
 	var skill_rows: Array = spawn_data.get("skills", definition.get("skills", ["basic_attack"])) as Array
@@ -462,88 +464,6 @@ func _draw() -> void:
 		_draw_battle_effect()
 
 
-func _get_debug_color() -> Color:
-	match character_kind:
-		KIND_PLAYER:
-			return Color(0.48, 0.67, 0.92)
-		KIND_NPC:
-			if _occupation() == "guard":
-				return Color(0.44, 0.52, 0.62)
-			return Color(0.43, 0.68, 0.50)
-		KIND_ENEMY:
-			return Color(0.74, 0.30, 0.24)
-		KIND_COMPANION:
-			return Color(0.46, 0.70, 0.56)
-		_:
-			return Color(0.62, 0.60, 0.55)
-
-
-func _draw_token_shadow() -> void:
-	_draw_ellipse(Vector2(0.0, 9.0), Vector2(25.0, 7.0), Color(0.0, 0.0, 0.0, 0.20))
-
-
-func _draw_token_base() -> void:
-	var base_color: Color = _get_base_color()
-	_draw_ellipse(Vector2(0.0, 6.0), Vector2(24.0, 12.0), Color(base_color.r, base_color.g, base_color.b, 0.86))
-	_draw_ellipse_outline(Vector2(0.0, 6.0), Vector2(24.0, 12.0), Color(0.08, 0.07, 0.06, 0.36), 1.3)
-
-
-func _draw_character_token() -> void:
-	var body_color: Color = _get_debug_color()
-	var trim_color: Color = _get_trim_color()
-	var skin_color: Color = Color(0.91, 0.77, 0.62)
-	var hair_color: Color = _get_hair_color()
-
-	_draw_ellipse(Vector2(0.0, 4.5), Vector2(13.5, 14.0), body_color)
-	_draw_ellipse_outline(Vector2(0.0, 4.5), Vector2(13.5, 14.0), Color(0.08, 0.07, 0.06, 0.50), 1.2)
-	draw_line(Vector2(-4.5, 1.0), Vector2(4.5, 1.0), trim_color, 1.4)
-
-	draw_circle(Vector2(0.0, -7.5), 8.2, skin_color)
-	draw_arc(Vector2(0.0, -7.5), 8.3, 0.0, TAU, 24, Color(0.08, 0.07, 0.06, 0.52), 1.2)
-	_draw_hair(hair_color)
-	_draw_face_marks()
-
-
-func _draw_training_dummy_token() -> void:
-	var wood: Color = Color(0.70, 0.46, 0.22)
-	var dark: Color = Color(0.24, 0.13, 0.06)
-	draw_line(Vector2(0.0, 8.0), Vector2(0.0, -13.0), dark, 4.8)
-	draw_line(Vector2(0.0, 8.0), Vector2(0.0, -13.0), wood, 3.0)
-	draw_line(Vector2(-9.0, -2.0), Vector2(9.0, -2.0), dark, 4.2)
-	draw_line(Vector2(-9.0, -2.0), Vector2(9.0, -2.0), Color(0.82, 0.60, 0.32), 2.5)
-	draw_circle(Vector2(0.0, -13.0), 6.8, Color(0.78, 0.56, 0.29))
-	draw_arc(Vector2(0.0, -13.0), 7.0, 0.0, TAU, 20, dark, 1.4)
-	draw_line(Vector2(-3.0, -14.5), Vector2(-0.8, -12.2), dark, 1.2)
-	draw_line(Vector2(3.0, -14.5), Vector2(0.8, -12.2), dark, 1.2)
-
-
-func _draw_hair(hair_color: Color) -> void:
-	var hair := PackedVector2Array([
-		Vector2(-7.5, -9.0),
-		Vector2(-4.5, -15.0),
-		Vector2(2.0, -16.2),
-		Vector2(7.2, -11.0),
-		Vector2(5.5, -6.6),
-		Vector2(-6.2, -6.4),
-	])
-	draw_polygon(hair, _solid_colors(hair.size(), hair_color))
-
-
-func _draw_face_marks() -> void:
-	if facing == FACING_UP:
-		return
-
-	var eye_y: float = -7.6
-	var eye_offset: float = 2.8
-	if facing == FACING_LEFT:
-		draw_circle(Vector2(-eye_offset, eye_y), 0.9, Color(0.12, 0.10, 0.09))
-	elif facing == FACING_RIGHT:
-		draw_circle(Vector2(eye_offset, eye_y), 0.9, Color(0.12, 0.10, 0.09))
-	else:
-		draw_circle(Vector2(-eye_offset, eye_y), 0.9, Color(0.12, 0.10, 0.09))
-		draw_circle(Vector2(eye_offset, eye_y), 0.9, Color(0.12, 0.10, 0.09))
-
-
 func _draw_facing_marker() -> void:
 	var direction: Vector2 = _facing_vector()
 	var perpendicular: Vector2 = Vector2(-direction.y, direction.x)
@@ -613,40 +533,6 @@ func _draw_small_bar(origin: Vector2, size: Vector2, value: int, max_value: int,
 	draw_rect(fill_rect, fill_color, true)
 
 
-func _get_base_color() -> Color:
-	match character_kind:
-		KIND_PLAYER:
-			return Color(0.48, 0.62, 0.86)
-		KIND_ENEMY:
-			return Color(0.78, 0.38, 0.32)
-		KIND_COMPANION:
-			return Color(0.43, 0.70, 0.54)
-		_:
-			if _occupation() == "guard":
-				return Color(0.46, 0.50, 0.56)
-			return Color(0.54, 0.68, 0.47)
-
-
-func _get_trim_color() -> Color:
-	match character_kind:
-		KIND_PLAYER:
-			return Color(0.98, 0.91, 0.45)
-		KIND_ENEMY:
-			return Color(0.36, 0.12, 0.10)
-		_:
-			if _occupation() == "guard":
-				return Color(0.82, 0.76, 0.58)
-			return Color(0.96, 0.84, 0.48)
-
-
-func _get_hair_color() -> Color:
-	if character_kind == KIND_PLAYER:
-		return Color(0.28, 0.25, 0.22)
-	if _occupation() == "guard":
-		return Color(0.20, 0.19, 0.18)
-	return Color(0.45, 0.31, 0.17)
-
-
 func _is_training_dummy() -> bool:
 	return character_id.find("dummy") >= 0 or str(identity.get("species", "")) == "construct"
 
@@ -660,15 +546,6 @@ func _solid_colors(count: int, color: Color) -> PackedColorArray:
 	for _index in range(count):
 		colors.append(color)
 	return colors
-
-
-func _draw_ellipse(center: Vector2, size: Vector2, color: Color) -> void:
-	var points := PackedVector2Array()
-	var steps: int = 24
-	for index in range(steps):
-		var angle: float = TAU * float(index) / float(steps)
-		points.append(center + Vector2(cos(angle) * size.x * 0.5, sin(angle) * size.y * 0.5))
-	draw_polygon(points, _solid_colors(points.size(), color))
 
 
 func _draw_ellipse_outline(center: Vector2, size: Vector2, color: Color, width: float) -> void:

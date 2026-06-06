@@ -25,6 +25,7 @@ var _skill_scroll: ScrollContainer
 var _skill_list: VBoxContainer
 var _skill_detail_title: Label
 var _skill_detail_body: Label
+var _portrait_texture_cache: Dictionary = {}
 
 
 func _ready() -> void:
@@ -792,27 +793,48 @@ func _draw_portrait() -> void:
 	for radius in [92.0, 128.0, 164.0]:
 		_portrait_panel.draw_arc(center, radius, 0.0, TAU, 96, ring_color, 1.2)
 
-	var body_color: Color = Color(0.18, 0.28, 0.40, 1.0)
-	var cloak_color: Color = Color(0.08, 0.16, 0.26, 1.0)
-	var skin_color: Color = Color(0.88, 0.70, 0.54, 1.0)
-	var hair_color: Color = Color(0.20, 0.13, 0.08, 1.0)
-	_portrait_panel.draw_circle(center + Vector2(0.0, -100.0), 34.0, skin_color)
-	_portrait_panel.draw_circle(center + Vector2(0.0, -118.0), 34.0, hair_color)
-	_portrait_panel.draw_polygon(PackedVector2Array([
-		center + Vector2(-72.0, -68.0),
-		center + Vector2(72.0, -68.0),
-		center + Vector2(46.0, 118.0),
-		center + Vector2(-46.0, 118.0),
-	]), _solid_colors(4, body_color))
-	_portrait_panel.draw_polygon(PackedVector2Array([
-		center + Vector2(-96.0, -60.0),
-		center + Vector2(0.0, -26.0),
-		center + Vector2(96.0, -60.0),
-		center + Vector2(58.0, 40.0),
-		center + Vector2(-58.0, 40.0),
-	]), _solid_colors(5, cloak_color))
-	_portrait_panel.draw_line(center + Vector2(-70.0, 72.0), center + Vector2(-122.0, 142.0), Color(0.78, 0.75, 0.66), 5.0)
-	_portrait_panel.draw_line(center + Vector2(-124.0, 144.0), center + Vector2(-102.0, 150.0), Color(0.96, 0.86, 0.58), 4.0)
+	var summary: Dictionary = _get_selected_member_summary()
+	var appearance: Dictionary = summary.get("appearance", {}) as Dictionary
+	var portrait: Dictionary = appearance.get("portrait", {}) as Dictionary
+	var source: String = str(portrait.get("full", appearance.get("portrait_source", "")))
+	var texture: Texture2D = _load_portrait_texture(source)
+	if texture == null:
+		return
+
+	var texture_size: Vector2 = texture.get_size()
+	if texture_size.x <= 0.0 or texture_size.y <= 0.0:
+		return
+	var target: Rect2 = rect.grow(-12.0)
+	var scale: float = min(target.size.x / texture_size.x, target.size.y / texture_size.y)
+	var draw_size: Vector2 = texture_size * scale
+	var draw_position := Vector2(
+		target.position.x + (target.size.x - draw_size.x) * 0.5,
+		target.position.y + target.size.y - draw_size.y
+	)
+	_portrait_panel.draw_texture_rect(texture, Rect2(draw_position, draw_size), false)
+
+
+func _load_portrait_texture(source: String) -> Texture2D:
+	if source.is_empty():
+		return null
+	if _portrait_texture_cache.has(source):
+		return _portrait_texture_cache.get(source, null) as Texture2D
+	if ResourceLoader.exists(source):
+		var loaded_texture: Texture2D = load(source) as Texture2D
+		_portrait_texture_cache[source] = loaded_texture
+		return loaded_texture
+	if source.begins_with("res://") and not FileAccess.file_exists(source):
+		_portrait_texture_cache[source] = null
+		return null
+
+	var image := Image.new()
+	var error: Error = image.load(source)
+	if error != OK:
+		_portrait_texture_cache[source] = null
+		return null
+	var image_texture: ImageTexture = ImageTexture.create_from_image(image)
+	_portrait_texture_cache[source] = image_texture
+	return image_texture
 
 
 func _make_plain_label(text: String) -> Label:

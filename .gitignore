@@ -1,3 +1,15 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
+
+# Generated when Godot accidentally imports asset catalog CSVs from assets/.
+/assets/art/character_asset_*.translation
+/assets/art/character_asset_*.csv.import
+/assets/art/source/**/*.import
+/tools/art/catalogs/*.csv
+/tools/art/catalogs/*.csv.import
+/tools/art/catalogs/*.translation
+
+# Generated character art preview sheets and temporary adjustment tables.
+/tools/art/previews/
+/assets/art/characters/_staging/

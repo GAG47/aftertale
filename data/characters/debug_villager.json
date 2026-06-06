@@ -27,10 +27,16 @@
     "neatness": "medium"
   },
   "appearance": {
-    "body_id": "body_common_01",
-    "head_id": "head_round_01",
-    "hair_front_id": "hair_front_short_01",
-    "outfit_id": "outfit_villager_common_01",
+    "display_mode": "badge",
+    "portrait_id": "npc_merchant_001",
+    "portrait": {
+      "full": "res://assets/art/characters/portraits/full/npc_merchant_001.png",
+      "badge": "res://assets/art/characters/portraits/badges/npc_merchant_001_badge.png"
+    },
+    "badge_source": "res://assets/art/characters/portraits/badges/npc_merchant_001_badge.png",
+    "badge_ring": "#8a5f2e",
+    "badge_highlight": "#f2d392",
+    "badge_size": 28,
     "palette": {
       "hair": "#74502e",
       "outfit": "#6a9a64",
