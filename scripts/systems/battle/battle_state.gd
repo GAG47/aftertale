@@ -2,6 +2,7 @@ class_name BattleState
 extends RefCounted
 
 const MAX_REACTION_HISTORY := 24
+const BattleTileUnitEffectSystemScript := preload("res://scripts/systems/battle/battle_tile_unit_effect_system.gd")
 
 var battle_id: String = ""
 var location_root: Node
@@ -42,7 +43,7 @@ func get_current_unit() -> BattleUnitState:
 	return units[turn_index]
 
 
-func advance_turn() -> BattleUnitState:
+func advance_turn(round_end_result: ActionResult = null) -> BattleUnitState:
 	if units.is_empty():
 		return null
 
@@ -51,6 +52,7 @@ func advance_turn() -> BattleUnitState:
 		turn_index += 1
 		if turn_index >= units.size():
 			turn_index = 0
+			on_round_ends(round_number, round_end_result)
 			round_number += 1
 			_sort_units_by_speed()
 
@@ -160,9 +162,12 @@ func apply_tile_state(tile_state, result: ActionResult = null) -> bool:
 	var key: String = cell_key(tile_state.cell)
 	var existing = tile_states_by_cell.get(key)
 	var previous_state_id: String = existing.id if existing != null else ""
+	var previous_source_character_id: String = existing.source_character_id if existing != null else ""
+	var previous_remaining_rounds: int = existing.remaining_rounds if existing != null else -1
 	var refreshed: bool = existing != null and existing.id == tile_state.id
+	var source_transferred: bool = false
 	if refreshed:
-		existing.refresh_from(tile_state)
+		source_transferred = existing.merge_same_state(tile_state)
 		tile_state = existing
 	else:
 		tile_states_by_cell[key] = tile_state
@@ -175,6 +180,9 @@ func apply_tile_state(tile_state, result: ActionResult = null) -> bool:
 			"state_id": tile_state.id,
 			"previous_state_id": previous_state_id,
 			"refreshed": refreshed,
+			"source_transferred": source_transferred,
+			"previous_source_character_id": previous_source_character_id,
+			"previous_remaining_rounds": previous_remaining_rounds,
 			"tile_state": tile_state.get_summary(),
 		})
 		result.add_feedback("Tile %s is now %s." % [tile_state.cell, tile_state.id])
@@ -233,22 +241,34 @@ func on_tile_state_created(_tile_state, _result: ActionResult = null) -> void:
 	pass
 
 
-func on_unit_enters_cell(_unit: BattleUnitState, _cell: Vector2i, _result: ActionResult = null) -> void:
-	pass
+func on_unit_enters_cell(unit: BattleUnitState, cell: Vector2i, result: ActionResult = null) -> void:
+	BattleTileUnitEffectSystemScript.on_unit_enters_cell(unit, cell, self, result)
 
 
 func on_unit_starts_turn_on_cell(unit: BattleUnitState, result: ActionResult = null) -> void:
-	if unit == null:
-		return
-	_tick_tile_state_durations(result)
+	BattleTileUnitEffectSystemScript.on_unit_starts_turn(unit, self, result)
 
 
-func on_unit_ends_turn_on_cell(_unit: BattleUnitState, _result: ActionResult = null) -> void:
-	pass
+func on_unit_ends_turn_on_cell(unit: BattleUnitState, result: ActionResult = null) -> void:
+	BattleTileUnitEffectSystemScript.on_unit_ends_turn(unit, self, result)
 
 
-func on_round_ends(_result: ActionResult = null) -> void:
-	pass
+func on_unit_hit_by_skill(
+	unit: BattleUnitState,
+	source_unit: BattleUnitState,
+	skill: Dictionary,
+	pre_hit_tile_state_id: String,
+	result: ActionResult = null
+) -> void:
+	BattleTileUnitEffectSystemScript.on_unit_hit_by_skill(unit, source_unit, skill, pre_hit_tile_state_id, self, result)
+
+
+func get_battle_cell_move_cost(unit: BattleUnitState, from_cell: Vector2i, to_cell: Vector2i) -> int:
+	return BattleTileUnitEffectSystemScript.get_battle_cell_move_cost(unit, from_cell, to_cell, self)
+
+
+func on_round_ends(completed_round: int, result: ActionResult = null) -> void:
+	_tick_tile_state_rounds(completed_round, result)
 
 
 func on_tile_state_expires(_tile_state, _result: ActionResult = null) -> void:
@@ -368,7 +388,7 @@ func _compare_units(a: BattleUnitState, b: BattleUnitState) -> bool:
 	return a.speed > b.speed
 
 
-func _tick_tile_state_durations(result: ActionResult = null) -> void:
+func _tick_tile_state_rounds(completed_round: int, result: ActionResult = null) -> void:
 	var expired_keys: Array[String] = []
 	for key_value in tile_states_by_cell.keys():
 		var key: String = str(key_value)
@@ -376,9 +396,7 @@ func _tick_tile_state_durations(result: ActionResult = null) -> void:
 		if tile_state == null:
 			expired_keys.append(key)
 			continue
-		if tile_state.should_skip_tick(round_number, turn_index):
-			continue
-		if tile_state.tick_duration():
+		if tile_state.tick_round():
 			expired_keys.append(key)
 
 	for key in expired_keys:
@@ -393,6 +411,7 @@ func _tick_tile_state_durations(result: ActionResult = null) -> void:
 				"battle_id": battle_id,
 				"cell": expired_state.cell,
 				"state_id": expired_state.id,
+				"completed_round": completed_round,
 				"tile_state": expired_state.get_summary(),
 			})
 			result.add_feedback("%s at %s faded." % [expired_state.id, expired_state.cell])

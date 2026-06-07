@@ -59,6 +59,8 @@ lightning
 | Lightning | Electrified | Electrified is refreshed |
 | Lightning | dry ground | No surface change |
 
+Same-state applications use the Phase 51 duration comparison rule. A longer incoming duration transfers state ownership; a shorter or equal duration keeps the current owner. Reactions that change the state create a new state with the incoming source and the result state's full duration.
+
 ## Lightning Spread
 
 Lightning spreads from an electrified target through orthogonally connected Wet cells.

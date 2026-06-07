@@ -116,7 +116,8 @@ func request_move_current_unit(direction: Vector2i) -> ActionResult:
 	var character: CharacterEntity = unit.character
 	var target_cell: Vector2i = character.grid_position + direction
 	character.face_direction(direction)
-	return _move_unit_to(unit, target_cell, MOVE_AP_COST)
+	var move_cost: int = active_state.get_battle_cell_move_cost(unit, character.grid_position, target_cell) if active_state != null else MOVE_AP_COST
+	return _move_unit_to(unit, target_cell, move_cost)
 
 
 func request_move_current_unit_to(target_cell: Vector2i) -> ActionResult:
@@ -581,6 +582,12 @@ func _execute_skill_for_unit(unit: BattleUnitState, skill_id: String, target_cel
 
 	var affected_units: Array[BattleUnitState] = SkillSystem.get_affected_units(unit, skill_id, target_cell, active_state)
 	var target_name: String = _get_skill_target_name(unit, affected_units, target_cell)
+	var pre_hit_tile_states: Dictionary = {}
+	for affected_unit in affected_units:
+		if affected_unit == null or affected_unit.character == null:
+			continue
+		var affected_tile_state = active_state.get_tile_state_at(affected_unit.character.grid_position)
+		pre_hit_tile_states[affected_unit.character_id] = affected_tile_state.id if affected_tile_state != null else ""
 
 	var result: ActionResult = ActionResult.succeeded("UseSkillAction", unit.character_id, {
 		"battle_id": active_state.battle_id,
@@ -612,6 +619,16 @@ func _execute_skill_for_unit(unit: BattleUnitState, skill_id: String, target_cel
 		"affected_cells": SkillSystem.get_area_cells(skill_id, target_cell, active_state, unit.character.grid_position),
 	}
 	BattleEffectResolverScript.resolve_skill_effects(effect_context, result)
+	for affected_unit in affected_units:
+		if affected_unit == null:
+			continue
+		active_state.on_unit_hit_by_skill(
+			affected_unit,
+			unit,
+			skill,
+			str(pre_hit_tile_states.get(affected_unit.character_id, "")),
+			result
+		)
 
 	var feedback_template: String = str(skill.get("feedback", ""))
 	if feedback_template.is_empty():
@@ -651,6 +668,26 @@ func _after_unit_action(unit: BattleUnitState, force_end_turn: bool) -> void:
 	if not force_end_turn and unit.is_active() and unit.action_points > 0:
 		return
 
+	var turn_end_result: ActionResult = ActionResult.succeeded("BattleTurnEnd", unit.character_id, {
+		"battle_id": active_state.battle_id,
+		"round": active_state.round_number,
+	})
+	turn_end_result.add_world_change({
+		"type": "battle_turn_ended",
+		"battle_id": active_state.battle_id,
+		"character_id": unit.character_id,
+		"round": active_state.round_number,
+	})
+	active_state.on_unit_ends_turn_on_cell(unit, turn_end_result)
+	_publish_result(turn_end_result)
+
+	if not active_state.has_active_team(BattleUnitState.TEAM_ENEMY):
+		_end_battle("won")
+		return
+	if not active_state.has_active_team(BattleUnitState.TEAM_PLAYER):
+		_end_battle("lost")
+		return
+
 	_advance_turn_or_finish()
 
 
@@ -688,12 +725,40 @@ func _advance_turn_or_finish() -> void:
 	if active_state == null or not active_state.active:
 		return
 
-	var next_unit: BattleUnitState = active_state.advance_turn()
+	var completed_round: int = active_state.round_number
+	var current_unit: BattleUnitState = active_state.get_current_unit()
+	var round_end_result: ActionResult = ActionResult.succeeded(
+		"BattleRoundEnd",
+		current_unit.character_id if current_unit != null else "",
+		{
+			"battle_id": active_state.battle_id,
+			"round": completed_round,
+		}
+	)
+	round_end_result.add_world_change({
+		"type": "battle_round_ended",
+		"battle_id": active_state.battle_id,
+		"round": completed_round,
+	})
+	var next_unit: BattleUnitState = active_state.advance_turn(round_end_result)
 	if next_unit == null:
 		_end_battle("ended")
 		return
 
+	if active_state.round_number > completed_round:
+		round_end_result.add_feedback("第 %d 回合结束。" % completed_round)
+		_publish_result(round_end_result)
+
 	_emit_turn_started()
+	if not active_state.has_active_team(BattleUnitState.TEAM_ENEMY):
+		_end_battle("won")
+		return
+	if not active_state.has_active_team(BattleUnitState.TEAM_PLAYER):
+		_end_battle("lost")
+		return
+	if not next_unit.is_active():
+		_advance_turn_or_finish()
+		return
 	if next_unit.team == BattleUnitState.TEAM_ENEMY:
 		await _delay_enemy_unit_start()
 		_run_enemy_turn(next_unit)
@@ -723,8 +788,12 @@ func _run_enemy_turn(unit: BattleUnitState) -> void:
 		var target_cell: Vector2i = _choose_enemy_step_toward(unit, target)
 		if target_cell != unit.character.grid_position and active_state.grid.can_enter(target_cell):
 			var from_cell: Vector2i = unit.character.grid_position
+			var move_cost: int = active_state.get_battle_cell_move_cost(unit, from_cell, target_cell)
+			if unit.action_points < move_cost:
+				wait_current_unit()
+				return
 			if active_state.grid.move_character(unit.character_id, from_cell, target_cell, unit.character.blocks_movement):
-				unit.spend_action_points(MOVE_AP_COST)
+				unit.spend_action_points(move_cost)
 				unit.character.set_grid_position(target_cell)
 				var result: ActionResult = ActionResult.succeeded("BattleMove", unit.character_id, {
 					"battle_id": active_state.battle_id,
@@ -736,6 +805,7 @@ func _run_enemy_turn(unit: BattleUnitState) -> void:
 					"character_id": unit.character_id,
 					"from": from_cell,
 					"to": target_cell,
+					"cost": move_cost,
 					"remaining_ap": unit.action_points,
 				})
 				active_state.on_unit_enters_cell(unit, target_cell, result)
@@ -1056,25 +1126,34 @@ func _get_reachable_cell_distances(unit: BattleUnitState) -> Dictionary:
 	var start_cell: Vector2i = unit.character.grid_position
 	var start_key: String = active_state.grid.cell_key(start_cell)
 	distances[start_key] = 0
-	var queue: Array[Vector2i] = [start_cell]
+	var frontier: Array[Dictionary] = [{ "cell": start_cell, "cost": 0 }]
 	var directions: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
 
-	while not queue.is_empty():
-		var current_cell: Vector2i = queue.pop_front()
-		var current_distance: int = int(distances[active_state.grid.cell_key(current_cell)])
+	while not frontier.is_empty():
+		frontier.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return int(a.get("cost", 0)) < int(b.get("cost", 0)))
+		var entry: Dictionary = frontier.pop_front() as Dictionary
+		var current_cell: Vector2i = entry.get("cell", start_cell) as Vector2i
+		var current_distance: int = int(entry.get("cost", 0))
+		var current_key: String = active_state.grid.cell_key(current_cell)
+		if current_distance != int(distances.get(current_key, current_distance)):
+			continue
 		if current_distance >= unit.action_points:
 			continue
 
 		for direction in directions:
 			var next_cell: Vector2i = current_cell + direction
 			var next_key: String = active_state.grid.cell_key(next_cell)
-			if distances.has(next_key):
-				continue
 			if not active_state.grid.can_enter(next_cell):
 				continue
 
-			distances[next_key] = current_distance + 1
-			queue.append(next_cell)
+			var step_cost: int = active_state.get_battle_cell_move_cost(unit, current_cell, next_cell)
+			var next_distance: int = current_distance + step_cost
+			if next_distance > unit.action_points:
+				continue
+			if distances.has(next_key) and int(distances[next_key]) <= next_distance:
+				continue
+			distances[next_key] = next_distance
+			frontier.append({ "cell": next_cell, "cost": next_distance })
 
 	return distances
 

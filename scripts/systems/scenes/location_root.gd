@@ -399,8 +399,7 @@ func _pan_camera(direction: Vector2, amount: float) -> void:
 	if camera == null or direction == Vector2.ZERO:
 		return
 
-	camera.position = _clamp_camera_position(camera.position + direction * amount)
-	_camera_target_position = camera.position
+	_camera_target_position = _clamp_camera_position(_camera_target_position + direction * amount)
 	_camera_detached = true
 
 

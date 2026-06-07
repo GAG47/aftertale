@@ -33,7 +33,7 @@ Recommended battle tile state fields:
 id: burning, wet, frozen, electrified
 cell: Vector2i
 layer: surface, air
-duration_turns
+remaining_rounds
 intensity
 source_character_id
 source_skill_id
@@ -88,7 +88,7 @@ Battle summaries should expose tile state data for overlays:
 ```text
 cell
 state_id
-duration_turns
+remaining_rounds
 intensity
 display_color or semantic display id
 ```
@@ -96,6 +96,42 @@ display_color or semantic display id
 The UI may render highlights from these summaries, but must not mutate tile state.
 
 `BattleGridOverlay` reads `tile_states` from the tactical preview and draws semantic colors for the current minimum state set. It does not own or mutate state.
+
+## Round Lifetime
+
+Tile state lifetime is measured in complete battle rounds, not individual unit turns.
+
+All tile states tick once when the action order wraps and the current battle round ends:
+
+```text
+remaining_rounds -= 1
+remove the state only when remaining_rounds < 0
+```
+
+A state created with `remaining_rounds = 1` therefore follows this sequence:
+
+```text
+creation round ends: 1 -> 0, state remains
+next round ends: 0 -> -1, state expires
+```
+
+This makes duration independent of participant count, speed order, skipped turns, and the source character's survival.
+
+## Same-State Refresh
+
+When a cell receives the same state again:
+
+```text
+incoming duration > current remaining duration
+-> incoming state takes ownership and supplies the new duration
+
+incoming duration <= current remaining duration
+-> current owner and duration remain
+```
+
+Ties keep the existing owner. Intensity always keeps the higher value.
+
+When an elemental reaction creates a different state, the old state is removed and the reaction result is a new state owned by the incoming source with its full configured duration.
 
 ## Minimum States
 

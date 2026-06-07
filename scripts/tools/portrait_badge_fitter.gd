@@ -499,7 +499,7 @@ func _set_crop_center_from_source_view(local_position: Vector2) -> void:
 	var scale := minf(_source_view.size.x / texture_size.x, _source_view.size.y / texture_size.y)
 	var drawn_size := texture_size * scale
 	var offset := (_source_view.size - drawn_size) * 0.5
-	var display_position := (local_position - offset) / maxf(scale, 0.001)
+	var display_positio5n := (local_position - offset) / maxf(scale, 0.001)
 	if not _source_display_source_rect.has_point(display_position):
 		return
 	var normalized := (display_position - _source_display_source_rect.position) / _source_display_source_rect.size

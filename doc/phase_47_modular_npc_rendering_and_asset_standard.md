@@ -19,6 +19,7 @@ Implemented in this phase:
 - Existing training dummy rendering remains special-cased.
 - External transparent PNG parts can be normalized into the shared 256x256 standard canvas with `tools/art/standardize_character_part.ps1`.
 - Location cameras now support scene zoom for art inspection: mouse wheel or `+` zooms in, `-` zooms out, and `0` resets to the scene default zoom.
+- Keyboard camera panning updates the camera target for both taps and held input; the camera position reaches that target through the shared smoothing path.
 
 ## Runtime Layer Order
 

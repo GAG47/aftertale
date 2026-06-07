@@ -2,56 +2,79 @@
 
 ## Status
 
-Planned.
+Complete.
 
 ## Goal
 
-Connect battle tile states and elemental reactions to unit status, damage, movement, and turn timing.
+Connect battle tile states and elemental skill hits to unit HP, AP, statuses, and movement cost through explicit timing hooks.
 
-Phase 51 makes the battlefield remember surface states. Phase 52 makes elements react with those states. Phase 53 makes standing on, moving through, or being hit on those states matter to units.
+The rule flow is:
+
+```text
+BattleSystem timing point
+-> BattleState timing API
+-> BattleTileUnitEffectSystem
+-> BattleUnitState and ActionResult
+```
+
+Presentation code does not own or apply these rules.
 
 ## Timing Points
 
-Use explicit timing hooks:
+The implemented timing APIs are:
 
 ```text
-unit enters cell
-unit starts turn
-unit ends turn
-unit is hit by skill
-unit is affected by reaction
-round advances
+on_unit_enters_cell
+on_unit_starts_turn_on_cell
+on_unit_ends_turn_on_cell
+on_unit_hit_by_skill
 ```
 
-The first pass should prefer predictable rules over hidden probability.
+### Enter Cell
 
-## Minimum Unit Effects
+The destination surface is synchronized to the unit immediately.
 
-Burning tile:
+| Surface | Effect |
+| --- | --- |
+| Burning | Apply `burning`; deal `1 * intensity` damage |
+| Wet | Apply `wet` |
+| Frozen | Apply surface `chilled` |
+| Electrified | Apply `shocked`; deal `1 * intensity` damage |
 
-- unit starts turn on burning: takes fire damage;
-- unit enters burning: optional immediate small damage, can be deferred;
-- tile remains unless duration expires or water extinguishes it.
+### Turn Start
 
-Wet tile:
+Pending skill statuses resolve first, followed by the current surface.
 
-- unit standing on wet can be treated as wet for lightning and ice reactions;
-- wet alone does not damage the unit.
+| Cause | Effect |
+| --- | --- |
+| Skill `burning` | Deal 1 damage |
+| Skill `frozen` | Reduce current AP to 0, then consume `frozen` |
+| Skill `shocked` | Reduce current AP by 1, then consume `shocked` |
+| Burning surface | Deal `2 * intensity` damage |
+| Frozen surface | Reduce AP by 1 |
+| Electrified surface | Deal `2 * intensity` damage and reduce AP by 1 |
+| Wet surface | Maintain `wet` |
 
-Frozen tile:
+Automatic damage can defeat a unit and records the source character when available.
 
-- movement cost can increase;
-- unit starting on frozen may receive `chilled` or `frozen` if Phase 52 produced a direct freeze reaction;
-- avoid random slipping in the first pass unless the UI can clearly explain it.
+### Turn End
 
-Electrified tile:
+Statuses with `expires: turn_end` are removed through recorded status-removal events. The unit is then synchronized with its current surface, so a unit still standing on Wet ground remains Wet after temporary skill statuses expire.
 
-- unit starts turn on electrified: takes lightning damage;
-- lightning can chain to units on adjacent wet or electrified cells.
+### Skill Hit
 
-## Unit Status Vocabulary
+Elemental skill reactions use the target's tile state from immediately before the skill effect pipeline changes the surface.
 
-Initial battle statuses:
+| Element | Unit result |
+| --- | --- |
+| Fire | Dry targets gain `burning`; Wet targets lose `wet` instead |
+| Water | Remove `burning`; apply `wet` |
+| Ice | Wet targets gain `frozen`; other targets gain `chilled` |
+| Lightning | Apply `shocked`; Wet targets take `2 * element intensity` extra damage |
+
+This snapshot prevents a Water, Ice, Fire, or Lightning surface transformation from erasing the condition needed to calculate the unit reaction from the same hit.
+
+## Status Vocabulary
 
 ```text
 wet
@@ -61,48 +84,82 @@ burning
 shocked
 ```
 
-These should use the existing `BattleUnitState` status effect container where possible.
+Statuses include a `source_kind`:
 
-Suggested meanings:
+```text
+tile_surface
+skill_hit
+```
 
-- `wet`: increases lightning vulnerability and enables freezing.
-- `chilled`: minor movement or speed penalty.
-- `frozen`: skips or limits action for a short duration.
-- `burning`: turn-start damage if applied directly to unit.
-- `shocked`: short-term AP, speed, or action penalty, deferred if balance is unclear.
+Skill statuses take precedence over a same-id surface status until they expire or are consumed. Surface statuses are then restored from the authoritative tile state.
 
 ## Movement Cost
 
-`BattleSystem._get_reachable_cell_distances()` currently treats each passable step as cost 1. Phase 53 should prepare a rule helper:
+Movement uses:
 
 ```text
-get_battle_cell_move_cost(unit, from_cell, to_cell)
+BattleState.get_battle_cell_move_cost(unit, from_cell, to_cell)
 ```
 
-This lets frozen or sticky surfaces affect pathing without rewriting movement every time a new surface is added.
+Base movement cost is 1 AP.
 
-## Feedback
+- entering a Frozen tile adds `max(1, intensity)` AP;
+- skill-applied `chilled` adds 1 AP to each movement step;
+- surface `chilled` is descriptive and does not duplicate the Frozen tile cost.
 
-Every automatic tile or status effect should produce understandable feedback:
+The reachable-cell calculation now uses a weighted shortest-path search rather than a fixed-cost breadth-first search. Direct player movement and enemy movement use the same cost API.
+
+## ActionResult Events
+
+Automatic rules emit ordinary battle events:
 
 ```text
-<unit> is burned by the flames.
-<unit> is frozen on the wet ground.
-Lightning jumps through the wet surface.
+battle_unit_damaged
+battle_unit_defeated
+battle_status_applied
+battle_status_removed
+battle_action_points_reduced
+battle_turn_ended
 ```
 
-The exact localized text can be tuned later; the important part is that status-driven damage is not invisible.
+Damage events identify whether the source was:
 
-## Acceptance
+```text
+tile_state
+unit_status
+unit_reaction
+```
 
-Phase 53 is complete when:
+This keeps UI feedback, debugging, future combat logs, and Phase 54 AI inspection on the same authoritative result stream.
 
-- tile states can affect units at turn start or movement timing;
-- elemental reactions can apply battle statuses to units;
-- movement preview uses modified movement costs when relevant;
-- `ActionResult` records automatic damage or status changes;
-- no unit status is applied only as a visual effect.
+## Implemented Files
+
+```text
+scripts/systems/battle/battle_tile_unit_effect_system.gd
+scripts/systems/battle/battle_state.gd
+scripts/systems/battle/battle_system.gd
+scripts/systems/battle/battle_unit_state.gd
+doc/phase_53_status_effects_on_units.md
+doc/development_todo_progress.md
+```
+
+## Verification
+
+The behavior smoke test verified:
+
+```text
+entering Burning deals damage and applies burning
+turn-start Burning deals its configured damage
+Wet plus Ice applies frozen
+frozen consumes the next turn's AP
+Wet plus Lightning deals extra reaction damage
+shocked reduces next-turn AP
+Frozen and chilled modify movement cost
+turn-end cleanup removes temporary statuses and restores surface status
+```
+
+The temporary smoke-test hook was removed after verification.
 
 ## Boundary
 
-This phase does not require advanced AI planning. Enemy behavior may still use the old decision path until Phase 54, but the data it needs should now be available.
+Phase 53 supplies deterministic combat facts and costs. Enemy intent and tactical scoring still belong to Phase 54.

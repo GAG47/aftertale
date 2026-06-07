@@ -141,6 +141,12 @@ func has_status_effect(status_id: String) -> bool:
 	return status_effects.has(status_id)
 
 
+func get_status_effect(status_id: String) -> Dictionary:
+	if status_id.is_empty() or not status_effects.has(status_id):
+		return {}
+	return (status_effects[status_id] as Dictionary).duplicate(true)
+
+
 func remove_status_effect(status_id: String) -> bool:
 	if status_id.is_empty() or not status_effects.has(status_id):
 		return false

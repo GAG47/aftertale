@@ -11,19 +11,19 @@ const CARDINAL_DIRECTIONS: Array[Vector2i] = [
 ]
 const STATE_DEFINITIONS := {
 	"burning": {
-		"duration_turns": 2,
+		"duration_rounds": 2,
 		"tags": ["danger", "fire"],
 	},
 	"wet": {
-		"duration_turns": 3,
+		"duration_rounds": 3,
 		"tags": ["water", "conductive"],
 	},
 	"frozen": {
-		"duration_turns": 2,
+		"duration_rounds": 2,
 		"tags": ["ice", "slippery"],
 	},
 	"electrified": {
-		"duration_turns": 1,
+		"duration_rounds": 1,
 		"tags": ["danger", "lightning", "conductive"],
 	},
 }
@@ -176,7 +176,7 @@ static func _apply_state(cell: Vector2i, state_id: String, intensity: int, conte
 	var state_effect: Dictionary = {
 		"state_id": state_id,
 		"layer": "surface",
-		"duration_turns": int(definition.get("duration_turns", 1)),
+		"duration_rounds": int(definition.get("duration_rounds", 1)),
 		"intensity": intensity,
 		"tags": (definition.get("tags", []) as Array).duplicate(),
 	}
