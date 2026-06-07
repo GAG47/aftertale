@@ -2,7 +2,7 @@
 
 ## Status
 
-Planned.
+Complete.
 
 ## Goal
 
@@ -10,7 +10,7 @@ Replace the current simple enemy priority chain with an explainable scoring syst
 
 The goal is not to make enemies perfectly optimal. The goal is to make enemies appear tactically aware while keeping behavior deterministic, debuggable, and easy to balance.
 
-## Current Baseline
+## Previous Baseline
 
 The current enemy turn logic is intentionally simple:
 
@@ -74,24 +74,23 @@ Negative factors:
 
 ## Role Weights
 
-Use data weights instead of different hard-coded AI classes:
+AI profiles are stored in `data/battle/ai_profiles.json`. They share one scoring
+implementation and only change weights and preferred range:
 
 ```text
+balanced
 aggressive
 defensive
-skirmisher
-caster
+controller
 support
-guardian
 ```
 
 Example weight differences:
 
 - aggressive units value damage and kills more than safety;
 - defensive units value safe cells and guard behavior;
-- casters value area effects and elemental reactions;
+- controllers value tile states, control, and elemental reactions;
 - support units value healing and ally survival;
-- skirmishers value distance control.
 
 ## Score Breakdown
 
@@ -132,6 +131,37 @@ Phase 54 is complete when:
 - enemies can prefer elemental combos such as lightning on wet targets;
 - support and damage skills can both win scoring when appropriate;
 - behavior remains deterministic for the same battle state.
+
+## Implementation
+
+`BattleAiPlanner` now:
+
+- enumerates wait, move, skill, and move-then-skill candidates;
+- finds reachable cells using battle movement costs;
+- predicts skill legality, affected cells, and affected units from a proposed move cell;
+- scores damage, kills, control, survival, tile value, position, target priority, risk, resource use, support, and elemental reactions;
+- caps candidate generation and uses deterministic tie-breaking;
+- returns the chosen action plus the top five candidates and weighted score reasons.
+
+`BattleSystem` executes the chosen candidate instead of using the former fixed
+priority chain. `BattleState.recent_ai_decisions` retains recent decisions and
+publishes them as `battle_ai_decision` world changes for inspection.
+
+Characters select behavior with the `ai_profile` definition field. Unknown
+profiles fall back to the configured default profile.
+
+## Verification
+
+The v54 smoke scene covers:
+
+- moving and attacking in one scored action;
+- preferring lightning against a wet target;
+- strongly preferring a confirmed defeat;
+- leaving a burning tile;
+- choosing first aid for an injured ally.
+
+The project also passes a headless startup and script parse check on Godot
+4.6.3.
 
 ## Boundary
 

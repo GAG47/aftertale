@@ -2,6 +2,7 @@
   "id": "debug_training_dummy",
   "display_name": "训练假人",
   "character_kind": "enemy",
+  "ai_profile": "defensive",
   "attributes": {
     "level": 1,
     "strength": 3,

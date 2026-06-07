@@ -81,7 +81,12 @@ func get_skill_summaries_for_unit(unit: BattleUnitState, battle_state: BattleSta
 	return summaries
 
 
-func get_target_cells(unit: BattleUnitState, skill_id: String, battle_state: BattleState) -> Array[Vector2i]:
+func get_target_cells(
+	unit: BattleUnitState,
+	skill_id: String,
+	battle_state: BattleState,
+	origin_cell: Variant = null
+) -> Array[Vector2i]:
 	var result: Array[Vector2i] = []
 	if unit == null or not unit.is_active() or battle_state == null or not battle_state.active:
 		return result
@@ -90,11 +95,12 @@ func get_target_cells(unit: BattleUnitState, skill_id: String, battle_state: Bat
 	if skill.is_empty():
 		return result
 
+	var origin: Vector2i = origin_cell as Vector2i if origin_cell is Vector2i else unit.character.grid_position
 	var target_type: String = str(skill.get("target_type", "enemy"))
 	var skill_range: int = max(0, int(skill.get("range", 1)))
 	var target_policy: String = get_target_policy(skill)
 	if target_policy != TARGET_POLICY_UNIT_REQUIRED:
-		for cell in get_range_cells(unit, skill_id, battle_state):
+		for cell in get_range_cells(unit, skill_id, battle_state, origin):
 			if target_policy == TARGET_POLICY_EMPTY_REQUIRED and not _is_empty_target_cell(cell, battle_state):
 				continue
 			result.append(cell)
@@ -102,20 +108,25 @@ func get_target_cells(unit: BattleUnitState, skill_id: String, battle_state: Bat
 
 	match target_type:
 		"self":
-			result.append(unit.character.grid_position)
+			result.append(origin)
 		"enemy":
-			_append_unit_target_cells(result, unit, battle_state, skill, skill_range, "enemy")
+			_append_unit_target_cells(result, unit, battle_state, skill, skill_range, "enemy", origin)
 		"ally":
-			_append_unit_target_cells(result, unit, battle_state, skill, skill_range, "ally")
+			_append_unit_target_cells(result, unit, battle_state, skill, skill_range, "ally", origin)
 		"ally_or_self":
-			_append_unit_target_cells(result, unit, battle_state, skill, skill_range, "ally")
+			_append_unit_target_cells(result, unit, battle_state, skill, skill_range, "ally", origin)
 		_:
 			pass
 
 	return result
 
 
-func get_range_cells(unit: BattleUnitState, skill_id: String, battle_state: BattleState) -> Array[Vector2i]:
+func get_range_cells(
+	unit: BattleUnitState,
+	skill_id: String,
+	battle_state: BattleState,
+	origin_cell: Variant = null
+) -> Array[Vector2i]:
 	var result: Array[Vector2i] = []
 	if unit == null or not unit.is_active() or battle_state == null or not battle_state.active or battle_state.grid == null:
 		return result
@@ -124,7 +135,7 @@ func get_range_cells(unit: BattleUnitState, skill_id: String, battle_state: Batt
 	if skill.is_empty():
 		return result
 
-	var origin: Vector2i = unit.character.grid_position
+	var origin: Vector2i = origin_cell as Vector2i if origin_cell is Vector2i else unit.character.grid_position
 	var target_type: String = str(skill.get("target_type", "enemy"))
 	var target_policy: String = get_target_policy(skill)
 	var skill_range: int = max(0, int(skill.get("range", 1)))
@@ -139,7 +150,7 @@ func get_range_cells(unit: BattleUnitState, skill_id: String, battle_state: Batt
 				var cell: Vector2i = origin + direction * distance
 				if not battle_state.grid.in_bounds(cell):
 					break
-				if not _has_skill_path(skill, origin, cell, battle_state):
+				if not _has_skill_path(skill, origin, cell, battle_state, unit.character_id):
 					break
 				if target_policy == TARGET_POLICY_EMPTY_REQUIRED and not _is_empty_target_cell(cell, battle_state):
 					continue
@@ -156,7 +167,7 @@ func get_range_cells(unit: BattleUnitState, skill_id: String, battle_state: Batt
 				continue
 			if distance == 0 and target_type != "ally_or_self":
 				continue
-			if not _has_skill_path(skill, origin, cell, battle_state):
+			if not _has_skill_path(skill, origin, cell, battle_state, unit.character_id):
 				continue
 			if target_policy == TARGET_POLICY_EMPTY_REQUIRED and not _is_empty_target_cell(cell, battle_state):
 				continue
@@ -165,7 +176,13 @@ func get_range_cells(unit: BattleUnitState, skill_id: String, battle_state: Batt
 	return result
 
 
-func get_skill_failure(unit: BattleUnitState, skill_id: String, target_cell: Vector2i, battle_state: BattleState) -> String:
+func get_skill_failure(
+	unit: BattleUnitState,
+	skill_id: String,
+	target_cell: Vector2i,
+	battle_state: BattleState,
+	origin_cell: Variant = null
+) -> String:
 	if unit == null or not unit.is_active():
 		return "技能需要有效的战斗单位。"
 	if battle_state == null or not battle_state.active:
@@ -177,6 +194,7 @@ func get_skill_failure(unit: BattleUnitState, skill_id: String, target_cell: Vec
 	if not unit.skills.has(skill_id):
 		return "%s 不会使用 %s。" % [unit.display_name, skill_id]
 
+	var origin: Vector2i = origin_cell as Vector2i if origin_cell is Vector2i else unit.character.grid_position
 	var ap_cost: int = max(0, int(skill.get("ap_cost", 0)))
 	if unit.action_points < ap_cost:
 		return "%s 需要 %d 行动点。" % [str(skill.get("display_name", skill_id)), ap_cost]
@@ -189,17 +207,17 @@ func get_skill_failure(unit: BattleUnitState, skill_id: String, target_cell: Vec
 	var target_type: String = str(skill.get("target_type", "enemy"))
 	var skill_range: int = max(0, int(skill.get("range", 1)))
 	if target_type == "self":
-		if target_cell != unit.character.grid_position:
+		if target_cell != origin:
 			return "%s 只能以自己为目标。" % str(skill.get("display_name", skill_id))
 		return ""
 
 	if battle_state.grid != null and not battle_state.grid.in_bounds(target_cell):
 		return "%s 需要有效的目标格。" % str(skill.get("display_name", skill_id))
-	if _manhattan(unit.character.grid_position, target_cell) > skill_range:
+	if _manhattan(origin, target_cell) > skill_range:
 		return "%s 超出射程。" % str(skill.get("display_name", skill_id))
-	if str(skill.get("area", "single")) == "line" and not _is_cardinal_line(unit.character.grid_position, target_cell):
+	if str(skill.get("area", "single")) == "line" and not _is_cardinal_line(origin, target_cell):
 		return "%s requires a straight line target." % str(skill.get("display_name", skill_id))
-	if not _has_skill_path(skill, unit.character.grid_position, target_cell, battle_state):
+	if not _has_skill_path(skill, origin, target_cell, battle_state, unit.character_id):
 		return "%s 的视线被阻挡。" % str(skill.get("display_name", skill_id))
 
 	var target_unit: BattleUnitState = battle_state.get_unit_at(target_cell)
@@ -231,7 +249,13 @@ func get_skill_failure(unit: BattleUnitState, skill_id: String, target_cell: Vec
 	return "不支持的目标类型：%s" % target_type
 
 
-func get_affected_units(unit: BattleUnitState, skill_id: String, target_cell: Vector2i, battle_state: BattleState) -> Array[BattleUnitState]:
+func get_affected_units(
+	unit: BattleUnitState,
+	skill_id: String,
+	target_cell: Vector2i,
+	battle_state: BattleState,
+	origin_cell: Variant = null
+) -> Array[BattleUnitState]:
 	var result: Array[BattleUnitState] = []
 	if unit == null or battle_state == null:
 		return result
@@ -241,6 +265,7 @@ func get_affected_units(unit: BattleUnitState, skill_id: String, target_cell: Ve
 		return result
 
 	var area: String = str(skill.get("area", "single"))
+	var origin: Vector2i = origin_cell as Vector2i if origin_cell is Vector2i else unit.character.grid_position
 	var radius: int = max(0, int(skill.get("radius", 0)))
 	var target_type: String = str(skill.get("target_type", "enemy"))
 	if area == "single":
@@ -250,7 +275,7 @@ func get_affected_units(unit: BattleUnitState, skill_id: String, target_cell: Ve
 		return result
 
 	if area == "line":
-		var area_cells: Array[Vector2i] = get_area_cells(skill_id, target_cell, battle_state, unit.character.grid_position)
+		var area_cells: Array[Vector2i] = get_area_cells(skill_id, target_cell, battle_state, origin)
 		for possible_target in battle_state.units:
 			if possible_target == null or not possible_target.is_active():
 				continue
@@ -481,7 +506,15 @@ func _manhattan(a: Vector2i, b: Vector2i) -> int:
 	return abs(a.x - b.x) + abs(a.y - b.y)
 
 
-func _append_unit_target_cells(result: Array[Vector2i], unit: BattleUnitState, battle_state: BattleState, skill: Dictionary, skill_range: int, mode: String) -> void:
+func _append_unit_target_cells(
+	result: Array[Vector2i],
+	unit: BattleUnitState,
+	battle_state: BattleState,
+	skill: Dictionary,
+	skill_range: int,
+	mode: String,
+	origin: Vector2i
+) -> void:
 	for target_unit in battle_state.units:
 		if target_unit == null or not target_unit.is_active():
 			continue
@@ -489,8 +522,8 @@ func _append_unit_target_cells(result: Array[Vector2i], unit: BattleUnitState, b
 			continue
 		if mode == "ally" and target_unit.team != unit.team:
 			continue
-		if _manhattan(unit.character.grid_position, target_unit.character.grid_position) <= skill_range:
-			if _has_skill_path(skill, unit.character.grid_position, target_unit.character.grid_position, battle_state):
+		if _manhattan(origin, target_unit.character.grid_position) <= skill_range:
+			if _has_skill_path(skill, origin, target_unit.character.grid_position, battle_state, unit.character_id):
 				result.append(target_unit.character.grid_position)
 
 
@@ -548,7 +581,13 @@ func _is_cardinal_line(origin_cell: Vector2i, target_cell: Vector2i) -> bool:
 	return origin_cell != target_cell and (origin_cell.x == target_cell.x or origin_cell.y == target_cell.y)
 
 
-func _has_skill_path(skill: Dictionary, origin_cell: Vector2i, target_cell: Vector2i, battle_state: BattleState) -> bool:
+func _has_skill_path(
+	skill: Dictionary,
+	origin_cell: Vector2i,
+	target_cell: Vector2i,
+	battle_state: BattleState,
+	ignored_character_id: String = ""
+) -> bool:
 	if battle_state == null or battle_state.grid == null:
 		return false
 	if origin_cell == target_cell:
@@ -556,7 +595,7 @@ func _has_skill_path(skill: Dictionary, origin_cell: Vector2i, target_cell: Vect
 
 	var block_units: bool = get_path_blocking(skill) == PATH_BLOCKING_TERRAIN_AND_UNITS
 	if battle_state.grid.has_method("has_clear_skill_path"):
-		return bool(battle_state.grid.has_clear_skill_path(origin_cell, target_cell, block_units))
+		return bool(battle_state.grid.has_clear_skill_path(origin_cell, target_cell, block_units, ignored_character_id))
 	return battle_state.grid.has_line_of_sight(origin_cell, target_cell)
 
 

@@ -6,6 +6,7 @@ signal battle_ended(battle_id: String, result_status: String)
 signal battle_state_changed()
 
 const BattleEffectResolverScript := preload("res://scripts/systems/battle/battle_effect_resolver.gd")
+const BattleAiPlannerScript := preload("res://scripts/systems/battle/battle_ai_planner.gd")
 const MOVE_AP_COST := 1
 const FLEE_AP_COST := 1
 const TACTICAL_MODE_COMMAND := "command"
@@ -397,41 +398,6 @@ func get_area_cells_for_current_skill(target_cell: Vector2i) -> Array[Vector2i]:
 	return SkillSystem.get_area_cells(selected_skill_id, target_cell, active_state, unit.character.grid_position)
 
 
-func get_target_preview_summary(target_cell: Vector2i) -> Dictionary:
-	if active_state == null or not active_state.active:
-		return {}
-
-	var target_unit: BattleUnitState = active_state.get_unit_at(target_cell)
-	var actor: BattleUnitState = _get_player_current_unit()
-	var skill: Dictionary = SkillSystem.get_skill(selected_skill_id)
-	var summary: Dictionary = {
-		"cell": target_cell,
-		"tactical_mode": tactical_mode,
-		"selected_skill_id": selected_skill_id,
-		"skill_display_name": str(skill.get("display_name", selected_skill_id)) if not skill.is_empty() else selected_skill_id,
-		"unit": target_unit.get_summary() if target_unit != null else {},
-		"tile_state": active_state.get_tile_state_at(target_cell).get_summary() if active_state.get_tile_state_at(target_cell) != null else {},
-		"failure_reason": "",
-		"estimated_damage": 0,
-		"estimated_heal": 0,
-		"can_confirm": false,
-	}
-
-	if actor == null:
-		return summary
-
-	var failure_reason: String = SkillSystem.get_skill_failure(actor, selected_skill_id, target_cell, active_state)
-	summary["failure_reason"] = failure_reason
-	summary["can_confirm"] = failure_reason.is_empty()
-	if target_unit != null and failure_reason.is_empty():
-		if SkillSystem.skill_has_effect(selected_skill_id, "damage_unit"):
-			summary["estimated_damage"] = SkillSystem.estimate_damage(actor, target_unit, selected_skill_id)
-		if SkillSystem.skill_has_effect(selected_skill_id, "heal_unit"):
-			summary["estimated_heal"] = SkillSystem.estimate_heal(actor, selected_skill_id)
-
-	return summary
-
-
 func is_player_turn() -> bool:
 	return _get_player_current_unit() != null
 
@@ -768,63 +734,92 @@ func _run_enemy_turn(unit: BattleUnitState) -> void:
 	if active_state == null or not active_state.active or not unit.is_active():
 		return
 
-	var target: BattleUnitState = _get_nearest_active_player_unit(unit)
-	if target == null:
+	if active_state.get_active_units_for_team(BattleUnitState.TEAM_PLAYER).is_empty():
 		_end_battle("lost")
 		return
 
-	var direction: Vector2i = _direction_toward(unit.character.grid_position, target.character.grid_position)
-	unit.character.face_direction(direction)
-
-	if _try_enemy_survival_skill(unit):
+	var decision: Dictionary = BattleAiPlannerScript.plan(unit, active_state)
+	if decision.is_empty():
+		wait_current_unit()
 		return
 
-	var skill_choice: Dictionary = _choose_enemy_offensive_skill(unit)
-	if not skill_choice.is_empty():
-		_execute_skill_for_unit(unit, str(skill_choice.get("skill_id", "")), skill_choice.get("target_cell", unit.character.grid_position) as Vector2i)
+	var decision_result: ActionResult = ActionResult.succeeded("BattleAiDecision", unit.character_id, {
+		"battle_id": active_state.battle_id,
+		"profile_id": str(decision.get("profile_id", "balanced")),
+		"candidate_count": int(decision.get("candidate_count", 0)),
+	})
+	active_state.record_ai_decision(decision, decision_result)
+	_publish_result(decision_result)
+
+	var chosen: Dictionary = decision.get("chosen", {}) as Dictionary
+	var action_type: String = str(chosen.get("action_type", "wait"))
+	if action_type == "wait":
+		wait_current_unit()
 		return
 
-	if unit.action_points >= MOVE_AP_COST:
-		var target_cell: Vector2i = _choose_enemy_step_toward(unit, target)
-		if target_cell != unit.character.grid_position and active_state.grid.can_enter(target_cell):
-			var from_cell: Vector2i = unit.character.grid_position
-			var move_cost: int = active_state.get_battle_cell_move_cost(unit, from_cell, target_cell)
-			if unit.action_points < move_cost:
+	if action_type == "move" or action_type == "move_and_skill":
+		var move_cell: Vector2i = chosen.get("move_cell", unit.character.grid_position) as Vector2i
+		var move_cost: int = int(chosen.get("move_cost", 0))
+		if not _execute_enemy_planned_move(unit, move_cell, move_cost):
+			if active_state != null and active_state.active and unit.is_active():
 				wait_current_unit()
-				return
-			if active_state.grid.move_character(unit.character_id, from_cell, target_cell, unit.character.blocks_movement):
-				unit.spend_action_points(move_cost)
-				unit.character.set_grid_position(target_cell)
-				var result: ActionResult = ActionResult.succeeded("BattleMove", unit.character_id, {
-					"battle_id": active_state.battle_id,
-					"ai": true,
-				})
-				result.add_world_change({
-					"type": "battle_unit_moved",
-					"battle_id": active_state.battle_id,
-					"character_id": unit.character_id,
-					"from": from_cell,
-					"to": target_cell,
-					"cost": move_cost,
-					"remaining_ap": unit.action_points,
-				})
-				active_state.on_unit_enters_cell(unit, target_cell, result)
-				result.add_feedback("%s 向目标靠近。" % unit.display_name)
-				_publish_result(result)
-				await _delay_enemy_followup()
+			return
+		await _delay_enemy_followup()
+		if active_state == null or not active_state.active or not unit.is_active():
+			return
+		if action_type == "move":
+			wait_current_unit()
+			return
 
-	if active_state == null or not active_state.active or not unit.is_active():
-		return
+	var skill_id: String = str(chosen.get("skill_id", ""))
+	var target_cell: Vector2i = chosen.get("target_cell", unit.character.grid_position) as Vector2i
+	var skill_result: ActionResult = _execute_skill_for_unit(unit, skill_id, target_cell)
+	if not skill_result.success and active_state != null and active_state.active and unit.is_active():
+		wait_current_unit()
 
-	skill_choice = _choose_enemy_offensive_skill(unit)
-	if not skill_choice.is_empty():
-		_execute_skill_for_unit(unit, str(skill_choice.get("skill_id", "")), skill_choice.get("target_cell", unit.character.grid_position) as Vector2i)
-		return
 
-	if _try_enemy_survival_skill(unit):
-		return
+func _execute_enemy_planned_move(unit: BattleUnitState, target_cell: Vector2i, planned_cost: int) -> bool:
+	if active_state == null or not active_state.active or active_state.grid == null:
+		return false
+	if unit == null or not unit.is_active():
+		return false
 
-	wait_current_unit()
+	var from_cell: Vector2i = unit.character.grid_position
+	if from_cell == target_cell:
+		return true
+	if not active_state.grid.can_enter(target_cell):
+		return false
+
+	var move_cost: int = max(1, planned_cost)
+	if move_cost > unit.action_points:
+		return false
+	if not active_state.grid.move_character(unit.character_id, from_cell, target_cell, unit.character.blocks_movement):
+		return false
+
+	unit.spend_action_points(move_cost)
+	unit.character.face_direction(_direction_toward(from_cell, target_cell))
+	unit.character.set_grid_position(target_cell)
+	var result: ActionResult = ActionResult.succeeded("BattleMove", unit.character_id, {
+		"battle_id": active_state.battle_id,
+		"ai": true,
+	})
+	result.add_world_change({
+		"type": "battle_unit_moved",
+		"battle_id": active_state.battle_id,
+		"character_id": unit.character_id,
+		"from": from_cell,
+		"to": target_cell,
+		"cost": move_cost,
+		"remaining_ap": unit.action_points,
+		"planned": true,
+	})
+	active_state.on_unit_enters_cell(unit, target_cell, result)
+	result.add_feedback("%s 移动到 %s。" % [unit.display_name, target_cell])
+	_publish_result(result)
+	if not unit.is_active():
+		_schedule_after_unit_action(unit, true, ENEMY_FOLLOWUP_DELAY)
+		return false
+	return true
 
 
 func _delay_enemy_followup(delay: float = ENEMY_FOLLOWUP_DELAY) -> void:
@@ -847,90 +842,6 @@ func _run_presentation_gap(delay: float) -> void:
 		return
 	_presentation_pending = false
 	battle_state_changed.emit()
-
-
-func _try_enemy_survival_skill(unit: BattleUnitState) -> bool:
-	if unit == null or not unit.is_active():
-		return false
-
-	var low_hp: bool = unit.hp <= int(ceil(float(unit.max_hp) * 0.5))
-	if low_hp and unit.skills.has("first_aid"):
-		var heal_cell: Vector2i = unit.character.grid_position
-		if SkillSystem.get_skill_failure(unit, "first_aid", heal_cell, active_state).is_empty():
-			_execute_skill_for_unit(unit, "first_aid", heal_cell)
-			return true
-
-	if low_hp and unit.skills.has("guard") and not unit.has_status_effect("guard"):
-		var guard_cell: Vector2i = unit.character.grid_position
-		if SkillSystem.get_skill_failure(unit, "guard", guard_cell, active_state).is_empty():
-			_execute_skill_for_unit(unit, "guard", guard_cell)
-			return true
-
-	return false
-
-
-func _choose_enemy_offensive_skill(unit: BattleUnitState) -> Dictionary:
-	var best_choice: Dictionary = {}
-	var best_score: int = 0
-	for skill_id in unit.skills:
-		if not SkillSystem.skill_has_effect(str(skill_id), "damage_unit"):
-			continue
-
-		var target_cells: Array[Vector2i] = SkillSystem.get_target_cells(unit, str(skill_id), active_state)
-		for target_cell in target_cells:
-			var failure: String = SkillSystem.get_skill_failure(unit, str(skill_id), target_cell, active_state)
-			if not failure.is_empty():
-				continue
-
-			var score: int = _score_enemy_skill_target(unit, str(skill_id), target_cell)
-			if score > best_score:
-				best_score = score
-				best_choice = {
-					"skill_id": str(skill_id),
-					"target_cell": target_cell,
-					"score": score,
-				}
-
-	return best_choice
-
-
-func _score_enemy_skill_target(unit: BattleUnitState, skill_id: String, target_cell: Vector2i) -> int:
-	var score: int = 0
-	var affected_units: Array[BattleUnitState] = SkillSystem.get_affected_units(unit, skill_id, target_cell, active_state)
-	for affected_unit in affected_units:
-		if affected_unit.team == unit.team:
-			continue
-		score += SkillSystem.estimate_damage(unit, affected_unit, skill_id)
-		if affected_unit.hp <= score:
-			score += 5
-
-	var skill: Dictionary = SkillSystem.get_skill(skill_id)
-	score -= max(0, int(skill.get("ap_cost", 0)) - 1)
-	return score
-
-
-func _choose_enemy_step_toward(unit: BattleUnitState, target: BattleUnitState) -> Vector2i:
-	var directions: Array[Vector2i] = [
-		_direction_toward(unit.character.grid_position, target.character.grid_position),
-		Vector2i.UP,
-		Vector2i.DOWN,
-		Vector2i.LEFT,
-		Vector2i.RIGHT,
-	]
-	var best_cell: Vector2i = unit.character.grid_position
-	var best_distance: int = _manhattan(unit.character.grid_position, target.character.grid_position)
-	for direction in directions:
-		if direction == Vector2i.ZERO:
-			continue
-		var candidate: Vector2i = unit.character.grid_position + direction
-		if not active_state.grid.can_enter(candidate):
-			continue
-		var distance: int = _manhattan(candidate, target.character.grid_position)
-		if distance < best_distance:
-			best_distance = distance
-			best_cell = candidate
-
-	return best_cell
 
 
 func _collect_player_battle_members(location_root: Node, initiator: CharacterEntity, grid: LocationGrid) -> Array[CharacterEntity]:

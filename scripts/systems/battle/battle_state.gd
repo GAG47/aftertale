@@ -2,6 +2,7 @@ class_name BattleState
 extends RefCounted
 
 const MAX_REACTION_HISTORY := 24
+const MAX_AI_DECISION_HISTORY := 24
 const BattleTileUnitEffectSystemScript := preload("res://scripts/systems/battle/battle_tile_unit_effect_system.gd")
 
 var battle_id: String = ""
@@ -10,6 +11,7 @@ var grid: LocationGrid
 var units: Array[BattleUnitState] = []
 var tile_states_by_cell: Dictionary = {}
 var recent_reactions: Array[Dictionary] = []
+var recent_ai_decisions: Array[Dictionary] = []
 var turn_index: int = 0
 var round_number: int = 1
 var active: bool = false
@@ -25,6 +27,7 @@ func configure(new_battle_id: String, battle_location_root: Node, battle_grid: L
 		units.append(unit)
 	tile_states_by_cell.clear()
 	recent_reactions.clear()
+	recent_ai_decisions.clear()
 	_sort_units_by_speed()
 	turn_index = 0
 	round_number = 1
@@ -237,6 +240,33 @@ func get_reaction_summaries() -> Array[Dictionary]:
 	return summaries
 
 
+func record_ai_decision(decision: Dictionary, result: ActionResult = null) -> void:
+	var recorded_decision: Dictionary = decision.duplicate(true)
+	recorded_decision["battle_id"] = battle_id
+	recorded_decision["round"] = round_number
+	recorded_decision["turn_index"] = turn_index
+	recent_ai_decisions.append(recorded_decision)
+	while recent_ai_decisions.size() > MAX_AI_DECISION_HISTORY:
+		recent_ai_decisions.pop_front()
+
+	if result == null:
+		return
+
+	var world_change: Dictionary = recorded_decision.duplicate(true)
+	world_change["type"] = "battle_ai_decision"
+	result.add_world_change(world_change)
+	var summary: String = str(recorded_decision.get("summary", ""))
+	if not summary.is_empty():
+		result.add_feedback(summary)
+
+
+func get_ai_decision_summaries() -> Array[Dictionary]:
+	var summaries: Array[Dictionary] = []
+	for decision in recent_ai_decisions:
+		summaries.append(decision.duplicate(true))
+	return summaries
+
+
 func on_tile_state_created(_tile_state, _result: ActionResult = null) -> void:
 	pass
 
@@ -338,7 +368,7 @@ func get_turn_order_summary(max_count: int = 8) -> Array[Dictionary]:
 
 	var added: int = 0
 	var offset: int = 0
-	while added < max_count and offset < units.size() * 2:
+	while added < max_count and offset < units.size():
 		var index: int = (turn_index + offset) % units.size()
 		var unit: BattleUnitState = units[index]
 		if unit.is_active():
@@ -369,6 +399,7 @@ func get_summary() -> Dictionary:
 		"turn_order": get_turn_order_summary(),
 		"tile_states": get_tile_state_summaries(),
 		"recent_reactions": get_reaction_summaries(),
+		"recent_ai_decisions": get_ai_decision_summaries(),
 		"result_status": result_status,
 	}
 

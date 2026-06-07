@@ -4,12 +4,13 @@ This document tracks planned work after Phase 49. It is an index, not the full d
 
 ## Current Focus
 
-Phase 49 closes the current art stabilization pass. The next major module is battle depth, split into two connected systems:
+Phases 50 through 55 now form the first complete battle-deepening slice:
 
-- battle tile states and elemental reactions;
-- explainable enemy decision scoring.
-
-The implementation order intentionally starts with battlefield state before smarter enemy AI. Enemy decisions can only become meaningfully tactical after the battle rules expose terrain, surface, reaction, and danger information.
+- pipeline-based skill effects and battle resources;
+- temporary tile states and elemental reactions;
+- tile effects on units;
+- explainable enemy decision scoring;
+- a contextual battle UI that exposes those rules without covering the map.
 
 ## Battle Deepening Roadmap
 
@@ -19,7 +20,8 @@ The implementation order intentionally starts with battlefield state before smar
 | v51 | Complete | `doc/phase_51_battle_tile_surface_states.md` | Add battle tile surface state storage, lifetime rules, triggers, and preview summaries. |
 | v52 | Complete | `doc/phase_52_elemental_reactions.md` | Centralize fire, water, ice, and lightning reactions so skills apply elements instead of hard-coding reactions. |
 | v53 | Complete | `doc/phase_53_status_effects_on_units.md` | Let tile states and reactions affect units at clear battle timing points. |
-| v54 | Planned | `doc/phase_54_enemy_ai_scoring.md` | Replace the simple enemy priority chain with a debuggable action scoring model. |
+| v54 | Complete | `doc/phase_54_enemy_ai_scoring.md` | Replace the simple enemy priority chain with a debuggable action scoring model. |
+| v55 | Complete | `doc/phase_55_battle_ui_information_architecture.md` | Reorganize battle UI around a portrait turn rail, compact lower-corner docks, map-rendered tile states, and an AI debug drawer. |
 
 ## Dependency Order
 
@@ -29,6 +31,7 @@ v50 skill effect data model
 -> v52 elemental reactions
 -> v53 status effects on units
 -> v54 enemy AI scoring
+-> v55 battle UI information architecture
 ```
 
 ## Minimum Tactical Slice

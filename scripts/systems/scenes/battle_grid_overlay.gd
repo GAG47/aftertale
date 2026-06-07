@@ -73,7 +73,7 @@ func _draw() -> void:
 		return
 
 	for tile_state in tile_states:
-		_draw_tile_state(tile_state)
+		_draw_tile_state_surface(tile_state)
 
 	for cell in move_cells:
 		_draw_cell(cell, Color(0.2, 0.65, 1.0, 0.28), Color(0.45, 0.85, 1.0, 0.7))
@@ -91,6 +91,9 @@ func _draw() -> void:
 	elif hover_kind == "move":
 		_draw_cell(hover_cell, Color(0.15, 0.9, 1.0, 0.38), Color(0.65, 1.0, 1.0, 0.95), 3.0)
 
+	for tile_state in tile_states:
+		_draw_tile_state_icon(tile_state)
+
 
 func _draw_cell(cell: Vector2i, fill_color: Color, outline_color: Color, outline_width: float = 2.0) -> void:
 	if grid == null or not grid.in_bounds(cell):
@@ -106,11 +109,49 @@ func _draw_cell(cell: Vector2i, fill_color: Color, outline_color: Color, outline
 	draw_rect(rect, outline_color, false, outline_width)
 
 
-func _draw_tile_state(tile_state: Dictionary) -> void:
+func _draw_tile_state_surface(tile_state: Dictionary) -> void:
 	var cell: Vector2i = tile_state.get("cell", Vector2i.ZERO) as Vector2i
 	var state_id: String = str(tile_state.get("state_id", tile_state.get("id", "")))
 	var color: Color = _tile_state_color(state_id)
-	_draw_cell(cell, Color(color.r, color.g, color.b, 0.30), Color(color.r, color.g, color.b, 0.75), 1.5)
+	_draw_cell(cell, Color(color.r, color.g, color.b, 0.12), Color(color.r, color.g, color.b, 0.48), 1.2)
+
+
+func _draw_tile_state_icon(tile_state: Dictionary) -> void:
+	var cell: Vector2i = tile_state.get("cell", Vector2i.ZERO) as Vector2i
+	if grid == null or not grid.in_bounds(cell):
+		return
+
+	var state_id: String = str(tile_state.get("state_id", tile_state.get("id", "")))
+	var color: Color = _tile_state_color(state_id)
+	var cell_origin := Vector2(cell.x * grid.tile_size, cell.y * grid.tile_size)
+	var icon_center := cell_origin + Vector2(float(grid.tile_size) - 8.0, 8.0)
+	draw_circle(icon_center, 7.0, Color(0.035, 0.04, 0.045, 0.92))
+	draw_circle(icon_center, 6.0, color)
+
+	var font: Font = ThemeDB.fallback_font
+	var symbol: String = _tile_state_symbol(state_id)
+	draw_string(
+		font,
+		icon_center + Vector2(-4.5, 3.5),
+		symbol,
+		HORIZONTAL_ALIGNMENT_LEFT,
+		9.0,
+		9,
+		Color(0.04, 0.045, 0.05, 1.0)
+	)
+
+	var rounds: int = int(tile_state.get("remaining_rounds", 0))
+	var round_text: String = str(rounds)
+	var round_position := cell_origin + Vector2(float(grid.tile_size) - 11.0, float(grid.tile_size) - 3.0)
+	draw_string(
+		font,
+		round_position,
+		round_text,
+		HORIZONTAL_ALIGNMENT_LEFT,
+		10.0,
+		10,
+		Color.WHITE
+	)
 
 
 func _tile_state_color(state_id: String) -> Color:
@@ -125,6 +166,20 @@ func _tile_state_color(state_id: String) -> Color:
 			return Color(1.0, 0.90, 0.18)
 		_:
 			return Color(0.80, 0.72, 0.95)
+
+
+func _tile_state_symbol(state_id: String) -> String:
+	match state_id:
+		"burning":
+			return "火"
+		"wet":
+			return "湿"
+		"frozen":
+			return "冰"
+		"electrified":
+			return "电"
+		_:
+			return "态"
 
 
 func _same_cells(left: Array[Vector2i], right: Array[Vector2i]) -> bool:

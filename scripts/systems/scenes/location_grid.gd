@@ -155,7 +155,12 @@ func has_line_of_sight(from_cell: Vector2i, to_cell: Vector2i) -> bool:
 	return true
 
 
-func has_clear_skill_path(from_cell: Vector2i, to_cell: Vector2i, block_units: bool = true) -> bool:
+func has_clear_skill_path(
+	from_cell: Vector2i,
+	to_cell: Vector2i,
+	block_units: bool = true,
+	ignored_character_id: String = ""
+) -> bool:
 	if not in_bounds(from_cell) or not in_bounds(to_cell):
 		return false
 	if from_cell == to_cell:
@@ -181,6 +186,8 @@ func has_clear_skill_path(from_cell: Vector2i, to_cell: Vector2i, block_units: b
 		if occupant_id.begins_with("object:"):
 			return false
 		if block_units and occupant_id.begins_with("character:"):
+			if not ignored_character_id.is_empty() and occupant_id == "character:%s" % ignored_character_id:
+				continue
 			return false
 
 	return true

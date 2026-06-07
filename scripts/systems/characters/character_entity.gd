@@ -13,12 +13,14 @@ const FACING_UP := "up"
 const FACING_DOWN := "down"
 const FACING_LEFT := "left"
 const FACING_RIGHT := "right"
+const MAX_EQUIPPED_SKILLS := 4
 const CharacterAppearanceRendererScript := preload("res://scripts/systems/characters/character_appearance_renderer.gd")
 const CharacterAppearanceResolverScript := preload("res://scripts/systems/characters/character_appearance_resolver.gd")
 
 @export var character_id: String = ""
 @export var display_name: String = ""
 @export var character_kind: String = KIND_NPC
+@export var ai_profile_id: String = "balanced"
 @export var grid_position: Vector2i = Vector2i.ZERO
 @export var facing: String = FACING_DOWN
 @export var faction_id: String = "none"
@@ -70,6 +72,7 @@ func configure(definition: Dictionary, spawn_data: Dictionary, parent_location: 
 	display_name = str(spawn_data.get("display_name", definition.get("display_name", character_id)))
 	definition_source = str(spawn_data.get("source", definition.get("source", definition_source)))
 	character_kind = str(spawn_data.get("character_kind", definition.get("character_kind", character_kind)))
+	ai_profile_id = str(spawn_data.get("ai_profile", definition.get("ai_profile", ai_profile_id)))
 	facing = str(spawn_data.get("facing", definition.get("facing", facing)))
 	faction_id = str(spawn_data.get("faction_id", definition.get("faction_id", faction_id)))
 	is_player_controlled = bool(spawn_data.get("is_player_controlled", definition.get("is_player_controlled", is_player_controlled)))
@@ -111,13 +114,14 @@ func configure(definition: Dictionary, spawn_data: Dictionary, parent_location: 
 
 	skills.clear()
 	var skill_rows: Array = spawn_data.get("skills", definition.get("skills", ["basic_attack"])) as Array
+	skills.append("basic_attack")
 	for skill_value in skill_rows:
+		if skills.size() >= MAX_EQUIPPED_SKILLS:
+			break
 		var skill_id: String = str(skill_value)
-		if skill_id.is_empty():
+		if skill_id.is_empty() or skill_id == "basic_attack" or skills.has(skill_id):
 			continue
 		skills.append(skill_id)
-	if skills.is_empty():
-		skills.append("basic_attack")
 
 	schedule.clear()
 	var schedule_rows: Array = spawn_data.get("schedule", definition.get("schedule", [])) as Array
@@ -318,6 +322,7 @@ func get_summary() -> Dictionary:
 		"id": character_id,
 		"display_name": display_name,
 		"kind": character_kind,
+		"ai_profile": ai_profile_id,
 		"grid_position": grid_position,
 		"facing": facing,
 		"faction_id": faction_id,

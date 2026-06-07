@@ -31,8 +31,6 @@ var grid: LocationGrid
 var crops_root: Node2D
 var battle_overlay: BattleGridOverlay
 var battle_feedback_root: Node2D
-var battle_target_info_panel: PanelContainer
-var battle_target_info_label: Label
 var interaction_overlay: InteractionTargetOverlay
 var current_grid_position: Vector2i = Vector2i.ZERO
 var controlled_character: CharacterEntity
@@ -58,7 +56,6 @@ func _ready() -> void:
 	_spawn_objects_from_data()
 	_setup_battle_overlay()
 	_setup_battle_feedback_root()
-	_setup_battle_target_info_panel()
 	_setup_interaction_overlay()
 	_setup_crops_root()
 	refresh_crop_markers()
@@ -688,41 +685,6 @@ func _setup_battle_feedback_root() -> void:
 	battle_feedback_root.name = "BattleFeedback"
 	add_child(battle_feedback_root)
 	move_child(battle_feedback_root, characters_root.get_index() + 1)
-
-
-func _setup_battle_target_info_panel() -> void:
-	battle_target_info_panel = PanelContainer.new()
-	battle_target_info_panel.name = "BattleTargetInfo"
-	battle_target_info_panel.visible = false
-	battle_target_info_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	battle_target_info_panel.custom_minimum_size = Vector2(156.0, 0.0)
-	var style: StyleBoxFlat = StyleBoxFlat.new()
-	style.bg_color = Color(0.05, 0.07, 0.06, 0.88)
-	style.border_color = Color(0.72, 0.78, 0.68, 0.55)
-	style.border_width_left = 1
-	style.border_width_top = 1
-	style.border_width_right = 1
-	style.border_width_bottom = 1
-	style.corner_radius_top_left = 6
-	style.corner_radius_top_right = 6
-	style.corner_radius_bottom_left = 6
-	style.corner_radius_bottom_right = 6
-	battle_target_info_panel.add_theme_stylebox_override("panel", style)
-
-	var margin: MarginContainer = MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 8)
-	margin.add_theme_constant_override("margin_top", 6)
-	margin.add_theme_constant_override("margin_right", 8)
-	margin.add_theme_constant_override("margin_bottom", 6)
-	battle_target_info_panel.add_child(margin)
-
-	battle_target_info_label = Label.new()
-	battle_target_info_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	battle_target_info_label.add_theme_font_size_override("font_size", 13)
-	battle_target_info_label.add_theme_color_override("font_color", Color(0.94, 0.94, 0.9, 1.0))
-	margin.add_child(battle_target_info_label)
-	add_child(battle_target_info_panel)
-	move_child(battle_target_info_panel, characters_root.get_index() + 2)
 
 
 func _setup_interaction_overlay() -> void:
@@ -1546,11 +1508,9 @@ func try_flee_battle() -> bool:
 func _unhandled_input(event: InputEvent) -> void:
 	if GameState.current_mode != GameState.GameMode.COMBAT:
 		_update_battle_hover(Vector2i(-9999, -9999), "", [])
-		_hide_battle_target_info()
 		return
 	if grid == null or not BattleSystem.is_player_turn():
 		_update_battle_hover(Vector2i(-9999, -9999), "", [])
-		_hide_battle_target_info()
 		return
 	if event is InputEventMouseMotion:
 		_update_battle_hover_from_mouse()
@@ -1566,7 +1526,6 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 			BattleSystem.cancel_skill_targeting_to_skill_menu()
 			_update_battle_hover(Vector2i(-9999, -9999), "", [])
-			_hide_battle_target_info()
 			_refresh_battle_overlay()
 		return
 	if mouse_event.button_index != MOUSE_BUTTON_LEFT:
@@ -1601,7 +1560,6 @@ func _submit_battle_click(clicked_cell: Vector2i) -> void:
 		ActionSystem.publish_result(ActionResult.failed("BattleSelect", GameState.player_id, "请选择技能范围内的目标格。"))
 		return
 
-	_update_battle_target_info(clicked_cell)
 	ActionSystem.publish_result(ActionResult.failed("BattleSelect", GameState.player_id, "请先选择移动或技能。"))
 	return
 
@@ -1612,11 +1570,9 @@ func _update_battle_hover_from_mouse() -> void:
 	var hover_grid_cell: Vector2i = _mouse_to_grid_cell()
 	if not grid.in_bounds(hover_grid_cell):
 		_update_battle_hover(Vector2i(-9999, -9999), "", [])
-		_hide_battle_target_info()
 		return
 
 	var preview: Dictionary = BattleSystem.get_player_tactical_preview()
-	_update_battle_target_info(hover_grid_cell)
 	var tactical_mode: String = str(preview.get("tactical_mode", "command"))
 	if tactical_mode == BattleSystem.TACTICAL_MODE_SKILL:
 		var mode_attack_cells: Array = preview.get("attack_cells", []) as Array
@@ -1641,76 +1597,12 @@ func _update_battle_hover(cell: Vector2i, kind: String, area_cells: Array = []) 
 	battle_overlay.set_hover_cell(cell, kind, area_cells)
 
 
-func _update_battle_target_info(cell: Vector2i) -> void:
-	if battle_target_info_panel == null or not is_instance_valid(battle_target_info_panel):
-		return
-	if grid == null or not grid.in_bounds(cell) or not BattleSystem.is_active():
-		_hide_battle_target_info()
-		return
-
-	var summary: Dictionary = BattleSystem.get_target_preview_summary(cell)
-	var text: String = _build_battle_target_info_text(summary)
-	if text.is_empty():
-		_hide_battle_target_info()
-		return
-
-	battle_target_info_label.text = text
-	battle_target_info_panel.position = grid.grid_to_world(cell) + Vector2(18.0, -52.0)
-	battle_target_info_panel.visible = true
-
-
-func _hide_battle_target_info() -> void:
-	if battle_target_info_panel != null and is_instance_valid(battle_target_info_panel):
-		battle_target_info_panel.visible = false
-
-
-func _build_battle_target_info_text(summary: Dictionary) -> String:
-	if summary.is_empty():
-		return ""
-
-	var unit_summary: Dictionary = summary.get("unit", {}) as Dictionary
-	if unit_summary.is_empty():
-		return ""
-
-	var lines: PackedStringArray = PackedStringArray()
-	var team_label: String = "敌方" if str(unit_summary.get("team", "")) == BattleUnitState.TEAM_ENEMY else "我方"
-	lines.append("%s  %s" % [str(unit_summary.get("display_name", unit_summary.get("character_id", ""))), team_label])
-	lines.append("HP %d/%d  MP %d/%d  AP %d/%d" % [
-		int(unit_summary.get("hp", 0)),
-		int(unit_summary.get("max_hp", 0)),
-		int(unit_summary.get("mp", 0)),
-		int(unit_summary.get("max_mp", 0)),
-		int(unit_summary.get("action_points", 0)),
-		int(unit_summary.get("max_action_points", 0)),
-	])
-	var status_text: String = str(unit_summary.get("status_text", ""))
-	if not status_text.is_empty():
-		lines.append("状态：%s" % status_text)
-
-	var tactical_mode: String = str(summary.get("tactical_mode", "command"))
-	if tactical_mode == BattleSystem.TACTICAL_MODE_SKILL:
-		var skill_name: String = str(summary.get("skill_display_name", summary.get("selected_skill_id", "")))
-		lines.append("技能：%s" % skill_name)
-		var estimated_damage: int = int(summary.get("estimated_damage", 0))
-		var estimated_heal: int = int(summary.get("estimated_heal", 0))
-		if estimated_damage > 0:
-			lines.append("预计伤害：%d" % estimated_damage)
-		if estimated_heal > 0:
-			lines.append("预计治疗：%d" % estimated_heal)
-		var failure_reason: String = str(summary.get("failure_reason", ""))
-		if not failure_reason.is_empty():
-			lines.append("不可用：%s" % failure_reason)
-
-	return "\n".join(lines)
-
-
 func _refresh_battle_overlay() -> void:
 	if battle_overlay == null or not is_instance_valid(battle_overlay):
 		return
 
 	if not BattleSystem.is_active():
 		battle_overlay.clear_preview()
-		_hide_battle_target_info()
 		_clear_battle_character_presentations()
 		_refresh_interaction_overlay()
 		return

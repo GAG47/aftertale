@@ -8,6 +8,7 @@ var character: CharacterEntity
 var character_id: String = ""
 var display_name: String = ""
 var team: String = TEAM_ENEMY
+var ai_profile_id: String = "balanced"
 var speed: int = 1
 var max_hp: int = 1
 var hp: int = 1
@@ -28,6 +29,7 @@ static func from_character(source_character: CharacterEntity, team_id: String) -
 	unit.character_id = source_character.character_id
 	unit.display_name = source_character.display_name
 	unit.team = team_id
+	unit.ai_profile_id = source_character.ai_profile_id
 	unit.speed = unit._read_speed(source_character)
 	var effective_attributes: Dictionary = source_character.get_effective_attributes()
 	unit.max_hp = max(1, int(effective_attributes.get("max_hp", int(effective_attributes.get("vitality", 1)) * 4)))
@@ -157,11 +159,16 @@ func remove_status_effect(status_id: String) -> bool:
 
 func get_summary() -> Dictionary:
 	var has_character: bool = _has_character()
+	var effective_attributes: Dictionary = character.get_effective_attributes() if has_character else {}
 	return {
 		"character_id": character_id,
 		"display_name": display_name,
 		"team": team,
+		"ai_profile": ai_profile_id,
 		"speed": speed,
+		"level": max(1, int(effective_attributes.get("level", 1))),
+		"attack": max(0, int(effective_attributes.get("strength", 0))),
+		"defense": max(0, int(effective_attributes.get("vitality", 0))) + get_defense_bonus(),
 		"hp": hp,
 		"max_hp": max_hp,
 		"mp": magic_points,
@@ -172,6 +179,7 @@ func get_summary() -> Dictionary:
 		"fled": fled,
 		"grid_position": character.grid_position if has_character else Vector2i.ZERO,
 		"facing": character.facing if has_character else "",
+		"appearance": character.appearance.duplicate(true) if has_character else {},
 		"skills": skills,
 		"status_effects": status_effects.duplicate(true),
 		"skill_cooldowns": skill_cooldowns.duplicate(true),
