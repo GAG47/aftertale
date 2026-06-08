@@ -1,0 +1,69 @@
+[gd_scene format=3]
+
+[node name="CraftingView" type="VBoxContainer"]
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Filters" type="HBoxContainer" parent="."]
+layout_mode = 2
+
+[node name="AllButton" type="Button" parent="Filters"]
+custom_minimum_size = Vector2(96, 30)
+layout_mode = 2
+toggle_mode = true
+text = "全部"
+
+[node name="CanCraftButton" type="Button" parent="Filters"]
+custom_minimum_size = Vector2(96, 30)
+layout_mode = 2
+toggle_mode = true
+text = "可制作"
+
+[node name="ToolsButton" type="Button" parent="Filters"]
+custom_minimum_size = Vector2(96, 30)
+layout_mode = 2
+toggle_mode = true
+text = "工具"
+
+[node name="FoodButton" type="Button" parent="Filters"]
+custom_minimum_size = Vector2(96, 30)
+layout_mode = 2
+toggle_mode = true
+text = "食物"
+
+[node name="Body" type="HBoxContainer" parent="."]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ListPanel" type="PanelContainer" parent="Body"]
+custom_minimum_size = Vector2(360, 0)
+layout_mode = 2
+
+[node name="Margin" type="MarginContainer" parent="Body/ListPanel"]
+layout_mode = 2
+
+[node name="Box" type="VBoxContainer" parent="Body/ListPanel/Margin"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="Body/ListPanel/Margin/Box"]
+layout_mode = 2
+text = "配方列表"
+
+[node name="Scroll" type="ScrollContainer" parent="Body/ListPanel/Margin/Box"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="RecipeList" type="VBoxContainer" parent="Body/ListPanel/Margin/Box/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="DetailPanel" type="PanelContainer" parent="Body"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="Margin" type="MarginContainer" parent="Body/DetailPanel"]
+layout_mode = 2
+
+[node name="DetailBox" type="VBoxContainer" parent="Body/DetailPanel/Margin"]
+layout_mode = 2
+

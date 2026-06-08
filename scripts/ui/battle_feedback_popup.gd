@@ -1,9 +1,11 @@
 class_name BattleFeedbackPopup
 extends Node2D
 
+const UI_LABEL_SCENE := preload("res://scenes/ui/components/ui_label.tscn")
+
 
 func configure(text: String, color: Color) -> void:
-	var label: Label = Label.new()
+	var label: Label = UI_LABEL_SCENE.instantiate() as Label
 	label.custom_minimum_size = Vector2(80.0, 22.0)
 	label.position = Vector2(-40.0, -34.0)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

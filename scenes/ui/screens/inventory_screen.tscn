@@ -1,0 +1,204 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/inventory_panel.gd" id="1"]
+
+[node name="InventoryPanel" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+script = ExtResource("1")
+
+[node name="InventoryWindow" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -440.0
+offset_top = -280.0
+offset_right = 440.0
+offset_bottom = 280.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Margin" type="MarginContainer" parent="InventoryWindow"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+
+[node name="Root" type="VBoxContainer" parent="InventoryWindow/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Header" type="HBoxContainer" parent="InventoryWindow/Margin/Root"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Title" type="Label" parent="InventoryWindow/Margin/Root/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 22
+text = "背包"
+
+[node name="GoldLabel" type="Label" parent="InventoryWindow/Margin/Root/Header"]
+layout_mode = 2
+text = "金币 0"
+
+[node name="CloseButton" type="Button" parent="InventoryWindow/Margin/Root/Header"]
+custom_minimum_size = Vector2(86, 34)
+layout_mode = 2
+text = "关闭"
+
+[node name="FilterRow" type="HBoxContainer" parent="InventoryWindow/Margin/Root"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="AllButton" type="Button" parent="InventoryWindow/Margin/Root/FilterRow"]
+custom_minimum_size = Vector2(72, 32)
+layout_mode = 2
+toggle_mode = true
+text = "全部"
+
+[node name="EquipmentButton" type="Button" parent="InventoryWindow/Margin/Root/FilterRow"]
+custom_minimum_size = Vector2(72, 32)
+layout_mode = 2
+toggle_mode = true
+text = "装备"
+
+[node name="FoodButton" type="Button" parent="InventoryWindow/Margin/Root/FilterRow"]
+custom_minimum_size = Vector2(72, 32)
+layout_mode = 2
+toggle_mode = true
+text = "食物"
+
+[node name="MaterialButton" type="Button" parent="InventoryWindow/Margin/Root/FilterRow"]
+custom_minimum_size = Vector2(72, 32)
+layout_mode = 2
+toggle_mode = true
+text = "材料"
+
+[node name="SeedButton" type="Button" parent="InventoryWindow/Margin/Root/FilterRow"]
+custom_minimum_size = Vector2(72, 32)
+layout_mode = 2
+toggle_mode = true
+text = "种子"
+
+[node name="QuestButton" type="Button" parent="InventoryWindow/Margin/Root/FilterRow"]
+custom_minimum_size = Vector2(72, 32)
+layout_mode = 2
+toggle_mode = true
+text = "任务"
+
+[node name="OtherButton" type="Button" parent="InventoryWindow/Margin/Root/FilterRow"]
+custom_minimum_size = Vector2(72, 32)
+layout_mode = 2
+toggle_mode = true
+text = "其他"
+
+[node name="Spacer" type="Control" parent="InventoryWindow/Margin/Root/FilterRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="SortLabel" type="Label" parent="InventoryWindow/Margin/Root/FilterRow"]
+layout_mode = 2
+text = "整理"
+
+[node name="SortButton" type="OptionButton" parent="InventoryWindow/Margin/Root/FilterRow"]
+custom_minimum_size = Vector2(132, 32)
+layout_mode = 2
+item_count = 4
+popup/item_0/text = "默认顺序"
+popup/item_0/id = 0
+popup/item_1/text = "名称"
+popup/item_1/id = 1
+popup/item_2/text = "数量"
+popup/item_2/id = 2
+popup/item_3/text = "分类"
+popup/item_3/id = 3
+
+[node name="Body" type="HBoxContainer" parent="InventoryWindow/Margin/Root"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 12
+
+[node name="GridPanel" type="PanelContainer" parent="InventoryWindow/Margin/Root/Body"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Margin" type="MarginContainer" parent="InventoryWindow/Margin/Root/Body/GridPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 10
+
+[node name="Scroll" type="ScrollContainer" parent="InventoryWindow/Margin/Root/Body/GridPanel/Margin"]
+layout_mode = 2
+
+[node name="Grid" type="GridContainer" parent="InventoryWindow/Margin/Root/Body/GridPanel/Margin/Scroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 8
+columns = 7
+
+[node name="DetailPanel" type="PanelContainer" parent="InventoryWindow/Margin/Root/Body"]
+custom_minimum_size = Vector2(260, 0)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Margin" type="MarginContainer" parent="InventoryWindow/Margin/Root/Body/DetailPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
+
+[node name="Box" type="VBoxContainer" parent="InventoryWindow/Margin/Root/Body/DetailPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="TargetRow" type="HBoxContainer" parent="InventoryWindow/Margin/Root/Body/DetailPanel/Margin/Box"]
+layout_mode = 2
+
+[node name="TargetLabel" type="Label" parent="InventoryWindow/Margin/Root/Body/DetailPanel/Margin/Box/TargetRow"]
+layout_mode = 2
+text = "对象"
+
+[node name="TargetButton" type="OptionButton" parent="InventoryWindow/Margin/Root/Body/DetailPanel/Margin/Box/TargetRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="DetailTitle" type="Label" parent="InventoryWindow/Margin/Root/Body/DetailPanel/Margin/Box"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "选择一个物品"
+autowrap_mode = 2
+
+[node name="DetailMeta" type="Label" parent="InventoryWindow/Margin/Root/Body/DetailPanel/Margin/Box"]
+layout_mode = 2
+autowrap_mode = 2
+
+[node name="Separator" type="HSeparator" parent="InventoryWindow/Margin/Root/Body/DetailPanel/Margin/Box"]
+layout_mode = 2
+
+[node name="DetailDescription" type="Label" parent="InventoryWindow/Margin/Root/Body/DetailPanel/Margin/Box"]
+custom_minimum_size = Vector2(0, 70)
+layout_mode = 2
+autowrap_mode = 2
+
+[node name="DetailEffects" type="Label" parent="InventoryWindow/Margin/Root/Body/DetailPanel/Margin/Box"]
+layout_mode = 2
+autowrap_mode = 2
+
+[node name="ActionRow" type="HBoxContainer" parent="InventoryWindow/Margin/Root/Body/DetailPanel/Margin/Box"]
+layout_mode = 2
+theme_override_constants/separation = 8

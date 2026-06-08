@@ -84,7 +84,7 @@ func _run() -> void:
 		get_tree().quit(1)
 		return
 	var turn_list: VBoxContainer = battle_hud.get_node(
-		"TurnOrderPanel/TurnOrderMargin/TurnOrderBox/TurnOrderScroll/TurnOrderList"
+		"TurnOrderPanel/Margin/Box/Scroll/List"
 	) as VBoxContainer
 	if turn_list.get_child_count() != 2:
 		push_error("v55 turn order must show exactly one round")

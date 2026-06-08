@@ -5,6 +5,7 @@ const CANVAS_SIZE := Vector2(64.0, 64.0)
 const GRID_ANCHOR := Vector2(32.0, 46.0)
 
 static var _texture_cache: Dictionary = {}
+static var _map_sprite_texture_cache: Dictionary = {}
 
 
 static func draw_character(canvas: CanvasItem, context: Dictionary) -> void:
@@ -16,8 +17,11 @@ static func draw_character(canvas: CanvasItem, context: Dictionary) -> void:
 		_draw_training_dummy(canvas)
 		return
 
-	if str(appearance.get("display_mode", "modular")) == "badge":
-		_draw_badge_mode(canvas, appearance)
+	var display_mode: String = str(appearance.get("display_mode", "modular"))
+	if display_mode == "map_sprite":
+		if _draw_map_sprite(canvas, appearance):
+			return
+		_draw_map_sprite_placeholder(canvas)
 		return
 
 	_draw_texture_layer(canvas, appearance, "body")
@@ -29,34 +33,45 @@ static func draw_character(canvas: CanvasItem, context: Dictionary) -> void:
 	_draw_texture_layer(canvas, appearance, "held_item")
 
 
-static func _draw_shadow(canvas: CanvasItem) -> void:
-	_draw_ellipse(canvas, Vector2(0.0, 8.8), Vector2(24.0, 6.5), Color(0.0, 0.0, 0.0, 0.20))
-
-
-static func _draw_badge_mode(canvas: CanvasItem, appearance: Dictionary) -> bool:
-	var source: String = str(appearance.get("badge_source", ""))
-	if source.is_empty():
-		var portrait: Dictionary = _dictionary(appearance.get("portrait", {}))
-		source = str(portrait.get("badge", ""))
+static func _draw_map_sprite(canvas: CanvasItem, appearance: Dictionary) -> bool:
+	var map_sprite: Dictionary = _dictionary(appearance.get("map_sprite", {}))
+	var source: String = str(map_sprite.get("source", ""))
 	if source.is_empty():
 		return false
 
-	var texture: Texture2D = _load_layer_texture(source)
+	var texture: Texture2D = _load_map_sprite_texture(source)
 	if texture == null:
 		return false
 
-	var offset_data: Dictionary = _dictionary(appearance.get("badge_offset", {}))
-	var center := Vector2(float(offset_data.get("x", 0.0)), float(offset_data.get("y", 0.0)))
-	var size_value: float = float(appearance.get("badge_size", 28.0))
-	var size := Vector2(size_value, size_value)
-	var rect := Rect2(center - size * 0.5, size)
-	canvas.draw_texture_rect(texture, rect, false)
-
-	var ring_color: Color = _color_from_value(appearance.get("badge_ring", "#3b2e22"), Color(0.23, 0.18, 0.13))
-	var highlight_color: Color = _color_from_value(appearance.get("badge_highlight", "#f2d999"), Color(0.95, 0.82, 0.52))
-	canvas.draw_arc(center, size_value * 0.5 + 0.2, 0.0, TAU, 64, ring_color, 1.8)
-	canvas.draw_arc(center, size_value * 0.5 - 1.8, -PI * 0.85, -PI * 0.15, 24, highlight_color, 1.2)
+	var scale_value: float = maxf(0.001, float(map_sprite.get("scale", 0.034)))
+	var size: Vector2 = texture.get_size() * scale_value
+	var offset_data: Dictionary = _dictionary(map_sprite.get("offset", {}))
+	var offset := Vector2(
+		float(offset_data.get("x", 0.0)),
+		float(offset_data.get("y", 0.0))
+	)
+	var anchor_data: Dictionary = _dictionary(map_sprite.get("anchor", {}))
+	var anchor_ratio := Vector2(
+		float(anchor_data.get("x", 0.5)),
+		float(anchor_data.get("y", 0.94))
+	)
+	var anchor: Vector2 = size * anchor_ratio
+	var modulate: Color = _color_from_value(map_sprite.get("modulate", "#ffffffff"), Color.WHITE)
+	canvas.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	canvas.draw_texture_rect(texture, Rect2(offset - anchor, size), false, modulate)
 	return true
+
+
+static func _draw_map_sprite_placeholder(canvas: CanvasItem) -> void:
+	canvas.draw_circle(Vector2(0.0, -10.0), 7.5, Color(0.55, 0.58, 0.62, 0.95))
+	canvas.draw_rect(Rect2(Vector2(-6.5, -3.5), Vector2(13.0, 18.0)), Color(0.40, 0.43, 0.48, 0.92), true)
+	canvas.draw_line(Vector2(-10.0, 2.0), Vector2(10.0, 2.0), Color(0.27, 0.29, 0.33, 0.95), 3.0)
+	canvas.draw_line(Vector2(-4.5, 14.0), Vector2(-7.0, 22.0), Color(0.27, 0.29, 0.33, 0.95), 3.0)
+	canvas.draw_line(Vector2(4.5, 14.0), Vector2(7.0, 22.0), Color(0.27, 0.29, 0.33, 0.95), 3.0)
+
+
+static func _draw_shadow(canvas: CanvasItem) -> void:
+	_draw_ellipse(canvas, Vector2(0.0, 8.8), Vector2(24.0, 6.5), Color(0.0, 0.0, 0.0, 0.20))
 
 
 static func _draw_training_dummy(canvas: CanvasItem) -> void:
@@ -117,6 +132,24 @@ static func _load_layer_texture(source: String) -> Texture2D:
 	var imported_texture: Texture2D = load(source) as Texture2D
 	_texture_cache[source] = imported_texture
 	return imported_texture
+
+
+static func _load_map_sprite_texture(source: String) -> Texture2D:
+	if _map_sprite_texture_cache.has(source):
+		return _map_sprite_texture_cache.get(source, null) as Texture2D
+	var source_texture: Texture2D = _load_layer_texture(source)
+	if source_texture == null:
+		_map_sprite_texture_cache[source] = null
+		return null
+	var image: Image = source_texture.get_image()
+	if image == null or image.is_empty():
+		_map_sprite_texture_cache[source] = source_texture
+		return source_texture
+	if not image.has_mipmaps():
+		image.generate_mipmaps()
+	var texture := ImageTexture.create_from_image(image)
+	_map_sprite_texture_cache[source] = texture
+	return texture
 
 
 static func _texture_layer_data(appearance: Dictionary, layer_id: String) -> Dictionary:

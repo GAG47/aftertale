@@ -9,7 +9,7 @@ static var _parts_by_layer: Dictionary = {}
 
 static func resolve(character_id: String, character_kind: String, profile: Dictionary, base_appearance: Dictionary) -> Dictionary:
 	var appearance: Dictionary = _dictionary(base_appearance).duplicate(true)
-	if str(appearance.get("display_mode", "modular")) == "badge":
+	if str(appearance.get("display_mode", "modular")) != "modular":
 		return appearance
 	if not _should_auto_resolve(character_kind, profile, appearance):
 		return appearance

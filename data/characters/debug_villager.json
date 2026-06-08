@@ -27,16 +27,18 @@
     "neatness": "medium"
   },
   "appearance": {
-    "display_mode": "badge",
+    "display_mode": "map_sprite",
     "portrait_id": "npc_merchant_001",
     "portrait": {
       "full": "res://assets/art/characters/portraits/full/npc_merchant_001.png",
-      "badge": "res://assets/art/characters/portraits/badges/npc_merchant_001_badge.png"
+      "avatar": "res://assets/art/characters/portraits/avatars/npc_merchant_001_avatar.png"
     },
-    "badge_source": "res://assets/art/characters/portraits/badges/npc_merchant_001_badge.png",
-    "badge_ring": "#8a5f2e",
-    "badge_highlight": "#f2d392",
-    "badge_size": 28,
+    "map_sprite": {
+      "source": "res://assets/art/characters/map_sprites/npc_merchant_001.png",
+      "scale": 0.034,
+      "anchor": { "x": 0.5, "y": 0.94 },
+      "offset": { "x": 0, "y": 5 }
+    },
     "palette": {
       "hair": "#74502e",
       "outfit": "#6a9a64",

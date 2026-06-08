@@ -1,85 +1,85 @@
 {
   "default_profile": "balanced",
   "profiles": {
-    "balanced": {
-      "preferred_range": 1,
-      "weights": {
-        "damage": 1.0,
-        "kill": 1.0,
-        "control": 1.0,
-        "survival": 1.0,
-        "tile": 1.0,
-        "position": 1.0,
-        "target": 1.0,
-        "risk": 1.0,
-        "resource": 1.0,
-        "support": 1.0,
-        "reaction": 1.0
-      }
-    },
-    "aggressive": {
-      "preferred_range": 1,
-      "weights": {
-        "damage": 1.4,
-        "kill": 1.5,
-        "control": 0.9,
-        "survival": 0.7,
-        "tile": 0.9,
-        "position": 1.1,
-        "target": 1.2,
-        "risk": 0.8,
-        "resource": 0.8,
-        "support": 0.6,
-        "reaction": 1.0
-      }
-    },
-    "defensive": {
-      "preferred_range": 2,
-      "weights": {
-        "damage": 0.8,
-        "kill": 1.1,
-        "control": 1.0,
-        "survival": 1.5,
-        "tile": 1.1,
-        "position": 1.2,
-        "target": 0.9,
-        "risk": 1.4,
-        "resource": 1.1,
-        "support": 1.2,
-        "reaction": 1.0
-      }
-    },
-    "controller": {
-      "preferred_range": 3,
-      "weights": {
-        "damage": 0.9,
-        "kill": 1.0,
-        "control": 1.5,
-        "survival": 1.0,
-        "tile": 1.6,
-        "position": 1.1,
-        "target": 1.0,
-        "risk": 1.0,
-        "resource": 1.0,
-        "support": 0.8,
-        "reaction": 1.6
-      }
-    },
-    "support": {
-      "preferred_range": 3,
-      "weights": {
-        "damage": 0.6,
-        "kill": 0.8,
-        "control": 1.1,
-        "survival": 1.2,
-        "tile": 1.0,
-        "position": 1.0,
-        "target": 0.8,
-        "risk": 1.2,
-        "resource": 1.0,
-        "support": 1.7,
-        "reaction": 1.1
-      }
-    }
+	"balanced": {
+	  "preferred_range": 1,
+	  "weights": {
+		"damage": 1.0,
+		"kill": 1.0,
+		"control": 1.0,
+		"survival": 1.0,
+		"tile": 1.0,
+		"position": 1.0,
+		"target": 1.0,
+		"risk": 1.0,
+		"resource": 1.0,
+		"support": 1.0,
+		"reaction": 1.0
+	  }
+	},
+	"aggressive": {
+	  "preferred_range": 1,
+	  "weights": {
+		"damage": 1.4,
+		"kill": 1.5,
+		"control": 0.9,
+		"survival": 0.7,
+		"tile": 0.9,
+		"position": 1.1,
+		"target": 1.2,
+		"risk": 0.8,
+		"resource": 0.8,
+		"support": 0.6,
+		"reaction": 1.0
+	  }
+	},
+	"defensive": {
+	  "preferred_range": 2,
+	  "weights": {
+		"damage": 0.8,
+		"kill": 1.1,
+		"control": 1.0,
+		"survival": 1.5,
+		"tile": 1.1,
+		"position": 1.2,
+		"target": 0.9,
+		"risk": 1.4,
+		"resource": 1.1,
+		"support": 1.2,
+		"reaction": 1.0
+	  }
+	},
+	"controller": {
+	  "preferred_range": 3,
+	  "weights": {
+		"damage": 0.9,
+		"kill": 1.0,
+		"control": 1.5,
+		"survival": 1.0,
+		"tile": 1.6,
+		"position": 1.1,
+		"target": 1.0,
+		"risk": 1.0,
+		"resource": 1.0,
+		"support": 0.8,
+		"reaction": 1.6
+	  }
+	},
+	"support": {
+	  "preferred_range": 3,
+	  "weights": {
+		"damage": 0.6,
+		"kill": 0.8,
+		"control": 1.1,
+		"survival": 1.2,
+		"tile": 1.0,
+		"position": 1.0,
+		"target": 0.8,
+		"risk": 1.2,
+		"resource": 1.0,
+		"support": 1.7,
+		"reaction": 1.1
+	  }
+	}
   }
 }

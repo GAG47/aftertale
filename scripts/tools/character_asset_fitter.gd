@@ -19,27 +19,58 @@ var _selected_row: Dictionary = {}
 var _current_standardized: Image
 var _syncing_controls := false
 
-var _preview_rect: TextureRect
-var _part_filter: OptionButton
-var _search_box: LineEdit
-var _asset_list: ItemList
-var _details: TextEdit
-var _offset_x_slider: HSlider
-var _offset_x_spin: SpinBox
-var _offset_y_slider: HSlider
-var _offset_y_spin: SpinBox
-var _scale_slider: HSlider
-var _scale_spin: SpinBox
-var _status_label: Label
+@onready var _preview_rect: TextureRect = $Root/LeftPanel/Preview
+@onready var _part_filter: OptionButton = $Root/RightPanel/FilterRow/PartFilter
+@onready var _search_box: LineEdit = $Root/RightPanel/FilterRow/SearchBox
+@onready var _asset_list: ItemList = $Root/RightPanel/AssetList
+@onready var _details: TextEdit = $Root/RightPanel/Details
+@onready var _offset_x_slider: HSlider = $Root/RightPanel/OffsetXRow/Slider
+@onready var _offset_x_spin: SpinBox = $Root/RightPanel/OffsetXRow/Spin
+@onready var _offset_y_slider: HSlider = $Root/RightPanel/OffsetYRow/Slider
+@onready var _offset_y_spin: SpinBox = $Root/RightPanel/OffsetYRow/Spin
+@onready var _scale_slider: HSlider = $Root/RightPanel/ScaleRow/Slider
+@onready var _scale_spin: SpinBox = $Root/RightPanel/ScaleRow/Spin
+@onready var _status_label: Label = $Root/LeftPanel/Status
 
 
 func _ready() -> void:
 	_load_data()
-	_build_ui()
+	_connect_ui()
 	_load_base_parts()
 	_refresh_asset_list()
 	_select_first_asset()
 	_set_status("Ready. Select an asset, tune it on the standard body/head base, then Save + Regenerate.")
+
+
+func _connect_ui() -> void:
+	for part in ["all", "hair", "outfit", "accessory", "body", "head", "held_item"]:
+		_part_filter.add_item(part)
+	_part_filter.select(1)
+	_part_filter.item_selected.connect(func(_index: int) -> void:
+		_refresh_asset_list()
+	)
+	_search_box.text_changed.connect(func(_text: String) -> void:
+		_refresh_asset_list()
+	)
+	_asset_list.item_selected.connect(_select_asset_from_list)
+	_bind_pair(_offset_x_slider, _offset_x_spin)
+	_bind_pair(_offset_y_slider, _offset_y_spin)
+	_bind_pair(_scale_slider, _scale_spin)
+	$Root/RightPanel/Actions/ReloadButton.pressed.connect(func() -> void:
+		_load_selected_adjustment()
+		_update_preview()
+	)
+	$Root/RightPanel/Actions/SaveButton.pressed.connect(_save_adjustment)
+	$Root/RightPanel/Actions/GenerateButton.pressed.connect(func() -> void:
+		_save_adjustment()
+		_regenerate_runtime_texture()
+	)
+	$Root/RightPanel/Navigation/PreviousButton.pressed.connect(func() -> void:
+		_select_relative(-1)
+	)
+	$Root/RightPanel/Navigation/NextButton.pressed.connect(func() -> void:
+		_select_relative(1)
+	)
 
 
 func _load_data() -> void:

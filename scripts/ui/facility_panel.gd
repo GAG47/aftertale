@@ -8,13 +8,24 @@ const FILTER_ALL := "all"
 const FILTER_CAN_CRAFT := "can_craft"
 const FILTER_TOOLS := "tools"
 const FILTER_FOOD := "food"
+const CRAFTING_VIEW_SCENE := preload("res://scenes/ui/components/facility_crafting_view.tscn")
+const SHOP_VIEW_SCENE := preload("res://scenes/ui/components/facility_shop_view.tscn")
+const ACTION_BUTTON_SCENE := preload("res://scenes/ui/components/action_button.tscn")
+const UI_LABEL_SCENE := preload("res://scenes/ui/components/ui_label.tscn")
+const UI_HBOX_SCENE := preload("res://scenes/ui/components/ui_hbox.tscn")
+const UI_VBOX_SCENE := preload("res://scenes/ui/components/ui_vbox.tscn")
+const UI_PANEL_SCENE := preload("res://scenes/ui/components/ui_panel.tscn")
+const UI_MARGIN_SCENE := preload("res://scenes/ui/components/ui_margin.tscn")
+const UI_SCROLL_SCENE := preload("res://scenes/ui/components/ui_scroll.tscn")
+const UI_SEPARATOR_SCENE := preload("res://scenes/ui/components/ui_separator.tscn")
+const UI_SPACER_SCENE := preload("res://scenes/ui/components/ui_spacer.tscn")
 
 var _actor: CharacterEntity
 var _facility_data: Dictionary = {}
-var _panel: PanelContainer
-var _title_label: Label
-var _subtitle_label: Label
-var _content_root: VBoxContainer
+@onready var _panel: PanelContainer = $FacilityWindow
+@onready var _title_label: Label = $FacilityWindow/Margin/Root/Header/TitleBox/TitleLabel
+@onready var _subtitle_label: Label = $FacilityWindow/Margin/Root/Header/TitleBox/SubtitleLabel
+@onready var _content_root: VBoxContainer = $FacilityWindow/Margin/Root/ContentRoot
 var _craft_filter: String = FILTER_ALL
 var _craft_quantity: int = 1
 var _selected_recipe_id: String = ""
@@ -31,7 +42,7 @@ var _shop_offers: Array[Dictionary] = []
 func _ready() -> void:
 	visible = false
 	mouse_filter = Control.MOUSE_FILTER_STOP
-	_build_ui()
+	$FacilityWindow/Margin/Root/Header/CloseButton.pressed.connect(_request_close)
 
 
 func open_for_facility(actor: CharacterEntity, facility_data: Dictionary) -> void:
@@ -71,165 +82,29 @@ func refresh() -> void:
 			_content_root.add_child(_make_empty_label("这个对象暂时没有可用功能。"))
 
 
-func _build_ui() -> void:
-	var backdrop: ColorRect = ColorRect.new()
-	backdrop.name = "Backdrop"
-	backdrop.color = Color(0.0, 0.0, 0.0, 0.48)
-	backdrop.set_anchors_preset(Control.PRESET_FULL_RECT)
-	backdrop.mouse_filter = Control.MOUSE_FILTER_STOP
-	add_child(backdrop)
-
-	_panel = PanelContainer.new()
-	_panel.name = "FacilityWindow"
-	_panel.mouse_filter = Control.MOUSE_FILTER_STOP
-	_panel.set_anchors_preset(Control.PRESET_CENTER)
-	_panel.custom_minimum_size = Vector2(920.0, 500.0)
-	_panel.offset_left = -460.0
-	_panel.offset_top = -250.0
-	_panel.offset_right = 460.0
-	_panel.offset_bottom = 250.0
-	_panel.add_theme_stylebox_override("panel", _make_panel_style(Color(0.055, 0.06, 0.055, 0.97), Color(0.78, 0.52, 0.24, 0.74), 6, 2))
-	add_child(_panel)
-
-	var margin: MarginContainer = MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 16)
-	margin.add_theme_constant_override("margin_top", 10)
-	margin.add_theme_constant_override("margin_right", 16)
-	margin.add_theme_constant_override("margin_bottom", 10)
-	_panel.add_child(margin)
-
-	var root: VBoxContainer = VBoxContainer.new()
-	root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	root.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	root.add_theme_constant_override("separation", 6)
-	margin.add_child(root)
-
-	var header: HBoxContainer = HBoxContainer.new()
-	header.add_theme_constant_override("separation", 12)
-	root.add_child(header)
-
-	var title_icon: PanelContainer = PanelContainer.new()
-	title_icon.custom_minimum_size = Vector2(44.0, 30.0)
-	title_icon.add_theme_stylebox_override("panel", _make_panel_style(Color(0.16, 0.16, 0.14, 1.0), Color(0.68, 0.48, 0.25, 0.7), 3))
-	header.add_child(title_icon)
-
-	var icon_label: Label = Label.new()
-	icon_label.text = "工"
-	icon_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	icon_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	title_icon.add_child(icon_label)
-
-	var title_box: VBoxContainer = VBoxContainer.new()
-	title_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	header.add_child(title_box)
-
-	_title_label = Label.new()
-	_title_label.add_theme_font_size_override("font_size", 22)
-	_title_label.add_theme_color_override("font_color", Color(0.94, 0.82, 0.62))
-	title_box.add_child(_title_label)
-
-	_subtitle_label = Label.new()
-	_subtitle_label.modulate = Color(0.74, 0.78, 0.70)
-	title_box.add_child(_subtitle_label)
-
-	var close_button: Button = Button.new()
-	close_button.text = "关闭"
-	close_button.custom_minimum_size = Vector2(82.0, 32.0)
-	close_button.pressed.connect(_request_close)
-	header.add_child(close_button)
-
-	var separator: HSeparator = HSeparator.new()
-	root.add_child(separator)
-
-	_content_root = VBoxContainer.new()
-	_content_root.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_content_root.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_content_root.add_theme_constant_override("separation", 8)
-	root.add_child(_content_root)
-
-
 func _refresh_crafting() -> void:
 	if _actor == null or not is_instance_valid(_actor):
 		_content_root.add_child(_make_empty_label("没有可制作的角色。"))
 		return
 
-	_build_craft_filters()
-
-	var body: HBoxContainer = HBoxContainer.new()
-	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	body.add_theme_constant_override("separation", 12)
-	_content_root.add_child(body)
-
-	var left_panel: PanelContainer = _make_framed_panel(Vector2(360.0, 0.0))
-	left_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	body.add_child(left_panel)
-
-	var left_margin: MarginContainer = _make_margin(10, 8, 10, 10)
-	left_margin.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	left_panel.add_child(left_margin)
-
-	var left_box: VBoxContainer = VBoxContainer.new()
-	left_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	left_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	left_box.add_theme_constant_override("separation", 8)
-	left_margin.add_child(left_box)
-
-	var list_title: Label = _make_label("配方列表")
-	list_title.add_theme_font_size_override("font_size", 17)
-	left_box.add_child(list_title)
-
-	var scroll: ScrollContainer = ScrollContainer.new()
-	scroll.custom_minimum_size = Vector2(0.0, 250.0)
-	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	left_box.add_child(scroll)
-
-	_recipe_list = VBoxContainer.new()
-	_recipe_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_recipe_list.add_theme_constant_override("separation", 6)
-	scroll.add_child(_recipe_list)
-
-	var right_panel: PanelContainer = _make_framed_panel(Vector2(0.0, 0.0))
-	right_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	right_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	body.add_child(right_panel)
-
-	var right_margin: MarginContainer = _make_margin(18, 16, 18, 16)
-	right_margin.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	right_panel.add_child(right_margin)
-
-	_detail_box = VBoxContainer.new()
-	_detail_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_detail_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_detail_box.add_theme_constant_override("separation", 6)
-	right_margin.add_child(_detail_box)
+	var view: VBoxContainer = CRAFTING_VIEW_SCENE.instantiate() as VBoxContainer
+	_content_root.add_child(view)
+	_recipe_list = view.get_node("Body/ListPanel/Margin/Box/Scroll/RecipeList") as VBoxContainer
+	_detail_box = view.get_node("Body/DetailPanel/Margin/DetailBox") as VBoxContainer
+	_filter_buttons = {
+		FILTER_ALL: view.get_node("Filters/AllButton"),
+		FILTER_CAN_CRAFT: view.get_node("Filters/CanCraftButton"),
+		FILTER_TOOLS: view.get_node("Filters/ToolsButton"),
+		FILTER_FOOD: view.get_node("Filters/FoodButton"),
+	}
+	for filter_id in _filter_buttons:
+		var button: Button = _filter_buttons[filter_id] as Button
+		button.set_pressed_no_signal(_craft_filter == str(filter_id))
+		button.pressed.connect(_on_filter_pressed.bind(str(filter_id)))
 
 	_load_craft_recipes()
 	_refresh_recipe_list()
 	_refresh_recipe_detail()
-
-
-func _build_craft_filters() -> void:
-	var row: HBoxContainer = HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
-	_content_root.add_child(row)
-	_filter_buttons.clear()
-	_add_filter_button(row, "全部", FILTER_ALL)
-	_add_filter_button(row, "可制作", FILTER_CAN_CRAFT)
-	_add_filter_button(row, "工具", FILTER_TOOLS)
-	_add_filter_button(row, "食物", FILTER_FOOD)
-
-
-func _add_filter_button(parent: HBoxContainer, text: String, filter_id: String) -> void:
-	var button: Button = Button.new()
-	button.text = text
-	button.toggle_mode = true
-	button.button_pressed = _craft_filter == filter_id
-	button.custom_minimum_size = Vector2(96.0, 30.0)
-	button.pressed.connect(_on_filter_pressed.bind(filter_id))
-	parent.add_child(button)
-	_filter_buttons[filter_id] = button
 
 
 func _load_craft_recipes() -> void:
@@ -263,7 +138,7 @@ func _make_recipe_button(recipe: Dictionary) -> Button:
 	var recipe_id: String = str(recipe.get("id", ""))
 	var can_craft: bool = bool(recipe.get("can_craft", false))
 	var status: String = "可制作" if can_craft else "缺材料"
-	var button: Button = Button.new()
+	var button: Button = ACTION_BUTTON_SCENE.instantiate() as Button
 	button.text = "%s  %s        %s" % [
 		_get_recipe_icon_text(recipe),
 		str(recipe.get("display_name", recipe_id)),
@@ -285,7 +160,7 @@ func _refresh_recipe_detail() -> void:
 		_detail_box.add_child(_make_empty_label("请选择一个配方。"))
 		return
 
-	var top: HBoxContainer = HBoxContainer.new()
+	var top: HBoxContainer = UI_HBOX_SCENE.instantiate() as HBoxContainer
 	top.add_theme_constant_override("separation", 14)
 	_detail_box.add_child(top)
 
@@ -297,7 +172,7 @@ func _refresh_recipe_detail() -> void:
 	icon_label.add_theme_font_size_override("font_size", 24)
 	icon_box.add_child(icon_label)
 
-	var title_box: VBoxContainer = VBoxContainer.new()
+	var title_box: VBoxContainer = UI_VBOX_SCENE.instantiate() as VBoxContainer
 	title_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(title_box)
 	var title_label: Label = _make_label(str(recipe.get("display_name", recipe.get("id", ""))))
@@ -308,9 +183,9 @@ func _refresh_recipe_detail() -> void:
 	description_label.modulate = Color(0.82, 0.78, 0.68)
 	title_box.add_child(description_label)
 
-	_detail_box.add_child(HSeparator.new())
+	_detail_box.add_child(UI_SEPARATOR_SCENE.instantiate())
 	_add_output_section(recipe)
-	_detail_box.add_child(HSeparator.new())
+	_detail_box.add_child(UI_SEPARATOR_SCENE.instantiate())
 	_add_ingredient_section(recipe)
 
 	_add_quantity_controls(recipe)
@@ -332,13 +207,13 @@ func _add_output_section(recipe: Dictionary) -> void:
 
 func _add_ingredient_section(recipe: Dictionary) -> void:
 	_detail_box.add_child(_make_section_title("材料"))
-	var material_scroll: ScrollContainer = ScrollContainer.new()
+	var material_scroll: ScrollContainer = UI_SCROLL_SCENE.instantiate() as ScrollContainer
 	material_scroll.custom_minimum_size = Vector2(0.0, 74.0)
 	material_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	material_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_detail_box.add_child(material_scroll)
 
-	var material_list: VBoxContainer = VBoxContainer.new()
+	var material_list: VBoxContainer = UI_VBOX_SCENE.instantiate() as VBoxContainer
 	material_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	material_list.add_theme_constant_override("separation", 4)
 	material_scroll.add_child(material_list)
@@ -360,7 +235,7 @@ func _add_ingredient_section(recipe: Dictionary) -> void:
 
 
 func _add_quantity_controls(_recipe: Dictionary) -> void:
-	var row: HBoxContainer = HBoxContainer.new()
+	var row: HBoxContainer = UI_HBOX_SCENE.instantiate() as HBoxContainer
 	row.add_theme_constant_override("separation", 8)
 	_detail_box.add_child(row)
 
@@ -369,7 +244,7 @@ func _add_quantity_controls(_recipe: Dictionary) -> void:
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	row.add_child(label)
 
-	var minus_button: Button = Button.new()
+	var minus_button: Button = ACTION_BUTTON_SCENE.instantiate() as Button
 	minus_button.text = "-"
 	minus_button.custom_minimum_size = Vector2(40.0, 28.0)
 	minus_button.disabled = _craft_quantity <= 1
@@ -383,7 +258,7 @@ func _add_quantity_controls(_recipe: Dictionary) -> void:
 	quantity_label.add_theme_stylebox_override("normal", _make_panel_style(Color(0.08, 0.08, 0.07, 1.0), Color(0.42, 0.34, 0.24, 0.8), 3))
 	row.add_child(quantity_label)
 
-	var plus_button: Button = Button.new()
+	var plus_button: Button = ACTION_BUTTON_SCENE.instantiate() as Button
 	plus_button.text = "+"
 	plus_button.custom_minimum_size = Vector2(40.0, 28.0)
 	plus_button.disabled = _craft_quantity >= 99
@@ -392,7 +267,7 @@ func _add_quantity_controls(_recipe: Dictionary) -> void:
 
 
 func _add_craft_button(recipe: Dictionary) -> void:
-	var button: Button = Button.new()
+	var button: Button = ACTION_BUTTON_SCENE.instantiate() as Button
 	button.text = "制作"
 	button.custom_minimum_size = Vector2(220.0, 34.0)
 	button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
@@ -410,57 +285,22 @@ func _refresh_shop() -> void:
 	var vendor_id: String = _get_shop_vendor_id()
 	var market: Dictionary = BusinessSystem.get_market_summary(_actor, shop_id, vendor_id)
 
-	var intro_row: HBoxContainer = HBoxContainer.new()
-	intro_row.add_theme_constant_override("separation", 12)
-	_content_root.add_child(intro_row)
-
-	var description_label: Label = _make_label(str(market.get("description", "")))
+	var view: VBoxContainer = SHOP_VIEW_SCENE.instantiate() as VBoxContainer
+	_content_root.add_child(view)
+	var description_label: Label = view.get_node("Intro/Description") as Label
+	description_label.text = str(market.get("description", ""))
 	description_label.modulate = Color(0.82, 0.80, 0.74)
-	intro_row.add_child(description_label)
-
-	var money_label: Label = _make_label("金币：%d" % int(market.get("currency", 0)))
-	money_label.custom_minimum_size = Vector2(110.0, 0.0)
+	var money_label: Label = view.get_node("Intro/Money") as Label
+	money_label.text = "金币：%d" % int(market.get("currency", 0))
 	money_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	money_label.add_theme_color_override("font_color", Color(0.95, 0.82, 0.48))
-	intro_row.add_child(money_label)
-
-	var tab_row: HBoxContainer = HBoxContainer.new()
-	tab_row.add_theme_constant_override("separation", 8)
-	_content_root.add_child(tab_row)
-	tab_row.add_child(_make_shop_mode_button("购买", "buy"))
-	tab_row.add_child(_make_shop_mode_button("出售", "sell"))
-
-	var body: HBoxContainer = HBoxContainer.new()
-	body.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	body.add_theme_constant_override("separation", 12)
-	_content_root.add_child(body)
-
-	var left_panel: PanelContainer = _make_framed_panel(Vector2(370.0, 0.0))
-	left_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	body.add_child(left_panel)
-
-	var left_margin: MarginContainer = _make_margin(10, 8, 10, 10)
-	left_margin.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	left_panel.add_child(left_margin)
-
-	var left_box: VBoxContainer = VBoxContainer.new()
-	left_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	left_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	left_box.add_theme_constant_override("separation", 8)
-	left_margin.add_child(left_box)
-
-	left_box.add_child(_make_section_title("商品列表"))
-
-	var list_scroll: ScrollContainer = ScrollContainer.new()
-	list_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	list_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	left_box.add_child(list_scroll)
-
-	var list: VBoxContainer = VBoxContainer.new()
-	list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	list.add_theme_constant_override("separation", 6)
-	list_scroll.add_child(list)
+	var buy_button: Button = view.get_node("Modes/BuyButton") as Button
+	var sell_button: Button = view.get_node("Modes/SellButton") as Button
+	buy_button.set_pressed_no_signal(_shop_mode == "buy")
+	sell_button.set_pressed_no_signal(_shop_mode == "sell")
+	buy_button.pressed.connect(_on_shop_mode_pressed.bind("buy"))
+	sell_button.pressed.connect(_on_shop_mode_pressed.bind("sell"))
+	var list: VBoxContainer = view.get_node("Body/ListPanel/Margin/Box/Scroll/OfferList") as VBoxContainer
 
 	_shop_offers.clear()
 	var raw_offers: Array = (market.get("buy_offers", []) if _shop_mode == "buy" else market.get("sell_offers", [])) as Array
@@ -477,26 +317,12 @@ func _refresh_shop() -> void:
 		for offer in _shop_offers:
 			list.add_child(_make_shop_offer_button(offer))
 
-	var right_panel: PanelContainer = _make_framed_panel(Vector2(0.0, 0.0))
-	right_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	right_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	body.add_child(right_panel)
-
-	var right_margin: MarginContainer = _make_margin(18, 14, 18, 14)
-	right_margin.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	right_panel.add_child(right_margin)
-
-	var right_box: VBoxContainer = VBoxContainer.new()
-	right_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	right_box.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	right_box.add_theme_constant_override("separation", 8)
-	right_margin.add_child(right_box)
-
+	var right_box: VBoxContainer = view.get_node("Body/DetailPanel/Margin/DetailBox") as VBoxContainer
 	_refresh_shop_detail(right_box, str(market.get("shop_id", shop_id)), vendor_id, int(market.get("vendor_currency", 0)))
 
 
 func _make_shop_mode_button(text: String, mode: String) -> Button:
-	var button: Button = Button.new()
+	var button: Button = ACTION_BUTTON_SCENE.instantiate() as Button
 	button.text = text
 	button.toggle_mode = true
 	button.button_pressed = _shop_mode == mode
@@ -514,7 +340,7 @@ func _make_shop_offer_button(offer: Dictionary) -> Button:
 	else:
 		status = "持有 %d" % int(offer.get("quantity", 0))
 
-	var button: Button = Button.new()
+	var button: Button = ACTION_BUTTON_SCENE.instantiate() as Button
 	button.text = "%s  %s        %dG  %s" % [
 		_get_item_icon_text(str(offer.get("item_type", ""))),
 		str(offer.get("display_name", item_id)),
@@ -543,7 +369,7 @@ func _refresh_shop_detail(parent: VBoxContainer, shop_id: String, vendor_id: Str
 	var failure_reason: String = BusinessSystem.get_trade_failure(_actor, shop_id, _shop_mode, item_id, _shop_quantity, vendor_id)
 	var can_trade: bool = failure_reason.is_empty()
 
-	var top: HBoxContainer = HBoxContainer.new()
+	var top: HBoxContainer = UI_HBOX_SCENE.instantiate() as HBoxContainer
 	top.add_theme_constant_override("separation", 14)
 	top.custom_minimum_size = Vector2(0.0, 82.0)
 	parent.add_child(top)
@@ -557,7 +383,7 @@ func _refresh_shop_detail(parent: VBoxContainer, shop_id: String, vendor_id: Str
 	icon_label.add_theme_font_size_override("font_size", 24)
 	icon_box.add_child(icon_label)
 
-	var title_box: VBoxContainer = VBoxContainer.new()
+	var title_box: VBoxContainer = UI_VBOX_SCENE.instantiate() as VBoxContainer
 	title_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	top.add_child(title_box)
 
@@ -570,7 +396,7 @@ func _refresh_shop_detail(parent: VBoxContainer, shop_id: String, vendor_id: Str
 	description_label.modulate = Color(0.82, 0.78, 0.68)
 	description_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
-	var description_scroll: ScrollContainer = ScrollContainer.new()
+	var description_scroll: ScrollContainer = UI_SCROLL_SCENE.instantiate() as ScrollContainer
 	description_scroll.custom_minimum_size = Vector2(0.0, 42.0)
 	description_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	description_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -578,8 +404,8 @@ func _refresh_shop_detail(parent: VBoxContainer, shop_id: String, vendor_id: Str
 	description_scroll.add_child(description_label)
 	title_box.add_child(description_scroll)
 
-	parent.add_child(HSeparator.new())
-	var details: VBoxContainer = VBoxContainer.new()
+	parent.add_child(UI_SEPARATOR_SCENE.instantiate())
+	var details: VBoxContainer = UI_VBOX_SCENE.instantiate() as VBoxContainer
 	details.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	details.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	details.add_theme_constant_override("separation", 4)
@@ -600,11 +426,11 @@ func _refresh_shop_detail(parent: VBoxContainer, shop_id: String, vendor_id: Str
 		failure_label.add_theme_color_override("font_color", Color(0.95, 0.38, 0.34))
 		details.add_child(failure_label)
 
-	var spacer: Control = Control.new()
+	var spacer: Control = UI_SPACER_SCENE.instantiate() as Control
 	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	parent.add_child(spacer)
 
-	var bottom: HBoxContainer = HBoxContainer.new()
+	var bottom: HBoxContainer = UI_HBOX_SCENE.instantiate() as HBoxContainer
 	bottom.add_theme_constant_override("separation", 10)
 	parent.add_child(bottom)
 
@@ -613,7 +439,7 @@ func _refresh_shop_detail(parent: VBoxContainer, shop_id: String, vendor_id: Str
 	quantity_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	bottom.add_child(quantity_label)
 
-	var minus_button: Button = Button.new()
+	var minus_button: Button = ACTION_BUTTON_SCENE.instantiate() as Button
 	minus_button.text = "-"
 	minus_button.custom_minimum_size = Vector2(40.0, 30.0)
 	minus_button.disabled = _shop_quantity <= 1
@@ -627,7 +453,7 @@ func _refresh_shop_detail(parent: VBoxContainer, shop_id: String, vendor_id: Str
 	quantity_value.add_theme_stylebox_override("normal", _make_panel_style(Color(0.08, 0.08, 0.07, 1.0), Color(0.42, 0.34, 0.24, 0.8), 3))
 	bottom.add_child(quantity_value)
 
-	var plus_button: Button = Button.new()
+	var plus_button: Button = ACTION_BUTTON_SCENE.instantiate() as Button
 	plus_button.text = "+"
 	plus_button.custom_minimum_size = Vector2(40.0, 30.0)
 	plus_button.disabled = _shop_quantity >= _get_shop_quantity_limit(offer)
@@ -641,7 +467,7 @@ func _refresh_shop_detail(parent: VBoxContainer, shop_id: String, vendor_id: Str
 	total_label.add_theme_color_override("font_color", Color(0.95, 0.82, 0.48))
 	bottom.add_child(total_label)
 
-	var action_button: Button = Button.new()
+	var action_button: Button = ACTION_BUTTON_SCENE.instantiate() as Button
 	action_button.text = "购买" if _shop_mode == "buy" else "出售"
 	action_button.custom_minimum_size = Vector2(120.0, 34.0)
 	action_button.disabled = not can_trade
@@ -656,7 +482,7 @@ func _make_recipe_button_style(selected: bool) -> StyleBoxFlat:
 
 
 func _make_item_line(title: String, right_text: String, right_color: Color, icon_text: String) -> HBoxContainer:
-	var row: HBoxContainer = HBoxContainer.new()
+	var row: HBoxContainer = UI_HBOX_SCENE.instantiate() as HBoxContainer
 	row.add_theme_constant_override("separation", 10)
 	row.custom_minimum_size = Vector2(0.0, 30.0)
 
@@ -682,7 +508,7 @@ func _make_item_line(title: String, right_text: String, right_color: Color, icon
 
 
 func _make_shop_detail_line(title: String, right_text: String, right_color: Color) -> HBoxContainer:
-	var row: HBoxContainer = HBoxContainer.new()
+	var row: HBoxContainer = UI_HBOX_SCENE.instantiate() as HBoxContainer
 	row.add_theme_constant_override("separation", 10)
 	row.custom_minimum_size = Vector2(0.0, 28.0)
 
@@ -708,7 +534,7 @@ func _make_section_title(text: String) -> Label:
 
 
 func _make_label(text: String) -> Label:
-	var label: Label = Label.new()
+	var label: Label = UI_LABEL_SCENE.instantiate() as Label
 	label.text = text
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -722,7 +548,7 @@ func _make_empty_label(text: String) -> Label:
 
 
 func _make_section(title: String, detail: String) -> VBoxContainer:
-	var section: VBoxContainer = VBoxContainer.new()
+	var section: VBoxContainer = UI_VBOX_SCENE.instantiate() as VBoxContainer
 	section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	section.custom_minimum_size = Vector2(0.0, 64.0)
 	section.add_theme_constant_override("separation", 4)
@@ -736,20 +562,20 @@ func _make_section(title: String, detail: String) -> VBoxContainer:
 		detail_label.modulate = Color(0.82, 0.82, 0.82)
 		section.add_child(detail_label)
 
-	var separator: HSeparator = HSeparator.new()
+	var separator: HSeparator = UI_SEPARATOR_SCENE.instantiate() as HSeparator
 	section.add_child(separator)
 	return section
 
 
 func _make_framed_panel(min_size: Vector2) -> PanelContainer:
-	var panel: PanelContainer = PanelContainer.new()
+	var panel: PanelContainer = UI_PANEL_SCENE.instantiate() as PanelContainer
 	panel.custom_minimum_size = min_size
 	panel.add_theme_stylebox_override("panel", _make_panel_style(Color(0.075, 0.08, 0.075, 0.96), Color(0.40, 0.32, 0.20, 0.78), 4))
 	return panel
 
 
 func _make_margin(left: int, top: int, right: int, bottom: int) -> MarginContainer:
-	var margin: MarginContainer = MarginContainer.new()
+	var margin: MarginContainer = UI_MARGIN_SCENE.instantiate() as MarginContainer
 	margin.add_theme_constant_override("margin_left", left)
 	margin.add_theme_constant_override("margin_top", top)
 	margin.add_theme_constant_override("margin_right", right)

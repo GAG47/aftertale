@@ -3,67 +3,69 @@
   "display_name": "测试玩家",
   "character_kind": "player",
   "attributes": {
-    "level": 1,
-    "strength": 6,
-    "agility": 5,
-    "intellect": 5,
-    "vitality": 5
+	"level": 1,
+	"strength": 6,
+	"agility": 5,
+	"intellect": 5,
+	"vitality": 5
   },
   "identity": {
-    "age": 18,
-    "species": "human",
-    "gender": "unspecified",
-    "origin": "unknown",
-    "occupation": "wanderer",
-    "personality": "undefined"
+	"age": 18,
+	"species": "human",
+	"gender": "unspecified",
+	"origin": "unknown",
+	"occupation": "wanderer",
+	"personality": "undefined"
   },
   "appearance_profile": {
-    "importance": "important",
-    "role": "wanderer",
-    "gender_hint": "neutral",
-    "age_hint": "young",
-    "wealth": "common",
-    "culture": "village",
-    "neatness": "medium"
+	"importance": "important",
+	"role": "wanderer",
+	"gender_hint": "neutral",
+	"age_hint": "young",
+	"wealth": "common",
+	"culture": "village",
+	"neatness": "medium"
   },
   "appearance": {
-    "display_mode": "badge",
-    "portrait_id": "player_mage_001",
-    "portrait": {
-      "full": "res://assets/art/characters/portraits/full/player_mage_001.png",
-      "badge": "res://assets/art/characters/portraits/badges/player_mage_001_badge.png"
-    },
-    "badge_source": "res://assets/art/characters/portraits/badges/player_mage_001_badge.png",
-    "badge_ring": "#d9b86f",
-    "badge_highlight": "#fff1bd",
-    "badge_size": 28,
-    "palette": {
-      "hair": "#4a3b2f",
-      "outfit": "#6f86bd",
-      "trim": "#f0d56c"
-    }
+	"display_mode": "map_sprite",
+	"portrait_id": "player_mage_001",
+	"portrait": {
+	  "full": "res://assets/art/characters/portraits/full/player_mage_001.png",
+	  "avatar": "res://assets/art/characters/portraits/avatars/player_mage_001_avatar.png"
+	},
+	"map_sprite": {
+	  "source": "res://assets/art/characters/map_sprites/player_mage_001.png",
+	  "scale": 0.034,
+	  "anchor": { "x": 0.5, "y": 0.94 },
+	  "offset": { "x": 0, "y": 13 }
+	},
+	"palette": {
+	  "hair": "#4a3b2f",
+	  "outfit": "#6f86bd",
+	  "trim": "#f0d56c"
+	}
   },
   "faction_id": "player",
   "relation_slots": {
-    "personal": {},
-    "faction": {}
+	"personal": {},
+	"faction": {}
   },
   "skills": [
-    "basic_attack",
-    "power_strike",
-    "quick_shot",
-    "first_aid",
-    "shockwave",
-    "debug_fire_patch",
-    "debug_fire_burst",
-    "debug_water_splash",
-    "debug_frost_field",
-    "debug_meteor",
-    "debug_line_beam",
+	"basic_attack",
+	"power_strike",
+	"quick_shot",
+	"first_aid",
+	"shockwave",
+	"debug_fire_patch",
+	"debug_fire_burst",
+	"debug_water_splash",
+	"debug_frost_field",
+	"debug_meteor",
+	"debug_line_beam",
     "guard"
   ],
   "inventory": [
-    { "source": "res://data/items/debug_training_sword.json", "quantity": 1 }
+	{ "source": "res://data/items/debug_training_sword.json", "quantity": 1 }
   ],
   "is_player_controlled": true,
   "is_interactable": false,

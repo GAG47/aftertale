@@ -45,6 +45,7 @@ var _npc_autonomy_agent
 var _camera_default_zoom: Vector2 = Vector2.ONE
 var _camera_detached: bool = false
 var _camera_target_position: Vector2 = Vector2.ZERO
+var _last_camera_viewport_size: Vector2 = Vector2.ZERO
 
 
 func _ready() -> void:
@@ -84,6 +85,7 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
+	_update_camera_viewport_fit()
 	_update_manual_camera_keyboard_pan(delta)
 	_update_camera_smoothing(delta)
 	_update_npc_schedule_movement(delta)
@@ -326,7 +328,11 @@ func _load_location_data() -> void:
 	_configure_scene_layer_renderer(building_renderer)
 	camera.position = Vector2(grid.width * grid.tile_size, grid.height * grid.tile_size) * 0.5
 	_camera_target_position = camera.position
+	var cover_zoom: float = _get_camera_min_zoom()
+	if camera.zoom.x < cover_zoom:
+		camera.zoom = Vector2(cover_zoom, cover_zoom)
 	_camera_default_zoom = camera.zoom
+	_last_camera_viewport_size = get_viewport_rect().size
 	_clamp_camera_to_map()
 
 
@@ -334,7 +340,7 @@ func _on_camera_zoom_requested(steps: int) -> void:
 	if camera == null or steps == 0:
 		return
 
-	var target_zoom := clampf(camera.zoom.x + CAMERA_ZOOM_STEP * float(steps), CAMERA_ZOOM_MIN, CAMERA_ZOOM_MAX)
+	var target_zoom := clampf(camera.zoom.x + CAMERA_ZOOM_STEP * float(steps), _get_camera_min_zoom(), CAMERA_ZOOM_MAX)
 	_set_camera_zoom(target_zoom)
 
 
@@ -342,14 +348,40 @@ func _on_camera_zoom_reset_requested() -> void:
 	if camera == null:
 		return
 
-	_set_camera_zoom(clampf(_camera_default_zoom.x, CAMERA_ZOOM_MIN, CAMERA_ZOOM_MAX))
+	_set_camera_zoom(clampf(_camera_default_zoom.x, _get_camera_min_zoom(), CAMERA_ZOOM_MAX))
 
 
 func _set_camera_zoom(value: float) -> void:
-	camera.zoom = Vector2(value, value)
+	var clamped_value: float = clampf(value, _get_camera_min_zoom(), CAMERA_ZOOM_MAX)
+	camera.zoom = Vector2(clamped_value, clamped_value)
 	_set_camera_target(_camera_target_position, true)
 	if not _camera_detached:
 		_recenter_camera_to_focus(false)
+
+
+func _update_camera_viewport_fit() -> void:
+	if camera == null or grid == null:
+		return
+	var viewport_size: Vector2 = get_viewport_rect().size
+	if viewport_size == _last_camera_viewport_size:
+		return
+	_last_camera_viewport_size = viewport_size
+	var min_zoom: float = _get_camera_min_zoom()
+	if camera.zoom.x < min_zoom:
+		_set_camera_zoom(min_zoom)
+	else:
+		_set_camera_target(_camera_target_position, true)
+
+
+func _get_camera_min_zoom() -> float:
+	if camera == null or grid == null:
+		return CAMERA_ZOOM_MIN
+	var map_size := Vector2(grid.width * grid.tile_size, grid.height * grid.tile_size)
+	var viewport_size: Vector2 = get_viewport_rect().size
+	if map_size.x <= 0.0 or map_size.y <= 0.0 or viewport_size.x <= 0.0 or viewport_size.y <= 0.0:
+		return CAMERA_ZOOM_MIN
+	var cover_zoom: float = maxf(viewport_size.x / map_size.x, viewport_size.y / map_size.y)
+	return maxf(CAMERA_ZOOM_MIN, cover_zoom)
 
 
 func _on_camera_pan_requested(direction: Vector2i) -> void:

@@ -10,3 +10,170 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1")
+
+[node name="Root" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 12.0
+offset_top = 12.0
+offset_right = -12.0
+offset_bottom = -12.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 12
+
+[node name="LeftPanel" type="VBoxContainer" parent="Root"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="Title" type="Label" parent="Root/LeftPanel"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "Character Asset Fitter"
+
+[node name="Subtitle" type="Label" parent="Root/LeftPanel"]
+layout_mode = 2
+text = "Preview source assets on the standard body and head base, then save the adjustment."
+autowrap_mode = 2
+
+[node name="Preview" type="TextureRect" parent="Root/LeftPanel"]
+custom_minimum_size = Vector2(560, 560)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+expand_mode = 1
+stretch_mode = 5
+
+[node name="Status" type="Label" parent="Root/LeftPanel"]
+layout_mode = 2
+autowrap_mode = 2
+
+[node name="RightPanel" type="VBoxContainer" parent="Root"]
+custom_minimum_size = Vector2(420, 0)
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/separation = 8
+
+[node name="FilterRow" type="HBoxContainer" parent="Root/RightPanel"]
+layout_mode = 2
+
+[node name="PartFilter" type="OptionButton" parent="Root/RightPanel/FilterRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="SearchBox" type="LineEdit" parent="Root/RightPanel/FilterRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "asset/category/status"
+
+[node name="AssetList" type="ItemList" parent="Root/RightPanel"]
+custom_minimum_size = Vector2(0, 230)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Details" type="TextEdit" parent="Root/RightPanel"]
+custom_minimum_size = Vector2(0, 116)
+layout_mode = 2
+editable = false
+wrap_mode = 1
+
+[node name="OffsetXRow" type="HBoxContainer" parent="Root/RightPanel"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Root/RightPanel/OffsetXRow"]
+custom_minimum_size = Vector2(74, 0)
+layout_mode = 2
+text = "Offset X"
+
+[node name="Slider" type="HSlider" parent="Root/RightPanel/OffsetXRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = -96.0
+max_value = 96.0
+
+[node name="Spin" type="SpinBox" parent="Root/RightPanel/OffsetXRow"]
+custom_minimum_size = Vector2(92, 0)
+layout_mode = 2
+min_value = -96.0
+max_value = 96.0
+allow_greater = true
+allow_lesser = true
+rounded = true
+
+[node name="OffsetYRow" type="HBoxContainer" parent="Root/RightPanel"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Root/RightPanel/OffsetYRow"]
+custom_minimum_size = Vector2(74, 0)
+layout_mode = 2
+text = "Offset Y"
+
+[node name="Slider" type="HSlider" parent="Root/RightPanel/OffsetYRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = -96.0
+max_value = 96.0
+
+[node name="Spin" type="SpinBox" parent="Root/RightPanel/OffsetYRow"]
+custom_minimum_size = Vector2(92, 0)
+layout_mode = 2
+min_value = -96.0
+max_value = 96.0
+allow_greater = true
+allow_lesser = true
+rounded = true
+
+[node name="ScaleRow" type="HBoxContainer" parent="Root/RightPanel"]
+layout_mode = 2
+
+[node name="Label" type="Label" parent="Root/RightPanel/ScaleRow"]
+custom_minimum_size = Vector2(74, 0)
+layout_mode = 2
+text = "Scale"
+
+[node name="Slider" type="HSlider" parent="Root/RightPanel/ScaleRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+min_value = 0.2
+max_value = 2.0
+step = 0.01
+value = 1.0
+
+[node name="Spin" type="SpinBox" parent="Root/RightPanel/ScaleRow"]
+custom_minimum_size = Vector2(92, 0)
+layout_mode = 2
+min_value = 0.2
+max_value = 2.0
+step = 0.01
+value = 1.0
+allow_greater = true
+allow_lesser = true
+
+[node name="Actions" type="HBoxContainer" parent="Root/RightPanel"]
+layout_mode = 2
+
+[node name="ReloadButton" type="Button" parent="Root/RightPanel/Actions"]
+layout_mode = 2
+text = "Reload Saved"
+
+[node name="SaveButton" type="Button" parent="Root/RightPanel/Actions"]
+layout_mode = 2
+text = "Save Adjustment"
+
+[node name="GenerateButton" type="Button" parent="Root/RightPanel/Actions"]
+layout_mode = 2
+text = "Save + Regenerate"
+
+[node name="Navigation" type="HBoxContainer" parent="Root/RightPanel"]
+layout_mode = 2
+
+[node name="PreviousButton" type="Button" parent="Root/RightPanel/Navigation"]
+layout_mode = 2
+text = "Previous"
+
+[node name="NextButton" type="Button" parent="Root/RightPanel/Navigation"]
+layout_mode = 2
+text = "Next"

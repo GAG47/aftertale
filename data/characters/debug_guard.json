@@ -28,16 +28,18 @@
     "faction": "militia"
   },
   "appearance": {
-    "display_mode": "badge",
+    "display_mode": "map_sprite",
     "portrait_id": "npc_guard_001",
     "portrait": {
       "full": "res://assets/art/characters/portraits/full/npc_guard_001.png",
-      "badge": "res://assets/art/characters/portraits/badges/npc_guard_001_badge.png"
+      "avatar": "res://assets/art/characters/portraits/avatars/npc_guard_001_avatar.png"
     },
-    "badge_source": "res://assets/art/characters/portraits/badges/npc_guard_001_badge.png",
-    "badge_ring": "#405376",
-    "badge_highlight": "#d8e7ff",
-    "badge_size": 28,
+    "map_sprite": {
+      "source": "res://assets/art/characters/map_sprites/npc_guard_001.png",
+      "scale": 0.034,
+      "anchor": { "x": 0.5, "y": 0.94 },
+      "offset": { "x": 0, "y": 5 }
+    },
     "palette": {
       "hair": "#2f2c28",
       "outfit": "#65717d",

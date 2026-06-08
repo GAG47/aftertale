@@ -16,6 +16,9 @@ const SORT_DEFAULT := "default"
 const SORT_NAME := "name"
 const SORT_QUANTITY := "quantity"
 const SORT_CATEGORY := "category"
+const ITEM_CELL_SCENE := preload("res://scenes/ui/components/inventory_item_cell.tscn")
+const ACTION_BUTTON_SCENE := preload("res://scenes/ui/components/action_button.tscn")
+const UI_LABEL_SCENE := preload("res://scenes/ui/components/ui_label.tscn")
 
 var _actor: CharacterEntity
 var _stacks: Array[Dictionary] = []
@@ -27,23 +30,40 @@ var _hovered_item_id: String = ""
 var _target_character_id: String = ""
 var _category_buttons: Dictionary = {}
 
-var _panel: PanelContainer
-var _gold_label: Label
-var _grid: GridContainer
-var _target_button: OptionButton
-var _detail_title: Label
-var _detail_meta: Label
-var _detail_description: Label
-var _detail_effects: Label
-var _action_row: HBoxContainer
+@onready var _panel: PanelContainer = $InventoryWindow
+@onready var _gold_label: Label = $InventoryWindow/Margin/Root/Header/GoldLabel
+@onready var _grid: GridContainer = $InventoryWindow/Margin/Root/Body/GridPanel/Margin/Scroll/Grid
+@onready var _target_button: OptionButton = $InventoryWindow/Margin/Root/Body/DetailPanel/Margin/Box/TargetRow/TargetButton
+@onready var _detail_title: Label = $InventoryWindow/Margin/Root/Body/DetailPanel/Margin/Box/DetailTitle
+@onready var _detail_meta: Label = $InventoryWindow/Margin/Root/Body/DetailPanel/Margin/Box/DetailMeta
+@onready var _detail_description: Label = $InventoryWindow/Margin/Root/Body/DetailPanel/Margin/Box/DetailDescription
+@onready var _detail_effects: Label = $InventoryWindow/Margin/Root/Body/DetailPanel/Margin/Box/DetailEffects
+@onready var _action_row: HBoxContainer = $InventoryWindow/Margin/Root/Body/DetailPanel/Margin/Box/ActionRow
+@onready var _sort_button: OptionButton = $InventoryWindow/Margin/Root/FilterRow/SortButton
 var _empty_label: Label
-var _sort_button: OptionButton
 
 
 func _ready() -> void:
 	visible = false
 	mouse_filter = Control.MOUSE_FILTER_STOP
-	_build_ui()
+	$InventoryWindow/Margin/Root/Header/CloseButton.pressed.connect(_request_close)
+	_target_button.item_selected.connect(_on_target_selected)
+	_sort_button.item_selected.connect(_on_sort_selected)
+	var category_nodes := {
+		CATEGORY_ALL: $InventoryWindow/Margin/Root/FilterRow/AllButton,
+		CATEGORY_EQUIPMENT: $InventoryWindow/Margin/Root/FilterRow/EquipmentButton,
+		CATEGORY_FOOD: $InventoryWindow/Margin/Root/FilterRow/FoodButton,
+		CATEGORY_MATERIAL: $InventoryWindow/Margin/Root/FilterRow/MaterialButton,
+		CATEGORY_SEED: $InventoryWindow/Margin/Root/FilterRow/SeedButton,
+		CATEGORY_QUEST: $InventoryWindow/Margin/Root/FilterRow/QuestButton,
+		CATEGORY_OTHER: $InventoryWindow/Margin/Root/FilterRow/OtherButton,
+	}
+	for category_id in category_nodes:
+		var button: Button = category_nodes[category_id] as Button
+		button.pressed.connect(_on_category_pressed.bind(str(category_id)))
+		_category_buttons[category_id] = button
+	for index in range(_sort_button.item_count):
+		_sort_button.set_item_metadata(index, [SORT_DEFAULT, SORT_NAME, SORT_QUANTITY, SORT_CATEGORY][index])
 
 
 func open_for_actor(actor: CharacterEntity) -> void:
@@ -78,213 +98,10 @@ func refresh() -> void:
 	_update_header()
 
 
-func _build_ui() -> void:
-	_panel = PanelContainer.new()
-	_panel.name = "InventoryWindow"
-	_panel.mouse_filter = Control.MOUSE_FILTER_STOP
-	_panel.set_anchors_preset(Control.PRESET_CENTER)
-	_panel.custom_minimum_size = Vector2(880.0, 560.0)
-	_panel.offset_left = -440.0
-	_panel.offset_top = -280.0
-	_panel.offset_right = 440.0
-	_panel.offset_bottom = 280.0
-	_panel.add_theme_stylebox_override("panel", _make_panel_style(Color(0.06, 0.07, 0.065, 0.94), Color(0.68, 0.72, 0.64, 0.42), 8))
-	add_child(_panel)
-
-	var margin: MarginContainer = MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 16)
-	margin.add_theme_constant_override("margin_top", 12)
-	margin.add_theme_constant_override("margin_right", 16)
-	margin.add_theme_constant_override("margin_bottom", 16)
-	_panel.add_child(margin)
-
-	var root: VBoxContainer = VBoxContainer.new()
-	root.add_theme_constant_override("separation", 10)
-	margin.add_child(root)
-
-	root.add_child(_make_header())
-	root.add_child(_make_filter_row())
-
-	var body: HBoxContainer = HBoxContainer.new()
-	body.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	body.add_theme_constant_override("separation", 12)
-	root.add_child(body)
-
-	body.add_child(_make_grid_area())
-	body.add_child(_make_detail_area())
-
-
-func _make_header() -> Control:
-	var row: HBoxContainer = HBoxContainer.new()
-	row.add_theme_constant_override("separation", 12)
-
-	var title: Label = Label.new()
-	title.text = "背包"
-	title.add_theme_font_size_override("font_size", 22)
-	title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(title)
-
-	_gold_label = Label.new()
-	_gold_label.text = "金币 0"
-	_gold_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	row.add_child(_gold_label)
-
-	var close_button: Button = Button.new()
-	close_button.text = "关闭"
-	close_button.custom_minimum_size = Vector2(86.0, 34.0)
-	close_button.pressed.connect(_request_close)
-	row.add_child(close_button)
-	return row
-
-
-func _make_filter_row() -> Control:
-	var row: HBoxContainer = HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
-
-	var categories: Array[Dictionary] = [
-		{ "id": CATEGORY_ALL, "label": "全部" },
-		{ "id": CATEGORY_EQUIPMENT, "label": "装备" },
-		{ "id": CATEGORY_FOOD, "label": "食物" },
-		{ "id": CATEGORY_MATERIAL, "label": "材料" },
-		{ "id": CATEGORY_SEED, "label": "种子" },
-		{ "id": CATEGORY_QUEST, "label": "任务" },
-		{ "id": CATEGORY_OTHER, "label": "其他" },
-	]
-	for category_value in categories:
-		var category_data: Dictionary = category_value as Dictionary
-		var button: Button = Button.new()
-		button.text = str(category_data.get("label", ""))
-		button.toggle_mode = true
-		button.custom_minimum_size = Vector2(72.0, 32.0)
-		var category_id: String = str(category_data.get("id", ""))
-		button.pressed.connect(_on_category_pressed.bind(category_id))
-		row.add_child(button)
-		_category_buttons[category_id] = button
-
-	var spacer: Control = Control.new()
-	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	row.add_child(spacer)
-
-	var sort_label: Label = Label.new()
-	sort_label.text = "整理"
-	sort_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	row.add_child(sort_label)
-
-	_sort_button = OptionButton.new()
-	_sort_button.custom_minimum_size = Vector2(132.0, 32.0)
-	_sort_button.add_item("默认顺序")
-	_sort_button.set_item_metadata(0, SORT_DEFAULT)
-	_sort_button.add_item("名称")
-	_sort_button.set_item_metadata(1, SORT_NAME)
-	_sort_button.add_item("数量")
-	_sort_button.set_item_metadata(2, SORT_QUANTITY)
-	_sort_button.add_item("分类")
-	_sort_button.set_item_metadata(3, SORT_CATEGORY)
-	_sort_button.item_selected.connect(_on_sort_selected)
-	row.add_child(_sort_button)
-	return row
-
-
-func _make_grid_area() -> Control:
-	var panel: PanelContainer = PanelContainer.new()
-	panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	panel.add_theme_stylebox_override("panel", _make_panel_style(Color(0.02, 0.025, 0.022, 0.35), Color(0.8, 0.86, 0.75, 0.18), 6))
-
-	var margin: MarginContainer = MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 10)
-	margin.add_theme_constant_override("margin_top", 10)
-	margin.add_theme_constant_override("margin_right", 10)
-	margin.add_theme_constant_override("margin_bottom", 10)
-	panel.add_child(margin)
-
-	var scroll: ScrollContainer = ScrollContainer.new()
-	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	margin.add_child(scroll)
-
-	_grid = GridContainer.new()
-	_grid.columns = 7
-	_grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_grid.add_theme_constant_override("h_separation", 8)
-	_grid.add_theme_constant_override("v_separation", 8)
-	scroll.add_child(_grid)
-
-	_empty_label = Label.new()
-	_empty_label.text = "背包里还没有这一类物品。"
-	_empty_label.visible = false
-	_empty_label.modulate = Color(0.8, 0.8, 0.76)
-	_empty_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_grid.add_child(_empty_label)
-	return panel
-
-
-func _make_detail_area() -> Control:
-	var panel: PanelContainer = PanelContainer.new()
-	panel.custom_minimum_size = Vector2(260.0, 0.0)
-	panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	panel.add_theme_stylebox_override("panel", _make_panel_style(Color(0.025, 0.03, 0.027, 0.72), Color(0.8, 0.86, 0.75, 0.24), 6))
-
-	var margin: MarginContainer = MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 12)
-	margin.add_theme_constant_override("margin_top", 12)
-	margin.add_theme_constant_override("margin_right", 12)
-	margin.add_theme_constant_override("margin_bottom", 12)
-	panel.add_child(margin)
-
-	var box: VBoxContainer = VBoxContainer.new()
-	box.add_theme_constant_override("separation", 8)
-	margin.add_child(box)
-
-	var target_row: HBoxContainer = HBoxContainer.new()
-	target_row.add_theme_constant_override("separation", 8)
-	box.add_child(target_row)
-
-	var target_label: Label = Label.new()
-	target_label.text = "对象"
-	target_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	target_row.add_child(target_label)
-
-	_target_button = OptionButton.new()
-	_target_button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_target_button.custom_minimum_size = Vector2(0.0, 32.0)
-	_target_button.item_selected.connect(_on_target_selected)
-	target_row.add_child(_target_button)
-
-	_detail_title = Label.new()
-	_detail_title.text = "选择一个物品"
-	_detail_title.add_theme_font_size_override("font_size", 20)
-	_detail_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	box.add_child(_detail_title)
-
-	_detail_meta = Label.new()
-	_detail_meta.modulate = Color(0.74, 0.78, 0.72)
-	_detail_meta.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	box.add_child(_detail_meta)
-
-	var separator: HSeparator = HSeparator.new()
-	box.add_child(separator)
-
-	_detail_description = Label.new()
-	_detail_description.custom_minimum_size = Vector2(0.0, 70.0)
-	_detail_description.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	box.add_child(_detail_description)
-
-	_detail_effects = Label.new()
-	_detail_effects.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	box.add_child(_detail_effects)
-
-	_action_row = HBoxContainer.new()
-	_action_row.add_theme_constant_override("separation", 8)
-	_action_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	box.add_child(_action_row)
-	return panel
-
-
 func _refresh_grid() -> void:
 	_clear_children(_grid)
 	if _visible_stacks.is_empty():
-		_empty_label = Label.new()
+		_empty_label = UI_LABEL_SCENE.instantiate() as Label
 		_empty_label.text = "背包里还没有这一类物品。"
 		_empty_label.modulate = Color(0.8, 0.8, 0.76)
 		_grid.add_child(_empty_label)
@@ -296,74 +113,33 @@ func _refresh_grid() -> void:
 
 
 func _make_item_cell(stack: Dictionary) -> Control:
-	var cell: Control = Control.new()
-	cell.custom_minimum_size = Vector2(66.0, 66.0)
-	cell.mouse_filter = Control.MOUSE_FILTER_STOP
+	var cell: Control = ITEM_CELL_SCENE.instantiate() as Control
 	var selected: bool = str(stack.get("item_id", "")) == _selected_item_id
 	var hovered: bool = str(stack.get("item_id", "")) == _hovered_item_id
 
-	var background: Panel = Panel.new()
-	background.set_anchors_preset(Control.PRESET_FULL_RECT)
-	background.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var background: Panel = cell.get_node("Background") as Panel
 	background.add_theme_stylebox_override("panel", _make_panel_style(
 		Color(0.12, 0.13, 0.115, 0.95),
 		_get_cell_border_color(selected, hovered),
 		5,
 		2 if selected or hovered else 1
 	))
-	cell.add_child(background)
-
 	cell.mouse_entered.connect(_on_stack_hovered.bind(stack, background))
 	cell.mouse_exited.connect(_on_stack_unhovered.bind(str(stack.get("item_id", "")), background, selected))
 	cell.gui_input.connect(_on_stack_gui_input.bind(stack))
 
-	var icon_label: Label = Label.new()
+	var icon_label: Label = cell.get_node("Icon") as Label
 	icon_label.text = _get_item_icon_text(stack)
-	icon_label.set_anchors_preset(Control.PRESET_FULL_RECT)
-	icon_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	icon_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	icon_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	icon_label.add_theme_font_size_override("font_size", 28)
-	cell.add_child(icon_label)
 
 	var quantity: int = int(stack.get("quantity", 0))
-	if quantity > 1:
-		var count_label: Label = Label.new()
-		count_label.text = str(quantity)
-		count_label.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-		count_label.offset_left = -42.0
-		count_label.offset_top = 4.0
-		count_label.offset_right = -6.0
-		count_label.offset_bottom = 26.0
-		count_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		count_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		count_label.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-		count_label.add_theme_font_size_override("font_size", 20)
-		count_label.add_theme_color_override("font_color", Color(0.96, 0.96, 0.88, 1.0))
-		count_label.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.8))
-		count_label.add_theme_constant_override("shadow_offset_x", 1)
-		count_label.add_theme_constant_override("shadow_offset_y", 1)
-		cell.add_child(count_label)
+	var count_label: Label = cell.get_node("Count") as Label
+	count_label.visible = quantity > 1
+	count_label.text = str(quantity)
 
 	var equipped_label_text: String = _get_equipped_badge_text(stack)
-	if not equipped_label_text.is_empty():
-		var equipped_label: Label = Label.new()
-		equipped_label.text = equipped_label_text
-		equipped_label.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-		equipped_label.offset_left = -48.0
-		equipped_label.offset_top = -22.0
-		equipped_label.offset_right = -5.0
-		equipped_label.offset_bottom = -4.0
-		equipped_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		equipped_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		equipped_label.vertical_alignment = VERTICAL_ALIGNMENT_BOTTOM
-		equipped_label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
-		equipped_label.add_theme_font_size_override("font_size", 13)
-		equipped_label.add_theme_color_override("font_color", Color(0.45, 0.86, 1.0, 1.0))
-		equipped_label.add_theme_color_override("font_shadow_color", Color(0.0, 0.0, 0.0, 0.85))
-		equipped_label.add_theme_constant_override("shadow_offset_x", 1)
-		equipped_label.add_theme_constant_override("shadow_offset_y", 1)
-		cell.add_child(equipped_label)
+	var equipped_label: Label = cell.get_node("Equipped") as Label
+	equipped_label.visible = not equipped_label_text.is_empty()
+	equipped_label.text = equipped_label_text
 
 	return cell
 
@@ -398,17 +174,15 @@ func _refresh_details(stack: Dictionary) -> void:
 		}))
 
 	if _action_row.get_child_count() == 0:
-		var label: Label = Label.new()
+		var label: Label = UI_LABEL_SCENE.instantiate() as Label
 		label.text = "暂无可直接执行的操作。"
 		label.modulate = Color(0.72, 0.74, 0.7)
 		_action_row.add_child(label)
 
 
 func _make_action_button(label_text: String, action_type: String, target: Dictionary) -> Button:
-	var button: Button = Button.new()
+	var button: Button = ACTION_BUTTON_SCENE.instantiate() as Button
 	button.text = label_text
-	button.custom_minimum_size = Vector2(88.0, 34.0)
-	button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	button.pressed.connect(_on_action_pressed.bind(action_type, target))
 	return button
 

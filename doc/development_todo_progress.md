@@ -4,13 +4,15 @@ This document tracks planned work after Phase 49. It is an index, not the full d
 
 ## Current Focus
 
-Phases 50 through 55 now form the first complete battle-deepening slice:
+Phases 50 through 54 form the first complete battle-deepening slice. Phase 55
+focuses on restructuring the full UI layer:
 
 - pipeline-based skill effects and battle resources;
 - temporary tile states and elemental reactions;
 - tile effects on units;
 - explainable enemy decision scoring;
-- a contextual battle UI that exposes those rules without covering the map.
+- independent editable UI scenes instead of one monolithic root and runtime
+  construction of fixed controls.
 
 ## Battle Deepening Roadmap
 
@@ -21,7 +23,7 @@ Phases 50 through 55 now form the first complete battle-deepening slice:
 | v52 | Complete | `doc/phase_52_elemental_reactions.md` | Centralize fire, water, ice, and lightning reactions so skills apply elements instead of hard-coding reactions. |
 | v53 | Complete | `doc/phase_53_status_effects_on_units.md` | Let tile states and reactions affect units at clear battle timing points. |
 | v54 | Complete | `doc/phase_54_enemy_ai_scoring.md` | Replace the simple enemy priority chain with a debuggable action scoring model. |
-| v55 | Complete | `doc/phase_55_battle_ui_information_architecture.md` | Reorganize battle UI around a portrait turn rail, compact lower-corner docks, map-rendered tile states, and an AI debug drawer. |
+| v55 | Complete | `doc/phase_55_ui_refinement.md` | Split battle, inventory, character, quest, facility, and menu UI into independent static scenes; variable-length items instantiate reusable component scenes. |
 
 ## Dependency Order
 
@@ -31,7 +33,7 @@ v50 skill effect data model
 -> v52 elemental reactions
 -> v53 status effects on units
 -> v54 enemy AI scoring
--> v55 battle UI information architecture
+-> v55 UI refinement and scene extraction
 ```
 
 ## Minimum Tactical Slice

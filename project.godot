@@ -35,6 +35,12 @@ RelationSystem="*res://scripts/systems/relations/relation_system.gd"
 BattleSystem="*res://scripts/systems/battle/battle_system.gd"
 SaveManager="*res://scripts/systems/save/save_manager.gd"
 
+[display]
+
+window/size/mode=2
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+
 [physics]
 
 3d/physics_engine="Jolt Physics"

@@ -1,0 +1,789 @@
+[gd_scene load_steps=17 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/character_panel.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/ui/components/character_skill_summary_item.tscn" id="2"]
+
+[sub_resource type="StyleBoxFlat" id="DimPanel"]
+bg_color = Color(0.018, 0.027, 0.043, 0.94)
+
+[sub_resource type="StyleBoxFlat" id="Panel"]
+bg_color = Color(0.035, 0.055, 0.078, 0.92)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.27, 0.32, 0.38, 0.85)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+
+[sub_resource type="StyleBoxFlat" id="Module"]
+bg_color = Color(0.025, 0.039, 0.058, 0.88)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.2, 0.25, 0.31, 0.9)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="TabNormal"]
+bg_color = Color(0.03, 0.045, 0.064, 0.72)
+border_width_bottom = 2
+border_color = Color(0.22, 0.26, 0.31, 0.75)
+content_margin_left = 24.0
+content_margin_right = 24.0
+
+[sub_resource type="StyleBoxFlat" id="TabHover"]
+bg_color = Color(0.075, 0.078, 0.078, 0.85)
+border_width_bottom = 2
+border_color = Color(0.92, 0.55, 0.22, 0.7)
+content_margin_left = 24.0
+content_margin_right = 24.0
+
+[sub_resource type="StyleBoxFlat" id="TabPressed"]
+bg_color = Color(0.12, 0.09, 0.06, 0.92)
+border_width_bottom = 3
+border_color = Color(1, 0.57, 0.2, 1)
+content_margin_left = 24.0
+content_margin_right = 24.0
+
+[sub_resource type="StyleBoxFlat" id="ButtonNormal"]
+bg_color = Color(0.055, 0.073, 0.095, 0.92)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.24, 0.29, 0.35, 0.95)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="ButtonHover"]
+bg_color = Color(0.075, 0.1, 0.13, 0.96)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.32, 0.72, 0.9, 0.95)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="ButtonPressed"]
+bg_color = Color(0.07, 0.105, 0.135, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.95, 0.55, 0.2, 1)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[sub_resource type="StyleBoxFlat" id="BarBackground"]
+bg_color = Color(0.015, 0.022, 0.03, 0.88)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="HpFill"]
+bg_color = Color(0.25, 0.87, 0.7, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="MpFill"]
+bg_color = Color(0.25, 0.67, 0.94, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="ApFill"]
+bg_color = Color(1, 0.56, 0.2, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 2
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="Disabled"]
+bg_color = Color(0.04, 0.05, 0.06, 0.75)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.17, 0.19, 0.21, 0.8)
+corner_radius_top_left = 3
+corner_radius_top_right = 3
+corner_radius_bottom_right = 3
+corner_radius_bottom_left = 3
+
+[node name="CharacterPanel" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+script = ExtResource("1")
+
+[node name="BackgroundDim" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_styles/panel = SubResource("DimPanel")
+
+[node name="CharacterMenuRoot" type="MarginContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 24.0
+offset_top = 12.0
+offset_right = -24.0
+offset_bottom = -10.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Layout" type="VBoxContainer" parent="CharacterMenuRoot"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="TopBar" type="HBoxContainer" parent="CharacterMenuRoot/Layout"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="DetailTab" type="Button" parent="CharacterMenuRoot/Layout/TopBar"]
+custom_minimum_size = Vector2(138, 42)
+layout_mode = 2
+toggle_mode = true
+button_pressed = true
+theme_override_colors/font_color = Color(0.92, 0.9, 0.84, 1)
+theme_override_colors/font_pressed_color = Color(1, 0.88, 0.7, 1)
+theme_override_font_sizes/font_size = 18
+theme_override_styles/normal = SubResource("TabNormal")
+theme_override_styles/hover = SubResource("TabHover")
+theme_override_styles/pressed = SubResource("TabPressed")
+text = "角色详情"
+
+[node name="UpgradeTab" type="Button" parent="CharacterMenuRoot/Layout/TopBar"]
+custom_minimum_size = Vector2(138, 42)
+layout_mode = 2
+toggle_mode = true
+theme_override_colors/font_color = Color(0.72, 0.72, 0.7, 1)
+theme_override_colors/font_pressed_color = Color(1, 0.88, 0.7, 1)
+theme_override_font_sizes/font_size = 18
+theme_override_styles/normal = SubResource("TabNormal")
+theme_override_styles/hover = SubResource("TabHover")
+theme_override_styles/pressed = SubResource("TabPressed")
+text = "技能强化"
+
+[node name="Spacer" type="Control" parent="CharacterMenuRoot/Layout/TopBar"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="CloseButton" type="Button" parent="CharacterMenuRoot/Layout/TopBar"]
+custom_minimum_size = Vector2(92, 36)
+layout_mode = 2
+theme_override_styles/normal = SubResource("ButtonNormal")
+theme_override_styles/hover = SubResource("ButtonHover")
+text = "E  关闭"
+
+[node name="PageStack" type="Control" parent="CharacterMenuRoot/Layout"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="DetailPage" type="HBoxContainer" parent="CharacterMenuRoot/Layout/PageStack"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 10
+
+[node name="LeftStatsPanel" type="PanelContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage"]
+custom_minimum_size = Vector2(282, 0)
+layout_mode = 2
+theme_override_styles/panel = SubResource("Panel")
+
+[node name="Margin" type="MarginContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 13
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 12
+
+[node name="Content" type="VBoxContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 7
+
+[node name="CharacterHeader" type="VBoxContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Name" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/CharacterHeader"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.96, 0.87, 1)
+theme_override_font_sizes/font_size = 28
+text = "角色名"
+
+[node name="Id" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/CharacterHeader"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.7, 0.75, 1)
+text = "ID: --"
+
+[node name="Identity" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/CharacterHeader"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.86, 0.82, 0.73, 1)
+text = "玩家 / 冒险者"
+
+[node name="LevelRow" type="HBoxContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content"]
+layout_mode = 2
+
+[node name="Level" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/LevelRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(1, 0.57, 0.2, 1)
+theme_override_font_sizes/font_size = 22
+text = "Lv. 1"
+
+[node name="Experience" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/LevelRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.67, 0.7, 0.72, 1)
+text = "经验值 0 / 1000"
+
+[node name="Separator1" type="HSeparator" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content"]
+layout_mode = 2
+
+[node name="ResourceBars" type="VBoxContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content"]
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="HP" type="HBoxContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/ResourceBars"]
+layout_mode = 2
+[node name="Label" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/ResourceBars/HP"]
+custom_minimum_size = Vector2(34, 0)
+layout_mode = 2
+text = "HP"
+[node name="Bar" type="ProgressBar" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/ResourceBars/HP"]
+custom_minimum_size = Vector2(0, 12)
+layout_mode = 2
+size_flags_horizontal = 3
+show_percentage = false
+theme_override_styles/background = SubResource("BarBackground")
+theme_override_styles/fill = SubResource("HpFill")
+[node name="Value" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/ResourceBars/HP"]
+custom_minimum_size = Vector2(72, 0)
+layout_mode = 2
+horizontal_alignment = 2
+text = "0 / 0"
+
+[node name="MP" type="HBoxContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/ResourceBars"]
+layout_mode = 2
+[node name="Label" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/ResourceBars/MP"]
+custom_minimum_size = Vector2(34, 0)
+layout_mode = 2
+text = "MP"
+[node name="Bar" type="ProgressBar" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/ResourceBars/MP"]
+custom_minimum_size = Vector2(0, 12)
+layout_mode = 2
+size_flags_horizontal = 3
+show_percentage = false
+theme_override_styles/background = SubResource("BarBackground")
+theme_override_styles/fill = SubResource("MpFill")
+[node name="Value" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/ResourceBars/MP"]
+custom_minimum_size = Vector2(72, 0)
+layout_mode = 2
+horizontal_alignment = 2
+text = "0 / 0"
+
+[node name="AP" type="HBoxContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/ResourceBars"]
+layout_mode = 2
+[node name="Label" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/ResourceBars/AP"]
+custom_minimum_size = Vector2(34, 0)
+layout_mode = 2
+text = "AP"
+[node name="Bar" type="ProgressBar" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/ResourceBars/AP"]
+custom_minimum_size = Vector2(0, 12)
+layout_mode = 2
+size_flags_horizontal = 3
+show_percentage = false
+theme_override_styles/background = SubResource("BarBackground")
+theme_override_styles/fill = SubResource("ApFill")
+[node name="Value" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/ResourceBars/AP"]
+custom_minimum_size = Vector2(72, 0)
+layout_mode = 2
+horizontal_alignment = 2
+text = "0 / 0"
+
+[node name="SpeedRow" type="HBoxContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content"]
+layout_mode = 2
+[node name="Label" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/SpeedRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "速度"
+[node name="Value" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/SpeedRow"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.84, 0.58, 1)
+text = "0"
+
+[node name="Separator2" type="HSeparator" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content"]
+layout_mode = 2
+
+[node name="AttributeTitle" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.74, 0.4, 1)
+theme_override_font_sizes/font_size = 17
+text = "◇ 基础属性"
+
+[node name="AttributeGrid" type="GridContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content"]
+layout_mode = 2
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 6
+columns = 4
+
+[node name="StrengthLabel" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
+layout_mode = 2
+text = "力量"
+[node name="StrengthValue" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
+custom_minimum_size = Vector2(34, 0)
+layout_mode = 2
+horizontal_alignment = 2
+text = "0"
+[node name="MagicDefenseLabel" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
+layout_mode = 2
+text = "魔法防御"
+[node name="MagicDefenseValue" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
+custom_minimum_size = Vector2(34, 0)
+layout_mode = 2
+horizontal_alignment = 2
+text = "0"
+
+[node name="AgilityLabel" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
+layout_mode = 2
+text = "敏捷"
+[node name="AgilityValue" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
+layout_mode = 2
+horizontal_alignment = 2
+text = "0"
+[node name="HitLabel" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
+layout_mode = 2
+text = "命中"
+[node name="HitValue" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
+layout_mode = 2
+horizontal_alignment = 2
+text = "0%"
+
+[node name="IntellectLabel" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
+layout_mode = 2
+text = "智力"
+[node name="IntellectValue" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
+layout_mode = 2
+horizontal_alignment = 2
+text = "0"
+[node name="EvasionLabel" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
+layout_mode = 2
+text = "闪避"
+[node name="EvasionValue" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
+layout_mode = 2
+horizontal_alignment = 2
+text = "0%"
+
+[node name="VitalityLabel" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
+layout_mode = 2
+text = "体质"
+[node name="VitalityValue" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
+layout_mode = 2
+horizontal_alignment = 2
+text = "0"
+[node name="CritLabel" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
+layout_mode = 2
+text = "暴击率"
+[node name="CritValue" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
+layout_mode = 2
+horizontal_alignment = 2
+text = "0%"
+
+[node name="PhysicalAttackLabel" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
+layout_mode = 2
+text = "物理攻击"
+[node name="PhysicalAttackValue" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
+layout_mode = 2
+horizontal_alignment = 2
+text = "0"
+[node name="PhysicalDefenseLabel" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
+layout_mode = 2
+text = "物理防御"
+[node name="PhysicalDefenseValue" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
+layout_mode = 2
+horizontal_alignment = 2
+text = "0"
+
+[node name="CenterPortraitPanel" type="Control" parent="CharacterMenuRoot/Layout/PageStack/DetailPage"]
+custom_minimum_size = Vector2(360, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+clip_contents = true
+
+[node name="Backdrop" type="Control" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/CenterPortraitPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Portrait" type="TextureRect" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/CenterPortraitPanel"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 8.0
+offset_top = 4.0
+offset_right = -8.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="CharacterIndex" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/CenterPortraitPanel"]
+layout_mode = 1
+anchors_preset = 10
+anchor_right = 1.0
+offset_top = 8.0
+offset_bottom = 30.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(0.62, 0.68, 0.74, 1)
+horizontal_alignment = 1
+text = "1 / 1"
+
+[node name="PreviousButton" type="Button" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/CenterPortraitPanel"]
+custom_minimum_size = Vector2(46, 76)
+layout_mode = 1
+anchors_preset = 4
+anchor_top = 0.5
+anchor_bottom = 0.5
+offset_top = -38.0
+offset_right = 46.0
+offset_bottom = 38.0
+grow_vertical = 2
+theme_override_colors/font_color = Color(1, 0.93, 0.78, 1)
+theme_override_font_sizes/font_size = 28
+theme_override_styles/normal = SubResource("ButtonNormal")
+theme_override_styles/hover = SubResource("ButtonHover")
+text = "‹"
+
+[node name="NextButton" type="Button" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/CenterPortraitPanel"]
+custom_minimum_size = Vector2(46, 76)
+layout_mode = 1
+anchors_preset = 6
+anchor_left = 1.0
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = -46.0
+offset_top = -38.0
+offset_bottom = 38.0
+grow_horizontal = 0
+grow_vertical = 2
+theme_override_colors/font_color = Color(1, 0.93, 0.78, 1)
+theme_override_font_sizes/font_size = 28
+theme_override_styles/normal = SubResource("ButtonNormal")
+theme_override_styles/hover = SubResource("ButtonHover")
+text = "›"
+
+[node name="RightInfoPanel" type="VBoxContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage"]
+custom_minimum_size = Vector2(346, 0)
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="SkillSummaryPanel" type="PanelContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_styles/panel = SubResource("Panel")
+
+[node name="Margin" type="MarginContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/SkillSummaryPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 9
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 9
+
+[node name="Content" type="VBoxContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/SkillSummaryPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="Title" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/SkillSummaryPanel/Margin/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.75, 0.42, 1)
+theme_override_font_sizes/font_size = 18
+text = "◇ 技能"
+
+[node name="SkillRows" type="VBoxContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/SkillSummaryPanel/Margin/Content"]
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Skill0" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/SkillSummaryPanel/Margin/Content/SkillRows" instance=ExtResource("2")]
+layout_mode = 2
+
+[node name="Skill1" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/SkillSummaryPanel/Margin/Content/SkillRows" instance=ExtResource("2")]
+layout_mode = 2
+
+[node name="Skill2" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/SkillSummaryPanel/Margin/Content/SkillRows" instance=ExtResource("2")]
+layout_mode = 2
+
+[node name="Skill3" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/SkillSummaryPanel/Margin/Content/SkillRows" instance=ExtResource("2")]
+layout_mode = 2
+
+[node name="EquipmentSummaryPanel" type="PanelContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel"]
+layout_mode = 2
+theme_override_styles/panel = SubResource("Panel")
+
+[node name="Margin" type="MarginContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/EquipmentSummaryPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 8
+
+[node name="Content" type="VBoxContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/EquipmentSummaryPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 3
+
+[node name="Title" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/EquipmentSummaryPanel/Margin/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.75, 0.42, 1)
+theme_override_font_sizes/font_size = 18
+text = "◇ 装备"
+
+[node name="EquipmentGrid" type="GridContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/EquipmentSummaryPanel/Margin/Content"]
+layout_mode = 2
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 3
+columns = 2
+
+[node name="WeaponLabel" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/EquipmentSummaryPanel/Margin/Content/EquipmentGrid"]
+custom_minimum_size = Vector2(58, 0)
+layout_mode = 2
+text = "武器"
+[node name="WeaponValue" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/EquipmentSummaryPanel/Margin/Content/EquipmentGrid"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "未装备"
+[node name="OffhandLabel" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/EquipmentSummaryPanel/Margin/Content/EquipmentGrid"]
+layout_mode = 2
+text = "副手"
+[node name="OffhandValue" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/EquipmentSummaryPanel/Margin/Content/EquipmentGrid"]
+layout_mode = 2
+text = "未装备"
+[node name="HeadLabel" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/EquipmentSummaryPanel/Margin/Content/EquipmentGrid"]
+layout_mode = 2
+text = "头部"
+[node name="HeadValue" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/EquipmentSummaryPanel/Margin/Content/EquipmentGrid"]
+layout_mode = 2
+text = "未装备"
+[node name="BodyLabel" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/EquipmentSummaryPanel/Margin/Content/EquipmentGrid"]
+layout_mode = 2
+text = "身体"
+[node name="BodyValue" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/EquipmentSummaryPanel/Margin/Content/EquipmentGrid"]
+layout_mode = 2
+text = "未装备"
+[node name="AccessoryLabel" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/EquipmentSummaryPanel/Margin/Content/EquipmentGrid"]
+layout_mode = 2
+text = "饰品"
+[node name="AccessoryValue" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/EquipmentSummaryPanel/Margin/Content/EquipmentGrid"]
+layout_mode = 2
+text = "未装备"
+[node name="ToolLabel" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/EquipmentSummaryPanel/Margin/Content/EquipmentGrid"]
+layout_mode = 2
+text = "工具"
+[node name="ToolValue" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/EquipmentSummaryPanel/Margin/Content/EquipmentGrid"]
+layout_mode = 2
+text = "未装备"
+
+[node name="UpgradePage" type="HBoxContainer" parent="CharacterMenuRoot/Layout/PageStack"]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 10
+
+[node name="SkillListPanel" type="PanelContainer" parent="CharacterMenuRoot/Layout/PageStack/UpgradePage"]
+custom_minimum_size = Vector2(270, 0)
+layout_mode = 2
+theme_override_styles/panel = SubResource("Panel")
+[node name="Margin" type="MarginContainer" parent="CharacterMenuRoot/Layout/PageStack/UpgradePage/SkillListPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
+[node name="Content" type="VBoxContainer" parent="CharacterMenuRoot/Layout/PageStack/UpgradePage/SkillListPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 7
+[node name="Title" type="Label" parent="CharacterMenuRoot/Layout/PageStack/UpgradePage/SkillListPanel/Margin/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.74, 0.4, 1)
+theme_override_font_sizes/font_size = 19
+text = "技能列表"
+[node name="SkillButtons" type="VBoxContainer" parent="CharacterMenuRoot/Layout/PageStack/UpgradePage/SkillListPanel/Margin/Content"]
+layout_mode = 2
+theme_override_constants/separation = 6
+[node name="Skill0" type="Button" parent="CharacterMenuRoot/Layout/PageStack/UpgradePage/SkillListPanel/Margin/Content/SkillButtons"]
+custom_minimum_size = Vector2(0, 48)
+layout_mode = 2
+toggle_mode = true
+theme_override_styles/normal = SubResource("ButtonNormal")
+theme_override_styles/hover = SubResource("ButtonHover")
+theme_override_styles/pressed = SubResource("ButtonPressed")
+text = "技能"
+[node name="Skill1" type="Button" parent="CharacterMenuRoot/Layout/PageStack/UpgradePage/SkillListPanel/Margin/Content/SkillButtons"]
+custom_minimum_size = Vector2(0, 48)
+layout_mode = 2
+toggle_mode = true
+theme_override_styles/normal = SubResource("ButtonNormal")
+theme_override_styles/hover = SubResource("ButtonHover")
+theme_override_styles/pressed = SubResource("ButtonPressed")
+text = "技能"
+[node name="Skill2" type="Button" parent="CharacterMenuRoot/Layout/PageStack/UpgradePage/SkillListPanel/Margin/Content/SkillButtons"]
+custom_minimum_size = Vector2(0, 48)
+layout_mode = 2
+toggle_mode = true
+theme_override_styles/normal = SubResource("ButtonNormal")
+theme_override_styles/hover = SubResource("ButtonHover")
+theme_override_styles/pressed = SubResource("ButtonPressed")
+text = "技能"
+[node name="Skill3" type="Button" parent="CharacterMenuRoot/Layout/PageStack/UpgradePage/SkillListPanel/Margin/Content/SkillButtons"]
+custom_minimum_size = Vector2(0, 48)
+layout_mode = 2
+toggle_mode = true
+theme_override_styles/normal = SubResource("ButtonNormal")
+theme_override_styles/hover = SubResource("ButtonHover")
+theme_override_styles/pressed = SubResource("ButtonPressed")
+text = "技能"
+
+[node name="SkillDetailPanel" type="PanelContainer" parent="CharacterMenuRoot/Layout/PageStack/UpgradePage"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_styles/panel = SubResource("Panel")
+[node name="Margin" type="MarginContainer" parent="CharacterMenuRoot/Layout/PageStack/UpgradePage/SkillDetailPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 16
+[node name="Content" type="VBoxContainer" parent="CharacterMenuRoot/Layout/PageStack/UpgradePage/SkillDetailPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+[node name="Title" type="Label" parent="CharacterMenuRoot/Layout/PageStack/UpgradePage/SkillDetailPanel/Margin/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.95, 0.86, 1)
+theme_override_font_sizes/font_size = 28
+text = "选择技能"
+[node name="Type" type="Label" parent="CharacterMenuRoot/Layout/PageStack/UpgradePage/SkillDetailPanel/Margin/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.5, 0.78, 0.95, 1)
+text = "类型：--"
+[node name="Meta" type="Label" parent="CharacterMenuRoot/Layout/PageStack/UpgradePage/SkillDetailPanel/Margin/Content"]
+layout_mode = 2
+text = "AP 0 · 射程 0 · 目标 --"
+[node name="Separator" type="HSeparator" parent="CharacterMenuRoot/Layout/PageStack/UpgradePage/SkillDetailPanel/Margin/Content"]
+layout_mode = 2
+[node name="Description" type="Label" parent="CharacterMenuRoot/Layout/PageStack/UpgradePage/SkillDetailPanel/Margin/Content"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_colors/font_color = Color(0.79, 0.8, 0.77, 1)
+text = "技能描述"
+autowrap_mode = 2
+
+[node name="UpgradePreviewPanel" type="PanelContainer" parent="CharacterMenuRoot/Layout/PageStack/UpgradePage"]
+custom_minimum_size = Vector2(300, 0)
+layout_mode = 2
+theme_override_styles/panel = SubResource("Panel")
+[node name="Margin" type="MarginContainer" parent="CharacterMenuRoot/Layout/PageStack/UpgradePage/UpgradePreviewPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+[node name="Content" type="VBoxContainer" parent="CharacterMenuRoot/Layout/PageStack/UpgradePage/UpgradePreviewPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+[node name="Title" type="Label" parent="CharacterMenuRoot/Layout/PageStack/UpgradePage/UpgradePreviewPanel/Margin/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.74, 0.4, 1)
+theme_override_font_sizes/font_size = 19
+text = "强化预览"
+[node name="CurrentLevel" type="Label" parent="CharacterMenuRoot/Layout/PageStack/UpgradePage/UpgradePreviewPanel/Margin/Content"]
+layout_mode = 2
+text = "当前等级：Lv. 1"
+[node name="NextEffect" type="Label" parent="CharacterMenuRoot/Layout/PageStack/UpgradePage/UpgradePreviewPanel/Margin/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.69, 0.72, 0.73, 1)
+text = "升级后效果：暂未开放强化"
+autowrap_mode = 2
+[node name="Cost" type="Label" parent="CharacterMenuRoot/Layout/PageStack/UpgradePage/UpgradePreviewPanel/Margin/Content"]
+layout_mode = 2
+text = "所需消耗：--"
+[node name="Spacer" type="Control" parent="CharacterMenuRoot/Layout/PageStack/UpgradePage/UpgradePreviewPanel/Margin/Content"]
+layout_mode = 2
+size_flags_vertical = 3
+[node name="Unavailable" type="Label" parent="CharacterMenuRoot/Layout/PageStack/UpgradePage/UpgradePreviewPanel/Margin/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.58, 0.61, 0.62, 1)
+text = "暂未开放强化"
+horizontal_alignment = 1
+[node name="UpgradeButton" type="Button" parent="CharacterMenuRoot/Layout/PageStack/UpgradePage/UpgradePreviewPanel/Margin/Content"]
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+disabled = true
+theme_override_styles/disabled = SubResource("Disabled")
+text = "强化"
+
+[node name="BottomHintBar" type="PanelContainer" parent="CharacterMenuRoot/Layout"]
+custom_minimum_size = Vector2(0, 38)
+layout_mode = 2
+theme_override_styles/panel = SubResource("Module")
+
+[node name="Hints" type="HBoxContainer" parent="CharacterMenuRoot/Layout/BottomHintBar"]
+layout_mode = 2
+theme_override_constants/separation = 18
+
+[node name="Back" type="Label" parent="CharacterMenuRoot/Layout/BottomHintBar/Hints"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "  ESC  返回"
+
+[node name="Switch" type="Label" parent="CharacterMenuRoot/Layout/BottomHintBar/Hints"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "A / D  切换角色"
+horizontal_alignment = 1
+
+[node name="Confirm" type="Label" parent="CharacterMenuRoot/Layout/BottomHintBar/Hints"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Enter  确认  "
+horizontal_alignment = 2

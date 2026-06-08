@@ -3,6 +3,8 @@ extends PanelContainer
 
 signal option_selected(option_id: String)
 
+const ACTION_BUTTON_SCENE := preload("res://scenes/ui/components/action_button.tscn")
+
 @onready var speaker_label: Label = $MarginContainer/VBoxContainer/SpeakerLabel
 @onready var text_label: Label = $MarginContainer/VBoxContainer/TextLabel
 @onready var options_scroll: ScrollContainer = $MarginContainer/VBoxContainer/OptionsScroll
@@ -26,7 +28,7 @@ func show_state(state: Dictionary) -> void:
 	var options: Array = state.get("options", []) as Array
 	for index in range(options.size()):
 		var option: Dictionary = options[index] as Dictionary
-		var button: Button = Button.new()
+		var button: Button = ACTION_BUTTON_SCENE.instantiate() as Button
 		button.text = "%d. %s" % [index + 1, str(option.get("text", ""))]
 		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		button.pressed.connect(_on_option_pressed.bind(str(option.get("id", ""))))

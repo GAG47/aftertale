@@ -2,6 +2,7 @@ class_name MessageLogPanel
 extends PanelContainer
 
 const MAX_MESSAGES := 5
+const UI_LABEL_SCENE := preload("res://scenes/ui/components/ui_label.tscn")
 
 @onready var message_box: VBoxContainer = $MarginContainer/MessageBox
 
@@ -58,7 +59,7 @@ func _refresh() -> void:
 
 
 func _make_label(message: String) -> Label:
-	var label: Label = Label.new()
+	var label: Label = UI_LABEL_SCENE.instantiate() as Label
 	label.text = message
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
