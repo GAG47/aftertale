@@ -3,63 +3,63 @@
   "display_name": "测试守卫",
   "character_kind": "npc",
   "attributes": {
-    "level": 2,
-    "strength": 6,
-    "agility": 4,
-    "intellect": 3,
-    "vitality": 6
+	"level": 2,
+	"strength": 6,
+	"agility": 4,
+	"intellect": 3,
+	"vitality": 6
   },
   "identity": {
-    "age": 28,
-    "species": "human",
-    "gender": "unspecified",
-    "origin": "test_clearing",
-    "occupation": "guard",
-    "personality": "watchful"
+	"age": 28,
+	"species": "human",
+	"gender": "unspecified",
+	"origin": "test_clearing",
+	"occupation": "guard",
+	"personality": "watchful"
   },
   "appearance_profile": {
-    "importance": "common",
-    "role": "guard",
-    "gender_hint": "neutral",
-    "age_hint": "adult",
-    "wealth": "common",
-    "culture": "village",
-    "neatness": "high",
-    "faction": "militia"
+	"importance": "common",
+	"role": "guard",
+	"gender_hint": "neutral",
+	"age_hint": "adult",
+	"wealth": "common",
+	"culture": "village",
+	"neatness": "high",
+	"faction": "militia"
   },
   "appearance": {
-    "display_mode": "map_sprite",
-    "portrait_id": "npc_guard_001",
-    "portrait": {
-      "full": "res://assets/art/characters/portraits/full/npc_guard_001.png",
-      "avatar": "res://assets/art/characters/portraits/avatars/npc_guard_001_avatar.png"
-    },
-    "map_sprite": {
-      "source": "res://assets/art/characters/map_sprites/npc_guard_001.png",
-      "scale": 0.034,
-      "anchor": { "x": 0.5, "y": 0.94 },
-      "offset": { "x": 0, "y": 5 }
-    },
-    "palette": {
-      "hair": "#2f2c28",
-      "outfit": "#65717d",
-      "trim": "#cfc08a"
-    }
+	"display_mode": "map_sprite",
+	"portrait_id": "npc_guard_001",
+	"portrait": {
+	  "full": "res://assets/art/characters/portraits/full/npc_guard_001.png",
+	  "avatar": "res://assets/art/characters/portraits/avatars/npc_guard_001_avatar.png"
+	},
+	"map_sprite": {
+	  "source": "res://assets/art/characters/map_sprites/npc_guard_001.png",
+	  "scale": 0.034,
+	  "anchor": { "x": 0.5, "y": 0.94 },
+	  "offset": { "x": 0, "y": 10 }
+	},
+	"palette": {
+	  "hair": "#2f2c28",
+	  "outfit": "#65717d",
+	  "trim": "#cfc08a"
+	}
   },
   "faction_id": "field_neutral",
   "relation_slots": {
-    "personal": {},
-    "faction": {}
+	"personal": {},
+	"faction": {}
   },
   "skills": [
-    "basic_attack",
-    "power_strike",
-    "quick_shot",
-    "first_aid",
+	"basic_attack",
+	"power_strike",
+	"quick_shot",
+	"first_aid",
     "guard"
   ],
   "default_equipment": {
-    "weapon": "res://data/items/debug_training_sword.json"
+	"weapon": "res://data/items/debug_training_sword.json"
   },
   "dialogue_source": "res://data/dialogues/debug_guard_dialogue.json",
   "is_player_controlled": false,
@@ -67,29 +67,29 @@
   "is_combatable": false,
   "blocks_movement": true,
   "schedule": [
-    {
-      "id": "day_guard_post",
-      "start": "06:00",
-      "end": "17:59",
-      "location_id": "test_clearing",
-      "anchor_id": "clearing_guard_post",
-      "grid_position": { "x": 6, "y": 3 },
-      "facing": "left",
-      "activity_type": "patrol",
-      "activity": "guarding the marker",
-      "movement": "walk"
-    },
-    {
-      "id": "night_patrol",
-      "start": "18:00",
-      "end": "05:59",
-      "location_id": "test_clearing",
-      "anchor_id": "clearing_night_patrol",
-      "grid_position": { "x": 6, "y": 4 },
-      "facing": "right",
-      "activity_type": "patrol",
-      "activity": "patrolling at night",
-      "movement": "walk"
-    }
+	{
+	  "id": "day_guard_post",
+	  "start": "06:00",
+	  "end": "17:59",
+	  "location_id": "test_clearing",
+	  "anchor_id": "clearing_guard_post",
+	  "grid_position": { "x": 6, "y": 3 },
+	  "facing": "left",
+	  "activity_type": "patrol",
+	  "activity": "guarding the marker",
+	  "movement": "walk"
+	},
+	{
+	  "id": "night_patrol",
+	  "start": "18:00",
+	  "end": "05:59",
+	  "location_id": "test_clearing",
+	  "anchor_id": "clearing_night_patrol",
+	  "grid_position": { "x": 6, "y": 4 },
+	  "facing": "right",
+	  "activity_type": "patrol",
+	  "activity": "patrolling at night",
+	  "movement": "walk"
+	}
   ]
 }

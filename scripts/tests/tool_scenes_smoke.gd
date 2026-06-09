@@ -9,6 +9,7 @@ func _run() -> void:
 	for scene_path in [
 		"res://scenes/tools/character_asset_fitter.tscn",
 		"res://scenes/tools/portrait_avatar_fitter.tscn",
+		"res://scenes/tools/portrait_badge_fitter.tscn",
 		"res://scenes/tools/white_background_cleaner.tscn",
 	]:
 		var packed: PackedScene = load(scene_path)

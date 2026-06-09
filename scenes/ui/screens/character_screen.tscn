@@ -153,23 +153,24 @@ anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = 24.0
-offset_top = 12.0
+offset_top = 10.0
 offset_right = -24.0
-offset_bottom = -10.0
+offset_bottom = -8.0
 grow_horizontal = 2
 grow_vertical = 2
 
 [node name="Layout" type="VBoxContainer" parent="CharacterMenuRoot"]
 layout_mode = 2
-theme_override_constants/separation = 8
-
-[node name="TopBar" type="HBoxContainer" parent="CharacterMenuRoot/Layout"]
-custom_minimum_size = Vector2(0, 44)
-layout_mode = 2
 theme_override_constants/separation = 6
 
+[node name="TopBar" type="HBoxContainer" parent="CharacterMenuRoot/Layout"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+theme_override_constants/separation = 6
+z_index = 2
+
 [node name="DetailTab" type="Button" parent="CharacterMenuRoot/Layout/TopBar"]
-custom_minimum_size = Vector2(138, 42)
+custom_minimum_size = Vector2(138, 38)
 layout_mode = 2
 toggle_mode = true
 button_pressed = true
@@ -182,7 +183,7 @@ theme_override_styles/pressed = SubResource("TabPressed")
 text = "角色详情"
 
 [node name="UpgradeTab" type="Button" parent="CharacterMenuRoot/Layout/TopBar"]
-custom_minimum_size = Vector2(138, 42)
+custom_minimum_size = Vector2(138, 38)
 layout_mode = 2
 toggle_mode = true
 theme_override_colors/font_color = Color(0.72, 0.72, 0.7, 1)
@@ -198,7 +199,7 @@ layout_mode = 2
 size_flags_horizontal = 3
 
 [node name="CloseButton" type="Button" parent="CharacterMenuRoot/Layout/TopBar"]
-custom_minimum_size = Vector2(92, 36)
+custom_minimum_size = Vector2(92, 34)
 layout_mode = 2
 theme_override_styles/normal = SubResource("ButtonNormal")
 theme_override_styles/hover = SubResource("ButtonHover")
@@ -207,6 +208,7 @@ text = "E  关闭"
 [node name="PageStack" type="Control" parent="CharacterMenuRoot/Layout"]
 layout_mode = 2
 size_flags_vertical = 3
+clip_contents = true
 
 [node name="DetailPage" type="HBoxContainer" parent="CharacterMenuRoot/Layout/PageStack"]
 layout_mode = 1
@@ -218,20 +220,22 @@ grow_vertical = 2
 theme_override_constants/separation = 10
 
 [node name="LeftStatsPanel" type="PanelContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage"]
-custom_minimum_size = Vector2(282, 0)
+custom_minimum_size = Vector2(300, 0)
 layout_mode = 2
+clip_contents = true
 theme_override_styles/panel = SubResource("Panel")
 
 [node name="Margin" type="MarginContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel"]
 layout_mode = 2
 theme_override_constants/margin_left = 14
-theme_override_constants/margin_top = 13
+theme_override_constants/margin_top = 10
 theme_override_constants/margin_right = 14
-theme_override_constants/margin_bottom = 12
+theme_override_constants/margin_bottom = 9
 
 [node name="Content" type="VBoxContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin"]
 layout_mode = 2
-theme_override_constants/separation = 7
+theme_override_constants/separation = 5
+clip_contents = true
 
 [node name="CharacterHeader" type="VBoxContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content"]
 layout_mode = 2
@@ -240,18 +244,24 @@ theme_override_constants/separation = 2
 [node name="Name" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/CharacterHeader"]
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.96, 0.87, 1)
-theme_override_font_sizes/font_size = 28
+theme_override_font_sizes/font_size = 26
 text = "角色名"
+text_overrun_behavior = 3
+clip_text = true
 
 [node name="Id" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/CharacterHeader"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.65, 0.7, 0.75, 1)
 text = "ID: --"
+text_overrun_behavior = 3
+clip_text = true
 
 [node name="Identity" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/CharacterHeader"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.86, 0.82, 0.73, 1)
 text = "玩家 / 冒险者"
+text_overrun_behavior = 3
+clip_text = true
 
 [node name="LevelRow" type="HBoxContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content"]
 layout_mode = 2
@@ -260,20 +270,22 @@ layout_mode = 2
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_colors/font_color = Color(1, 0.57, 0.2, 1)
-theme_override_font_sizes/font_size = 22
+theme_override_font_sizes/font_size = 20
 text = "Lv. 1"
 
 [node name="Experience" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/LevelRow"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.67, 0.7, 0.72, 1)
 text = "经验值 0 / 1000"
+text_overrun_behavior = 3
+clip_text = true
 
 [node name="Separator1" type="HSeparator" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content"]
 layout_mode = 2
 
 [node name="ResourceBars" type="VBoxContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content"]
 layout_mode = 2
-theme_override_constants/separation = 5
+theme_override_constants/separation = 3
 
 [node name="HP" type="HBoxContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/ResourceBars"]
 layout_mode = 2
@@ -354,22 +366,26 @@ text = "◇ 基础属性"
 
 [node name="AttributeGrid" type="GridContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content"]
 layout_mode = 2
-theme_override_constants/h_separation = 8
-theme_override_constants/v_separation = 6
-columns = 4
+theme_override_constants/h_separation = 6
+theme_override_constants/v_separation = 4
+columns = 5
 
 [node name="StrengthLabel" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
 layout_mode = 2
 text = "力量"
 [node name="StrengthValue" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
-custom_minimum_size = Vector2(34, 0)
+custom_minimum_size = Vector2(58, 0)
 layout_mode = 2
 horizontal_alignment = 2
 text = "0"
-[node name="MagicDefenseLabel" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
+[node name="StrengthSpacer" type="Control" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
+custom_minimum_size = Vector2(16, 0)
 layout_mode = 2
-text = "魔法防御"
-[node name="MagicDefenseValue" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
+mouse_filter = 2
+[node name="PhysicalAttackLabel" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
+layout_mode = 2
+text = "物理攻击"
+[node name="PhysicalAttackValue" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
 custom_minimum_size = Vector2(34, 0)
 layout_mode = 2
 horizontal_alignment = 2
@@ -379,54 +395,34 @@ text = "0"
 layout_mode = 2
 text = "敏捷"
 [node name="AgilityValue" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
+custom_minimum_size = Vector2(58, 0)
 layout_mode = 2
 horizontal_alignment = 2
 text = "0"
-[node name="HitLabel" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
+[node name="AgilitySpacer" type="Control" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
+custom_minimum_size = Vector2(16, 0)
 layout_mode = 2
-text = "命中"
-[node name="HitValue" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
+mouse_filter = 2
+[node name="MagicAttackLabel" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
+layout_mode = 2
+text = "魔法攻击"
+[node name="MagicAttackValue" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
 layout_mode = 2
 horizontal_alignment = 2
-text = "0%"
+text = "0"
 
 [node name="IntellectLabel" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
 layout_mode = 2
 text = "智力"
 [node name="IntellectValue" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
+custom_minimum_size = Vector2(58, 0)
 layout_mode = 2
 horizontal_alignment = 2
 text = "0"
-[node name="EvasionLabel" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
+[node name="IntellectSpacer" type="Control" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
+custom_minimum_size = Vector2(16, 0)
 layout_mode = 2
-text = "闪避"
-[node name="EvasionValue" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
-layout_mode = 2
-horizontal_alignment = 2
-text = "0%"
-
-[node name="VitalityLabel" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
-layout_mode = 2
-text = "体质"
-[node name="VitalityValue" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
-layout_mode = 2
-horizontal_alignment = 2
-text = "0"
-[node name="CritLabel" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
-layout_mode = 2
-text = "暴击率"
-[node name="CritValue" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
-layout_mode = 2
-horizontal_alignment = 2
-text = "0%"
-
-[node name="PhysicalAttackLabel" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
-layout_mode = 2
-text = "物理攻击"
-[node name="PhysicalAttackValue" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
-layout_mode = 2
-horizontal_alignment = 2
-text = "0"
+mouse_filter = 2
 [node name="PhysicalDefenseLabel" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
 layout_mode = 2
 text = "物理防御"
@@ -434,6 +430,63 @@ text = "物理防御"
 layout_mode = 2
 horizontal_alignment = 2
 text = "0"
+
+[node name="VitalityLabel" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
+layout_mode = 2
+text = "体质"
+[node name="VitalityValue" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
+custom_minimum_size = Vector2(58, 0)
+layout_mode = 2
+horizontal_alignment = 2
+text = "0"
+[node name="VitalitySpacer" type="Control" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
+custom_minimum_size = Vector2(16, 0)
+layout_mode = 2
+mouse_filter = 2
+[node name="MagicDefenseLabel" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
+layout_mode = 2
+text = "魔法防御"
+[node name="MagicDefenseValue" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid"]
+layout_mode = 2
+horizontal_alignment = 2
+text = "0"
+
+[node name="Separator3" type="HSeparator" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content"]
+layout_mode = 2
+
+[node name="TraitTitle" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.74, 0.4, 1)
+theme_override_font_sizes/font_size = 17
+text = "◇ 特质"
+
+[node name="Traits" type="VBoxContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content"]
+custom_minimum_size = Vector2(0, 60)
+layout_mode = 2
+theme_override_constants/separation = 2
+clip_contents = true
+
+[node name="Trait0" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/Traits"]
+custom_minimum_size = Vector2(0, 19)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.87, 0.8, 1)
+text = "暂无特质"
+text_overrun_behavior = 3
+clip_text = true
+
+[node name="Trait1" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/Traits"]
+custom_minimum_size = Vector2(0, 19)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.87, 0.8, 1)
+text_overrun_behavior = 3
+clip_text = true
+
+[node name="Trait2" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/Traits"]
+custom_minimum_size = Vector2(0, 19)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.87, 0.8, 1)
+text_overrun_behavior = 3
+clip_text = true
 
 [node name="CenterPortraitPanel" type="Control" parent="CharacterMenuRoot/Layout/PageStack/DetailPage"]
 custom_minimum_size = Vector2(360, 0)
@@ -464,6 +517,7 @@ grow_vertical = 2
 mouse_filter = 2
 expand_mode = 1
 stretch_mode = 5
+clip_contents = true
 
 [node name="CharacterIndex" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/CenterPortraitPanel"]
 layout_mode = 1
@@ -514,23 +568,24 @@ text = "›"
 [node name="RightInfoPanel" type="VBoxContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage"]
 custom_minimum_size = Vector2(346, 0)
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 6
+clip_contents = true
 
 [node name="SkillSummaryPanel" type="PanelContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel"]
 layout_mode = 2
-size_flags_vertical = 3
+clip_contents = true
 theme_override_styles/panel = SubResource("Panel")
 
 [node name="Margin" type="MarginContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/SkillSummaryPanel"]
 layout_mode = 2
 theme_override_constants/margin_left = 10
-theme_override_constants/margin_top = 9
+theme_override_constants/margin_top = 7
 theme_override_constants/margin_right = 10
-theme_override_constants/margin_bottom = 9
+theme_override_constants/margin_bottom = 7
 
 [node name="Content" type="VBoxContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/SkillSummaryPanel/Margin"]
 layout_mode = 2
-theme_override_constants/separation = 5
+theme_override_constants/separation = 3
 
 [node name="Title" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/SkillSummaryPanel/Margin/Content"]
 layout_mode = 2
@@ -541,6 +596,7 @@ text = "◇ 技能"
 [node name="SkillRows" type="VBoxContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/SkillSummaryPanel/Margin/Content"]
 layout_mode = 2
 theme_override_constants/separation = 4
+clip_contents = true
 
 [node name="Skill0" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/SkillSummaryPanel/Margin/Content/SkillRows" instance=ExtResource("2")]
 layout_mode = 2
@@ -556,18 +612,21 @@ layout_mode = 2
 
 [node name="EquipmentSummaryPanel" type="PanelContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel"]
 layout_mode = 2
+size_flags_vertical = 3
+size_flags_stretch_ratio = 1.25
+clip_contents = true
 theme_override_styles/panel = SubResource("Panel")
 
 [node name="Margin" type="MarginContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/EquipmentSummaryPanel"]
 layout_mode = 2
 theme_override_constants/margin_left = 10
-theme_override_constants/margin_top = 8
+theme_override_constants/margin_top = 6
 theme_override_constants/margin_right = 10
-theme_override_constants/margin_bottom = 8
+theme_override_constants/margin_bottom = 6
 
 [node name="Content" type="VBoxContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/EquipmentSummaryPanel/Margin"]
 layout_mode = 2
-theme_override_constants/separation = 3
+theme_override_constants/separation = 2
 
 [node name="Title" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/EquipmentSummaryPanel/Margin/Content"]
 layout_mode = 2
@@ -578,8 +637,9 @@ text = "◇ 装备"
 [node name="EquipmentGrid" type="GridContainer" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/EquipmentSummaryPanel/Margin/Content"]
 layout_mode = 2
 theme_override_constants/h_separation = 8
-theme_override_constants/v_separation = 3
+theme_override_constants/v_separation = 1
 columns = 2
+clip_contents = true
 
 [node name="WeaponLabel" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/EquipmentSummaryPanel/Margin/Content/EquipmentGrid"]
 custom_minimum_size = Vector2(58, 0)
@@ -589,36 +649,48 @@ text = "武器"
 layout_mode = 2
 size_flags_horizontal = 3
 text = "未装备"
+text_overrun_behavior = 3
+clip_text = true
 [node name="OffhandLabel" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/EquipmentSummaryPanel/Margin/Content/EquipmentGrid"]
 layout_mode = 2
 text = "副手"
 [node name="OffhandValue" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/EquipmentSummaryPanel/Margin/Content/EquipmentGrid"]
 layout_mode = 2
 text = "未装备"
+text_overrun_behavior = 3
+clip_text = true
 [node name="HeadLabel" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/EquipmentSummaryPanel/Margin/Content/EquipmentGrid"]
 layout_mode = 2
 text = "头部"
 [node name="HeadValue" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/EquipmentSummaryPanel/Margin/Content/EquipmentGrid"]
 layout_mode = 2
 text = "未装备"
+text_overrun_behavior = 3
+clip_text = true
 [node name="BodyLabel" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/EquipmentSummaryPanel/Margin/Content/EquipmentGrid"]
 layout_mode = 2
 text = "身体"
 [node name="BodyValue" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/EquipmentSummaryPanel/Margin/Content/EquipmentGrid"]
 layout_mode = 2
 text = "未装备"
+text_overrun_behavior = 3
+clip_text = true
 [node name="AccessoryLabel" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/EquipmentSummaryPanel/Margin/Content/EquipmentGrid"]
 layout_mode = 2
 text = "饰品"
 [node name="AccessoryValue" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/EquipmentSummaryPanel/Margin/Content/EquipmentGrid"]
 layout_mode = 2
 text = "未装备"
+text_overrun_behavior = 3
+clip_text = true
 [node name="ToolLabel" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/EquipmentSummaryPanel/Margin/Content/EquipmentGrid"]
 layout_mode = 2
 text = "工具"
 [node name="ToolValue" type="Label" parent="CharacterMenuRoot/Layout/PageStack/DetailPage/RightInfoPanel/EquipmentSummaryPanel/Margin/Content/EquipmentGrid"]
 layout_mode = 2
 text = "未装备"
+text_overrun_behavior = 3
+clip_text = true
 
 [node name="UpgradePage" type="HBoxContainer" parent="CharacterMenuRoot/Layout/PageStack"]
 visible = false
@@ -763,8 +835,9 @@ theme_override_styles/disabled = SubResource("Disabled")
 text = "强化"
 
 [node name="BottomHintBar" type="PanelContainer" parent="CharacterMenuRoot/Layout"]
-custom_minimum_size = Vector2(0, 38)
+custom_minimum_size = Vector2(0, 34)
 layout_mode = 2
+z_index = 2
 theme_override_styles/panel = SubResource("Module")
 
 [node name="Hints" type="HBoxContainer" parent="CharacterMenuRoot/Layout/BottomHintBar"]

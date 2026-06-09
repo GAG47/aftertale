@@ -32,8 +32,8 @@
 			"background_saturation": 0.16,
 			"background_value": 0.72,
 			"center": {
-				"x": 0.51,
-				"y": 0.046
+				"x": 0.509,
+				"y": 0.051
 			},
 			"crop_size": 0.34,
 			"id": "npc_guard_001",

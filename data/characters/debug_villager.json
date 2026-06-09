@@ -3,121 +3,121 @@
   "display_name": "测试村民",
   "character_kind": "npc",
   "attributes": {
-    "level": 1,
-    "strength": 3,
-    "agility": 3,
-    "intellect": 4,
-    "vitality": 4
+	"level": 1,
+	"strength": 3,
+	"agility": 3,
+	"intellect": 4,
+	"vitality": 4
   },
   "identity": {
-    "age": 32,
-    "species": "human",
-    "gender": "unspecified",
-    "origin": "test_field",
-    "occupation": "villager",
-    "personality": "calm"
+	"age": 32,
+	"species": "human",
+	"gender": "unspecified",
+	"origin": "test_field",
+	"occupation": "villager",
+	"personality": "calm"
   },
   "appearance_profile": {
-    "importance": "common",
-    "role": "villager",
-    "gender_hint": "neutral",
-    "age_hint": "adult",
-    "wealth": "common",
-    "culture": "village",
-    "neatness": "medium"
+	"importance": "common",
+	"role": "villager",
+	"gender_hint": "neutral",
+	"age_hint": "adult",
+	"wealth": "common",
+	"culture": "village",
+	"neatness": "medium"
   },
   "appearance": {
-    "display_mode": "map_sprite",
-    "portrait_id": "npc_merchant_001",
-    "portrait": {
-      "full": "res://assets/art/characters/portraits/full/npc_merchant_001.png",
-      "avatar": "res://assets/art/characters/portraits/avatars/npc_merchant_001_avatar.png"
-    },
-    "map_sprite": {
-      "source": "res://assets/art/characters/map_sprites/npc_merchant_001.png",
-      "scale": 0.034,
-      "anchor": { "x": 0.5, "y": 0.94 },
-      "offset": { "x": 0, "y": 5 }
-    },
-    "palette": {
-      "hair": "#74502e",
-      "outfit": "#6a9a64",
-      "trim": "#d7bd63"
-    }
+	"display_mode": "map_sprite",
+	"portrait_id": "npc_merchant_001",
+	"portrait": {
+	  "full": "res://assets/art/characters/portraits/full/npc_merchant_001.png",
+	  "avatar": "res://assets/art/characters/portraits/avatars/npc_merchant_001_avatar.png"
+	},
+	"map_sprite": {
+	  "source": "res://assets/art/characters/map_sprites/npc_merchant_001.png",
+	  "scale": 0.034,
+	  "anchor": { "x": 0.5, "y": 0.94 },
+	  "offset": { "x": 0, "y": 5 }
+	},
+	"palette": {
+	  "hair": "#74502e",
+	  "outfit": "#6a9a64",
+	  "trim": "#d7bd63"
+	}
   },
   "faction_id": "field_neutral",
   "relation_slots": {
-    "personal": {},
-    "faction": {}
+	"personal": {},
+	"faction": {}
   },
   "dialogue_source": "res://data/dialogues/debug_villager_dialogue.json",
   "inventory": [
-    { "source": "res://data/items/debug_seed.json", "quantity": 3 }
+	{ "source": "res://data/items/debug_seed.json", "quantity": 3 }
   ],
   "is_player_controlled": false,
   "is_interactable": true,
   "is_combatable": false,
   "blocks_movement": true,
   "schedule": [
-    {
-      "id": "morning_field_check",
-      "start": "06:00",
-      "end": "08:59",
-      "location_id": "test_field",
-      "anchor_id": "field_morning_work",
-      "grid_position": { "x": 6, "y": 5 },
-      "facing": "down",
-      "activity_type": "work",
-      "activity": "checking the field",
-      "movement": "walk"
-    },
-    {
-      "id": "day_path_watch",
-      "start": "09:00",
-      "end": "11:59",
-      "location_id": "test_field",
-      "anchor_id": "field_path_watch",
-      "grid_position": { "x": 7, "y": 5 },
-      "facing": "left",
-      "activity_type": "patrol",
-      "activity": "watching the path",
-      "movement": "walk"
-    },
-    {
-      "id": "afternoon_pond_walk",
-      "start": "12:00",
-      "end": "16:59",
-      "location_id": "test_field",
-      "anchor_id": "field_pond_walk",
-      "grid_position": { "x": 6, "y": 6 },
-      "facing": "up",
-      "activity_type": "social",
-      "activity": "walking near the pond",
-      "movement": "walk"
-    },
-    {
-      "id": "evening_west_path",
-      "start": "17:00",
-      "end": "20:59",
-      "location_id": "test_field",
-      "anchor_id": "field_west_path",
-      "grid_position": { "x": 5, "y": 6 },
-      "facing": "right",
-      "activity_type": "travel",
-      "activity": "heading home",
-      "movement": "walk"
-    },
-    {
-      "id": "night_rest",
-      "start": "21:00",
-      "end": "05:59",
-      "location_id": "test_field",
-      "anchor_id": "field_rest_spot",
-      "grid_position": { "x": 2, "y": 6 },
-      "facing": "right",
-      "activity_type": "sleep",
-      "activity": "resting",
-      "movement": "walk"
-    }
+	{
+	  "id": "morning_field_check",
+	  "start": "06:00",
+	  "end": "08:59",
+	  "location_id": "test_field",
+	  "anchor_id": "field_morning_work",
+	  "grid_position": { "x": 6, "y": 5 },
+	  "facing": "down",
+	  "activity_type": "work",
+	  "activity": "checking the field",
+	  "movement": "walk"
+	},
+	{
+	  "id": "day_path_watch",
+	  "start": "09:00",
+	  "end": "11:59",
+	  "location_id": "test_field",
+	  "anchor_id": "field_path_watch",
+	  "grid_position": { "x": 7, "y": 5 },
+	  "facing": "left",
+	  "activity_type": "patrol",
+	  "activity": "watching the path",
+	  "movement": "walk"
+	},
+	{
+	  "id": "afternoon_pond_walk",
+	  "start": "12:00",
+	  "end": "16:59",
+	  "location_id": "test_field",
+	  "anchor_id": "field_pond_walk",
+	  "grid_position": { "x": 6, "y": 6 },
+	  "facing": "up",
+	  "activity_type": "social",
+	  "activity": "walking near the pond",
+	  "movement": "walk"
+	},
+	{
+	  "id": "evening_west_path",
+	  "start": "17:00",
+	  "end": "20:59",
+	  "location_id": "test_field",
+	  "anchor_id": "field_west_path",
+	  "grid_position": { "x": 5, "y": 6 },
+	  "facing": "right",
+	  "activity_type": "travel",
+	  "activity": "heading home",
+	  "movement": "walk"
+	},
+	{
+	  "id": "night_rest",
+	  "start": "21:00",
+	  "end": "05:59",
+	  "location_id": "test_field",
+	  "anchor_id": "field_rest_spot",
+	  "grid_position": { "x": 2, "y": 6 },
+	  "facing": "right",
+	  "activity_type": "sleep",
+	  "activity": "resting",
+	  "movement": "walk"
+	}
   ]
 }

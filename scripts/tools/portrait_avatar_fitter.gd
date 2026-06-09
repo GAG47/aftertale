@@ -146,12 +146,6 @@ func _load_entry_controls() -> void:
 func _refresh_working_image() -> void:
 	if _source_image == null or _source_image.is_empty():
 		_working_image = Image.new()
-	elif _remove_background.button_pressed:
-		_working_image = ImageBackgroundCleaner.remove_light_edge_background(
-			_source_image,
-			float(_background_value.value),
-			float(_background_saturation.value)
-		)
 	else:
 		_working_image = _source_image.duplicate()
 	_update_previews()
@@ -208,12 +202,18 @@ func _update_avatar_preview() -> void:
 	_avatar_view.texture = ImageTexture.create_from_image(display)
 
 
-func _make_avatar_image() -> Image:
+func _make_avatar_image(apply_background_cleanup: bool = true) -> Image:
 	if _working_image == null or _working_image.is_empty():
 		return Image.new()
 	var avatar: Image = _working_image.get_region(_source_crop_rect())
 	var output_size: int = int(_config.get("output_size", 256))
 	avatar.resize(output_size, output_size, Image.INTERPOLATE_LANCZOS)
+	if apply_background_cleanup and _remove_background.button_pressed:
+		avatar = ImageBackgroundCleaner.remove_light_edge_background(
+			avatar,
+			float(_background_value.value),
+			float(_background_saturation.value)
+		)
 	return avatar
 
 
@@ -288,11 +288,18 @@ func regenerate_all_avatars() -> void:
 
 
 func _save_transparent_source() -> void:
-	if _working_image == null or _working_image.is_empty():
+	if _source_image == null or _source_image.is_empty():
 		return
 	var source_path: String = _resource_path(str(_entry().get("source", "")))
-	if _working_image.save_png(ProjectSettings.globalize_path(source_path)) == OK:
-		_source_image = _working_image.duplicate()
+	var transparent_source: Image = ImageBackgroundCleaner.remove_light_edge_background(
+		_source_image,
+		float(_background_value.value),
+		float(_background_saturation.value)
+	)
+	if transparent_source.save_png(ProjectSettings.globalize_path(source_path)) == OK:
+		_source_image = transparent_source
+		_working_image = transparent_source.duplicate()
+		_update_previews()
 		_set_status("Saved transparent portrait source: %s" % source_path)
 
 

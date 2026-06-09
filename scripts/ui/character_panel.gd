@@ -30,6 +30,11 @@ var _portrait_texture_cache: Dictionary = {}
 @onready var _speed_value: Label = $CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/SpeedRow/Value
 @onready var _resource_root: Control = $CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/ResourceBars
 @onready var _attribute_grid: GridContainer = $CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/AttributeGrid
+@onready var _trait_labels: Array[Label] = [
+	$CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/Traits/Trait0,
+	$CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/Traits/Trait1,
+	$CharacterMenuRoot/Layout/PageStack/DetailPage/LeftStatsPanel/Margin/Content/Traits/Trait2,
+]
 
 @onready var _portrait_backdrop: Control = $CharacterMenuRoot/Layout/PageStack/DetailPage/CenterPortraitPanel/Backdrop
 @onready var _portrait: TextureRect = $CharacterMenuRoot/Layout/PageStack/DetailPage/CenterPortraitPanel/Portrait
@@ -136,11 +141,10 @@ func _refresh_character_details(summary: Dictionary) -> void:
 	_set_attribute_value("IntellectValue", _format_effective_attribute(attributes, effective, "intellect"))
 	_set_attribute_value("VitalityValue", _format_effective_attribute(attributes, effective, "vitality"))
 	_set_attribute_value("PhysicalAttackValue", str(int(effective.get("physical_attack", strength + 10))))
+	_set_attribute_value("MagicAttackValue", str(int(effective.get("magic_attack", intellect + 10))))
 	_set_attribute_value("PhysicalDefenseValue", str(int(effective.get("physical_defense", vitality + 8))))
 	_set_attribute_value("MagicDefenseValue", str(int(effective.get("magic_defense", intellect + 8))))
-	_set_attribute_value("HitValue", "%d%%" % int(effective.get("hit", 80 + agility * 2)))
-	_set_attribute_value("EvasionValue", "%d%%" % int(effective.get("evasion", max(0, agility * 2))))
-	_set_attribute_value("CritValue", "%d%%" % int(effective.get("critical_rate", max(1, agility))))
+	_refresh_traits(summary)
 
 	_refresh_portrait(summary)
 	var selected_index: int = _selected_member_index()
@@ -168,6 +172,7 @@ func _refresh_skill_summary(summary: Dictionary) -> void:
 			skill = {"id": skill_id, "display_name": skill_id, "description": ""}
 		row.set_meta("skill_id", skill_id)
 		row.button_pressed = skill_id == _selected_skill_id
+		(row.get_node("Row/IconFrame/Number") as Label).text = str(index + 1)
 		(row.get_node("Row/Text/Name") as Label).text = str(skill.get("display_name", skill_id))
 		(row.get_node("Row/Text/Meta") as Label).text = "%s · 射程 %d · %s" % [
 			_target_type_label(str(skill.get("target_type", ""))),
@@ -176,6 +181,18 @@ func _refresh_skill_summary(summary: Dictionary) -> void:
 		]
 		(row.get_node("Row/Text/Description") as Label).text = str(skill.get("description", ""))
 		(row.get_node("Row/Cost") as Label).text = "AP %d" % int(skill.get("ap_cost", 0))
+
+
+func _refresh_traits(summary: Dictionary) -> void:
+	var traits: Array = summary.get("traits", []) as Array
+	for index in range(_trait_labels.size()):
+		var label: Label = _trait_labels[index]
+		if index >= traits.size():
+			label.visible = index == 0 and traits.is_empty()
+			label.text = "暂无特质" if label.visible else ""
+			continue
+		label.visible = true
+		label.text = _format_trait(traits[index])
 
 
 func _refresh_equipment_summary(summary: Dictionary) -> void:
@@ -374,6 +391,17 @@ func _format_effective_attribute(base_attributes: Dictionary, effective_attribut
 		return str(base_value)
 	var delta: int = effective_value - base_value
 	return "%d (%+d)" % [effective_value, delta]
+
+
+func _format_trait(trait_value: Variant) -> String:
+	if trait_value is String:
+		return str(trait_value)
+	if trait_value is Dictionary:
+		var trait_data: Dictionary = trait_value as Dictionary
+		var trait_name: String = str(trait_data.get("display_name", trait_data.get("name", trait_data.get("id", "未知特质"))))
+		var description: String = str(trait_data.get("description", trait_data.get("effect_text", "")))
+		return "%s：%s" % [trait_name, description] if not description.is_empty() else trait_name
+	return str(trait_value)
 
 
 func _target_type_label(target_type: String) -> String:

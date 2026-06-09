@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://48lw4ofceg3"
-path="res://.godot/imported/player_mage_001_badge.png-57945200245a3a985eab6cb237ccd3b3.ctex"
+uid="uid://bg6tltx2wn708"
+path="res://.godot/imported/npc_guard_001.png-4c9fb1189db1c6a75afaab178dd8f7c4.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/art/characters/portraits/badges/player_mage_001_badge.png"
-dest_files=["res://.godot/imported/player_mage_001_badge.png-57945200245a3a985eab6cb237ccd3b3.ctex"]
+source_file="res://assets/art/characters/map_sprites/npc_guard_001.png"
+dest_files=["res://.godot/imported/npc_guard_001.png-4c9fb1189db1c6a75afaab178dd8f7c4.ctex"]
 
 [params]
 

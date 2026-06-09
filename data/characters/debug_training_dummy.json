@@ -4,27 +4,27 @@
   "character_kind": "enemy",
   "ai_profile": "defensive",
   "attributes": {
-    "level": 1,
-    "strength": 3,
-    "agility": 2,
-    "intellect": 1,
-    "vitality": 4
+	"level": 1,
+	"strength": 3,
+	"agility": 2,
+	"intellect": 1,
+	"vitality": 4
   },
   "identity": {
-    "age": 0,
-    "species": "construct",
-    "gender": "none",
-    "origin": "test_clearing",
-    "occupation": "training target",
-    "personality": "silent"
+	"age": 0,
+	"species": "construct",
+	"gender": "none",
+	"origin": "test_clearing",
+	"occupation": "training target",
+	"personality": "silent"
   },
   "faction_id": "field_neutral",
   "relation_slots": {
-    "personal": {},
-    "faction": {}
+	"personal": {},
+	"faction": {}
   },
   "skills": [
-    "basic_attack",
+	"basic_attack",
     "guard"
   ],
   "is_player_controlled": false,

@@ -1,8 +1,8 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene format=3 uid="uid://bptlfsawsuspw"]
 
-[ext_resource type="Script" path="res://scripts/tools/portrait_avatar_fitter.gd" id="1"]
+[ext_resource type="Script" uid="uid://d336v68q6m73d" path="res://scripts/tools/portrait_avatar_fitter.gd" id="1"]
 
-[node name="PortraitAvatarFitter" type="Control"]
+[node name="PortraitAvatarFitter" type="Control" unique_id=133042869]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -11,7 +11,7 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1")
 
-[node name="Root" type="HBoxContainer" parent="."]
+[node name="Root" type="HBoxContainer" parent="." unique_id=361413856]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -24,189 +24,189 @@ grow_horizontal = 2
 grow_vertical = 2
 theme_override_constants/separation = 12
 
-[node name="LeftPanel" type="VBoxContainer" parent="Root"]
+[node name="LeftPanel" type="VBoxContainer" parent="Root" unique_id=486819930]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 
-[node name="Title" type="Label" parent="Root/LeftPanel"]
+[node name="Title" type="Label" parent="Root/LeftPanel" unique_id=1055783647]
 layout_mode = 2
 theme_override_font_sizes/font_size = 22
 text = "Portrait Avatar Fitter"
 
-[node name="Subtitle" type="Label" parent="Root/LeftPanel"]
+[node name="Subtitle" type="Label" parent="Root/LeftPanel" unique_id=129594258]
 layout_mode = 2
 text = "Crop a square transparent avatar for battle UI."
 
-[node name="PreviewRow" type="HBoxContainer" parent="Root/LeftPanel"]
+[node name="PreviewRow" type="HBoxContainer" parent="Root/LeftPanel" unique_id=366176222]
 layout_mode = 2
 size_flags_vertical = 3
 theme_override_constants/separation = 12
 
-[node name="SourceColumn" type="VBoxContainer" parent="Root/LeftPanel/PreviewRow"]
+[node name="SourceColumn" type="VBoxContainer" parent="Root/LeftPanel/PreviewRow" unique_id=1497297886]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 
-[node name="Label" type="Label" parent="Root/LeftPanel/PreviewRow/SourceColumn"]
+[node name="Label" type="Label" parent="Root/LeftPanel/PreviewRow/SourceColumn" unique_id=1955827813]
 layout_mode = 2
 text = "Source Crop"
 
-[node name="SourceView" type="TextureRect" parent="Root/LeftPanel/PreviewRow/SourceColumn"]
-custom_minimum_size = Vector2(520, 520)
+[node name="SourceView" type="TextureRect" parent="Root/LeftPanel/PreviewRow/SourceColumn" unique_id=1617835980]
+custom_minimum_size = Vector2(360, 360)
 layout_mode = 2
-mouse_default_cursor_shape = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
+mouse_default_cursor_shape = 2
 expand_mode = 1
 stretch_mode = 5
 
-[node name="AvatarColumn" type="VBoxContainer" parent="Root/LeftPanel/PreviewRow"]
-custom_minimum_size = Vector2(280, 0)
+[node name="AvatarColumn" type="VBoxContainer" parent="Root/LeftPanel/PreviewRow" unique_id=2140374545]
+custom_minimum_size = Vector2(220, 0)
 layout_mode = 2
 size_flags_vertical = 3
 
-[node name="Label" type="Label" parent="Root/LeftPanel/PreviewRow/AvatarColumn"]
+[node name="Label" type="Label" parent="Root/LeftPanel/PreviewRow/AvatarColumn" unique_id=5445789]
 layout_mode = 2
 text = "Square Avatar"
 
-[node name="AvatarView" type="TextureRect" parent="Root/LeftPanel/PreviewRow/AvatarColumn"]
-custom_minimum_size = Vector2(256, 256)
+[node name="AvatarView" type="TextureRect" parent="Root/LeftPanel/PreviewRow/AvatarColumn" unique_id=2077779892]
+custom_minimum_size = Vector2(208, 208)
 layout_mode = 2
 expand_mode = 1
 stretch_mode = 5
 
-[node name="Status" type="Label" parent="Root/LeftPanel"]
+[node name="Status" type="Label" parent="Root/LeftPanel" unique_id=1782657713]
 layout_mode = 2
 autowrap_mode = 2
 
-[node name="RightPanel" type="VBoxContainer" parent="Root"]
-custom_minimum_size = Vector2(430, 0)
+[node name="RightPanel" type="VBoxContainer" parent="Root" unique_id=180065469]
+custom_minimum_size = Vector2(360, 0)
 layout_mode = 2
 size_flags_vertical = 3
 theme_override_constants/separation = 8
 
-[node name="EntryList" type="ItemList" parent="Root/RightPanel"]
-custom_minimum_size = Vector2(0, 190)
+[node name="EntryList" type="ItemList" parent="Root/RightPanel" unique_id=1359593439]
+custom_minimum_size = Vector2(0, 145)
 layout_mode = 2
 size_flags_vertical = 3
 
-[node name="Details" type="TextEdit" parent="Root/RightPanel"]
-custom_minimum_size = Vector2(0, 118)
+[node name="Details" type="TextEdit" parent="Root/RightPanel" unique_id=649916685]
+custom_minimum_size = Vector2(0, 92)
 layout_mode = 2
 editable = false
 wrap_mode = 1
 
-[node name="CenterXRow" type="HBoxContainer" parent="Root/RightPanel"]
+[node name="CenterXRow" type="HBoxContainer" parent="Root/RightPanel" unique_id=885201211]
 layout_mode = 2
 
-[node name="Label" type="Label" parent="Root/RightPanel/CenterXRow"]
+[node name="Label" type="Label" parent="Root/RightPanel/CenterXRow" unique_id=176198815]
 custom_minimum_size = Vector2(160, 0)
 layout_mode = 2
 text = "Center X"
 
-[node name="Spin" type="SpinBox" parent="Root/RightPanel/CenterXRow"]
+[node name="Spin" type="SpinBox" parent="Root/RightPanel/CenterXRow" unique_id=325944477]
 layout_mode = 2
 size_flags_horizontal = 3
 max_value = 1.0
 step = 0.001
 value = 0.5
 
-[node name="CenterYRow" type="HBoxContainer" parent="Root/RightPanel"]
+[node name="CenterYRow" type="HBoxContainer" parent="Root/RightPanel" unique_id=1031933173]
 layout_mode = 2
 
-[node name="Label" type="Label" parent="Root/RightPanel/CenterYRow"]
+[node name="Label" type="Label" parent="Root/RightPanel/CenterYRow" unique_id=1257552666]
 custom_minimum_size = Vector2(160, 0)
 layout_mode = 2
 text = "Center Y"
 
-[node name="Spin" type="SpinBox" parent="Root/RightPanel/CenterYRow"]
+[node name="Spin" type="SpinBox" parent="Root/RightPanel/CenterYRow" unique_id=245844194]
 layout_mode = 2
 size_flags_horizontal = 3
 max_value = 1.0
 step = 0.001
 value = 0.2
 
-[node name="CropSizeRow" type="HBoxContainer" parent="Root/RightPanel"]
+[node name="CropSizeRow" type="HBoxContainer" parent="Root/RightPanel" unique_id=2110923983]
 layout_mode = 2
 
-[node name="Label" type="Label" parent="Root/RightPanel/CropSizeRow"]
+[node name="Label" type="Label" parent="Root/RightPanel/CropSizeRow" unique_id=1487959996]
 custom_minimum_size = Vector2(160, 0)
 layout_mode = 2
 text = "Crop Size"
 
-[node name="Spin" type="SpinBox" parent="Root/RightPanel/CropSizeRow"]
+[node name="Spin" type="SpinBox" parent="Root/RightPanel/CropSizeRow" unique_id=1142145515]
 layout_mode = 2
 size_flags_horizontal = 3
 min_value = 0.05
 max_value = 1.0
 step = 0.001
-value = 0.34
+value = 0.33999999999999997
 
-[node name="BackgroundRow" type="HBoxContainer" parent="Root/RightPanel"]
+[node name="BackgroundRow" type="HBoxContainer" parent="Root/RightPanel" unique_id=1176007335]
 layout_mode = 2
 
-[node name="RemoveBackground" type="CheckBox" parent="Root/RightPanel/BackgroundRow"]
+[node name="RemoveBackground" type="CheckBox" parent="Root/RightPanel/BackgroundRow" unique_id=1652037799]
 layout_mode = 2
 button_pressed = true
 text = "Remove white/light edge background"
 
-[node name="BackgroundValueRow" type="HBoxContainer" parent="Root/RightPanel"]
+[node name="BackgroundValueRow" type="HBoxContainer" parent="Root/RightPanel" unique_id=1886008724]
 layout_mode = 2
 
-[node name="Label" type="Label" parent="Root/RightPanel/BackgroundValueRow"]
+[node name="Label" type="Label" parent="Root/RightPanel/BackgroundValueRow" unique_id=1754760323]
 custom_minimum_size = Vector2(160, 0)
 layout_mode = 2
 text = "Background brightness"
 
-[node name="Spin" type="SpinBox" parent="Root/RightPanel/BackgroundValueRow"]
+[node name="Spin" type="SpinBox" parent="Root/RightPanel/BackgroundValueRow" unique_id=1110178892]
 layout_mode = 2
 size_flags_horizontal = 3
 max_value = 1.0
 step = 0.01
 value = 0.72
 
-[node name="BackgroundSaturationRow" type="HBoxContainer" parent="Root/RightPanel"]
+[node name="BackgroundSaturationRow" type="HBoxContainer" parent="Root/RightPanel" unique_id=989039639]
 layout_mode = 2
 
-[node name="Label" type="Label" parent="Root/RightPanel/BackgroundSaturationRow"]
+[node name="Label" type="Label" parent="Root/RightPanel/BackgroundSaturationRow" unique_id=922531518]
 custom_minimum_size = Vector2(160, 0)
 layout_mode = 2
 text = "Background saturation"
 
-[node name="Spin" type="SpinBox" parent="Root/RightPanel/BackgroundSaturationRow"]
+[node name="Spin" type="SpinBox" parent="Root/RightPanel/BackgroundSaturationRow" unique_id=1883753109]
 layout_mode = 2
 size_flags_horizontal = 3
 max_value = 1.0
 step = 0.01
 value = 0.16
 
-[node name="Actions" type="HBoxContainer" parent="Root/RightPanel"]
+[node name="Actions" type="HBoxContainer" parent="Root/RightPanel" unique_id=454103852]
 layout_mode = 2
 
-[node name="ReloadButton" type="Button" parent="Root/RightPanel/Actions"]
+[node name="ReloadButton" type="Button" parent="Root/RightPanel/Actions" unique_id=509363477]
 layout_mode = 2
 text = "Reload"
 
-[node name="SaveButton" type="Button" parent="Root/RightPanel/Actions"]
+[node name="SaveButton" type="Button" parent="Root/RightPanel/Actions" unique_id=4251116]
 layout_mode = 2
 text = "Save Crop"
 
-[node name="GenerateButton" type="Button" parent="Root/RightPanel/Actions"]
+[node name="GenerateButton" type="Button" parent="Root/RightPanel/Actions" unique_id=1485859958]
 layout_mode = 2
 text = "Save + Generate Avatar"
 
-[node name="SaveTransparentButton" type="Button" parent="Root/RightPanel/Actions"]
+[node name="SaveTransparentButton" type="Button" parent="Root/RightPanel/Actions" unique_id=1475769459]
 layout_mode = 2
 text = "Save Transparent Source"
 
-[node name="Navigation" type="HBoxContainer" parent="Root/RightPanel"]
+[node name="Navigation" type="HBoxContainer" parent="Root/RightPanel" unique_id=1774520480]
 layout_mode = 2
 
-[node name="PreviousButton" type="Button" parent="Root/RightPanel/Navigation"]
+[node name="PreviousButton" type="Button" parent="Root/RightPanel/Navigation" unique_id=125068009]
 layout_mode = 2
 text = "Previous"
 
-[node name="NextButton" type="Button" parent="Root/RightPanel/Navigation"]
+[node name="NextButton" type="Button" parent="Root/RightPanel/Navigation" unique_id=698623189]
 layout_mode = 2
 text = "Next"

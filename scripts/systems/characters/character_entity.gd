@@ -36,6 +36,7 @@ var identity: Dictionary = {}
 var relation_slots: Dictionary = {}
 var appearance_profile: Dictionary = {}
 var appearance: Dictionary = {}
+var traits: Array = []
 var skills: Array[String] = []
 var schedule: Array[Dictionary] = []
 var current_schedule_entry_id: String = ""
@@ -111,6 +112,14 @@ func configure(definition: Dictionary, spawn_data: Dictionary, parent_location: 
 		spawn_data.get("appearance", {}) as Dictionary
 	)
 	appearance = CharacterAppearanceResolverScript.resolve(character_id, character_kind, appearance_profile, appearance)
+
+	traits.clear()
+	var trait_rows: Array = spawn_data.get("traits", definition.get("traits", [])) as Array
+	for trait_value in trait_rows:
+		if trait_value is Dictionary:
+			traits.append((trait_value as Dictionary).duplicate(true))
+		else:
+			traits.append(trait_value)
 
 	skills.clear()
 	var skill_rows: Array = spawn_data.get("skills", definition.get("skills", ["basic_attack"])) as Array
@@ -337,6 +346,7 @@ func get_summary() -> Dictionary:
 		"relation_slots": relation_slots,
 		"appearance_profile": appearance_profile,
 		"appearance": appearance,
+		"traits": traits.duplicate(true),
 		"skills": skills.duplicate(),
 		"schedule_entry_id": current_schedule_entry_id,
 		"anchor_id": current_schedule_anchor_id,
