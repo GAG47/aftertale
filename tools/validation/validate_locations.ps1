@@ -315,6 +315,16 @@ foreach ($file in Get-ChildItem -LiteralPath $locationDir -Filter "*.json") {
         $errors.Add("Missing id: $($file.Name)")
     }
 
+    if ($json.generator -and [string]$json.generator.type -eq "village_bsp") {
+        if (-not $json.generator.size -or [int]$json.generator.size.width -le 0 -or [int]$json.generator.size.height -le 0) {
+            $errors.Add("Invalid generated location size: $($file.Name)")
+        }
+        if (-not $json.generator.seed) {
+            $errors.Add("Generated location missing seed: $($file.Name)")
+        }
+        continue
+    }
+
     if (-not $json.size -or [int]$json.size.width -le 0 -or [int]$json.size.height -le 0) {
         $errors.Add("Invalid size: $($file.Name)")
         continue

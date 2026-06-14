@@ -5,14 +5,15 @@ This document tracks planned work after Phase 49. It is an index, not the full d
 ## Current Focus
 
 Phases 50 through 54 form the first complete battle-deepening slice. Phase 55
-focuses on restructuring the full UI layer:
+restructured the full UI layer. Phase 56 starts scene generation:
 
 - pipeline-based skill effects and battle resources;
 - temporary tile states and elemental reactions;
 - tile effects on units;
 - explainable enemy decision scoring;
 - independent editable UI scenes instead of one monolithic root and runtime
-  construction of fixed controls.
+  construction of fixed controls;
+- deterministic BSP village generation with semantic gameplay anchors.
 
 ## Battle Deepening Roadmap
 
@@ -24,6 +25,7 @@ focuses on restructuring the full UI layer:
 | v53 | Complete | `doc/phase_53_status_effects_on_units.md` | Let tile states and reactions affect units at clear battle timing points. |
 | v54 | Complete | `doc/phase_54_enemy_ai_scoring.md` | Replace the simple enemy priority chain with a debuggable action scoring model. |
 | v55 | Complete | `doc/phase_55_ui_refinement.md` | Split battle, inventory, character, quest, facility, and menu UI into independent static scenes; variable-length items instantiate reusable component scenes. |
+| v56 | Complete | `doc/phase_56_scene_generation.md` | Replace the hand-authored test village with a BSP-generated village whose gameplay points are resolved through generated semantic anchors. |
 
 ## Dependency Order
 
@@ -34,6 +36,7 @@ v50 skill effect data model
 -> v53 status effects on units
 -> v54 enemy AI scoring
 -> v55 UI refinement and scene extraction
+-> v56 BSP scene generation and semantic anchors
 ```
 
 ## Minimum Tactical Slice

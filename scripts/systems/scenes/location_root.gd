@@ -8,6 +8,7 @@ signal facility_requested(facility_data: Dictionary)
 const NpcMovementAgentScript := preload("res://scripts/systems/schedules/npc_movement_agent.gd")
 const NpcActivityAgentScript := preload("res://scripts/systems/schedules/npc_activity_agent.gd")
 const NpcAutonomyAgentScript := preload("res://scripts/systems/schedules/npc_autonomy_agent.gd")
+const VillageBspGenerator := preload("res://scripts/systems/scenes/village_bsp_generator.gd")
 const CAMERA_ZOOM_MIN := 0.75
 const CAMERA_ZOOM_MAX := 3.0
 const CAMERA_ZOOM_STEP := 0.15
@@ -1744,7 +1745,12 @@ func _submit_save_facility(_target_object: LocationObject) -> void:
 
 
 func _read_location_data() -> Dictionary:
-	return DefinitionLoader.load_location(location_data_path)
+	var location_data: Dictionary = DefinitionLoader.load_location(location_data_path)
+	var generator_data: Dictionary = location_data.get("generator", {}) as Dictionary
+	if str(generator_data.get("type", "")) == "village_bsp":
+		var generator: RefCounted = VillageBspGenerator.new()
+		return generator.generate_location(location_data)
+	return location_data
 
 
 func _read_json_resource(resource_path: String) -> Dictionary:
