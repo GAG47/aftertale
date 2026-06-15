@@ -16,4 +16,4 @@ script = ExtResource("2_tile_renderer")
 
 [node name="Camera2D" type="Camera2D" parent="."]
 enabled = true
-zoom = Vector2(1.5, 1.5)
+zoom = Vector2(1.25, 1.25)

@@ -34,6 +34,9 @@ func _start_new_game() -> void:
 
 func _on_debug_toggle_requested() -> void:
 	ui_root.toggle_debug_panel()
+	if SceneLoader.current_scene != null and is_instance_valid(SceneLoader.current_scene):
+		if SceneLoader.current_scene.has_method("set_debug_presentation_visible"):
+			SceneLoader.current_scene.set_debug_presentation_visible(ui_root.is_debug_panel_visible())
 
 
 func _on_save_requested() -> void:

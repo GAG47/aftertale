@@ -8,7 +8,6 @@ signal facility_requested(facility_data: Dictionary)
 const NpcMovementAgentScript := preload("res://scripts/systems/schedules/npc_movement_agent.gd")
 const NpcActivityAgentScript := preload("res://scripts/systems/schedules/npc_activity_agent.gd")
 const NpcAutonomyAgentScript := preload("res://scripts/systems/schedules/npc_autonomy_agent.gd")
-const VillageBspGenerator := preload("res://scripts/systems/scenes/village_bsp_generator.gd")
 const CAMERA_ZOOM_MIN := 0.75
 const CAMERA_ZOOM_MAX := 3.0
 const CAMERA_ZOOM_STEP := 0.15
@@ -211,6 +210,14 @@ func set_save_runtime_on_exit(value: bool) -> void:
 	_save_runtime_on_exit = value
 
 
+func set_debug_presentation_visible(value: bool) -> void:
+	for renderer in [floor_decoration_renderer, structure_renderer, building_renderer]:
+		if renderer == null:
+			continue
+		if renderer.has_method("set_debug_layers_visible"):
+			renderer.set_debug_layers_visible(value)
+
+
 func is_cell_plantable(cell: Vector2i) -> bool:
 	if grid == null or not grid.in_bounds(cell):
 		return false
@@ -289,6 +296,8 @@ func get_interaction_prompt() -> String:
 	if target_object != null:
 		if target_object.is_pickable:
 			return "E/Enter 拾取：%s" % target_object.display_name
+		if target_object.is_scene_transition():
+			return "E/Enter 进入：%s" % target_object.display_name
 		if target_object.is_facility():
 			if target_object.facility_type == "crafting":
 				return "E/Enter 制作：%s" % target_object.display_name
@@ -329,10 +338,9 @@ func _load_location_data() -> void:
 	_configure_scene_layer_renderer(building_renderer)
 	camera.position = Vector2(grid.width * grid.tile_size, grid.height * grid.tile_size) * 0.5
 	_camera_target_position = camera.position
-	var cover_zoom: float = _get_camera_min_zoom()
-	if camera.zoom.x < cover_zoom:
-		camera.zoom = Vector2(cover_zoom, cover_zoom)
-	_camera_default_zoom = camera.zoom
+	var shared_zoom := clampf(SceneLoader.get_camera_zoom(), _get_camera_min_zoom(), CAMERA_ZOOM_MAX)
+	camera.zoom = Vector2(shared_zoom, shared_zoom)
+	_camera_default_zoom = Vector2(SceneLoader.get_default_camera_zoom(), SceneLoader.get_default_camera_zoom())
 	_last_camera_viewport_size = get_viewport_rect().size
 	_clamp_camera_to_map()
 
@@ -355,6 +363,7 @@ func _on_camera_zoom_reset_requested() -> void:
 func _set_camera_zoom(value: float) -> void:
 	var clamped_value: float = clampf(value, _get_camera_min_zoom(), CAMERA_ZOOM_MAX)
 	camera.zoom = Vector2(clamped_value, clamped_value)
+	SceneLoader.set_camera_zoom(clamped_value)
 	_set_camera_target(_camera_target_position, true)
 	if not _camera_detached:
 		_recenter_camera_to_focus(false)
@@ -375,14 +384,7 @@ func _update_camera_viewport_fit() -> void:
 
 
 func _get_camera_min_zoom() -> float:
-	if camera == null or grid == null:
-		return CAMERA_ZOOM_MIN
-	var map_size := Vector2(grid.width * grid.tile_size, grid.height * grid.tile_size)
-	var viewport_size: Vector2 = get_viewport_rect().size
-	if map_size.x <= 0.0 or map_size.y <= 0.0 or viewport_size.x <= 0.0 or viewport_size.y <= 0.0:
-		return CAMERA_ZOOM_MIN
-	var cover_zoom: float = maxf(viewport_size.x / map_size.x, viewport_size.y / map_size.y)
-	return maxf(CAMERA_ZOOM_MIN, cover_zoom)
+	return CAMERA_ZOOM_MIN
 
 
 func _on_camera_pan_requested(direction: Vector2i) -> void:
@@ -603,11 +605,41 @@ func _update_npc_schedule_movement(delta: float) -> void:
 					_get_character_display_name(str(event.get("character_id", ""))),
 					str(event.get("activity", "schedule")),
 				])
+				_depart_scheduled_character_after_cross_scene_arrival(str(event.get("character_id", "")), result)
 			"scheduled_character_blocked":
 				result.add_feedback("%s could not continue scheduled movement." % _get_character_display_name(str(event.get("character_id", ""))))
 
 	ActionSystem.publish_result(result)
 	_refresh_interaction_overlay()
+
+
+func _depart_scheduled_character_after_cross_scene_arrival(character_id: String, result: ActionResult) -> void:
+	if grid == null or character_id.is_empty():
+		return
+	var character: CharacterEntity = grid.get_character_by_id(character_id)
+	if character == null:
+		return
+	if character.scheduled_location_id.is_empty() or character.scheduled_location_id == grid.location_id:
+		return
+	var entry := _get_character_schedule_entry(character, character.current_schedule_entry_id)
+	if entry.is_empty():
+		entry = {
+			"id": character.current_schedule_entry_id,
+			"location_id": character.scheduled_location_id,
+			"anchor_id": character.current_schedule_anchor_id,
+			"activity": character.current_activity,
+		}
+	_remove_scheduled_character(character, entry, result)
+
+
+func _get_character_schedule_entry(character: CharacterEntity, entry_id: String) -> Dictionary:
+	if character == null or entry_id.is_empty():
+		return {}
+	for entry_value in character.schedule:
+		var entry: Dictionary = entry_value as Dictionary
+		if str(entry.get("id", "")) == entry_id:
+			return entry.duplicate(true)
+	return {}
 
 
 func _update_npc_autonomy(delta: float) -> void:
@@ -753,6 +785,8 @@ func _spawn_characters_from_data() -> void:
 		var offscreen_state: Dictionary = NpcScheduleSystem.get_offscreen_character_state(grid.location_id, character_id)
 		var active_entry: Dictionary = _get_active_schedule_entry(definition, resolved_spawn_data)
 		if not active_entry.is_empty():
+			if not _schedule_entry_matches_location_context(active_entry):
+				continue
 			var scheduled_location_id: String = str(active_entry.get("location_id", grid.location_id))
 			if scheduled_location_id != grid.location_id:
 				continue
@@ -803,20 +837,27 @@ func apply_current_schedule(absolute_minutes: int) -> void:
 		var active_entry: Dictionary = _get_active_schedule_entry(definition, spawn_data)
 		if active_entry.is_empty():
 			continue
+		var character: CharacterEntity = grid.get_character_by_id(character_id)
+		if not _schedule_entry_matches_location_context(active_entry):
+			if character != null:
+				_remove_scheduled_character(character, active_entry, result)
+				change_count += 1
+			continue
 
 		var scheduled_location_id: String = str(active_entry.get("location_id", grid.location_id))
-		var character: CharacterEntity = grid.get_character_by_id(character_id)
 		if character != null and _npc_autonomy_agent != null and _npc_autonomy_agent.has_active_interruption(character_id):
 			continue
 		if scheduled_location_id != grid.location_id:
 			if character != null:
-				if _npc_movement_agent != null:
-					_npc_movement_agent.cancel_movement(character.character_id)
-				if _npc_activity_agent != null:
-					_npc_activity_agent.cancel_character(character.character_id)
-				if _npc_autonomy_agent != null:
-					_npc_autonomy_agent.cancel_character(character.character_id)
-				_remove_scheduled_character(character, active_entry, result)
+				if _schedule_entry_starts_from_current_location(active_entry):
+					if _apply_schedule_entry_to_character(character, active_entry, scheduled_location_id, result):
+						NpcScheduleSystem.schedule_applied.emit(character.character_id, grid.location_id, character.current_schedule_entry_id)
+						change_count += 1
+				else:
+					_remove_scheduled_character(character, active_entry, result)
+					change_count += 1
+			elif _try_spawn_cross_scene_traveler(spawn_data, definition, active_entry, absolute_minutes, result):
+				NpcScheduleSystem.schedule_applied.emit(character_id, grid.location_id, str(active_entry.get("id", "")))
 				change_count += 1
 			continue
 
@@ -877,7 +918,7 @@ func _spawn_character(definition: Dictionary, resolved_spawn_data: Dictionary) -
 
 	if character.is_player_controlled:
 		var runtime_state: Dictionary = GameState.get_character_runtime(character.character_id)
-		if not runtime_state.is_empty():
+		if entrance_id.is_empty() and not runtime_state.is_empty():
 			character.apply_runtime_state(runtime_state)
 		controlled_character = character
 		current_grid_position = character.grid_position
@@ -989,11 +1030,30 @@ func _find_party_spawn_cell(member_id: String) -> Vector2i:
 
 
 func _get_active_schedule_entry(definition: Dictionary, spawn_data: Dictionary) -> Dictionary:
-	var schedule_rows: Array = spawn_data.get("schedule", definition.get("schedule", [])) as Array
+	return _get_active_schedule_entry_at(definition, spawn_data, TimeManager.get_absolute_minutes())
+
+
+func _get_active_schedule_entry_at(definition: Dictionary, spawn_data: Dictionary, absolute_minutes: int) -> Dictionary:
+	var schedule_rows: Array = _get_schedule_rows(definition, spawn_data)
 	if schedule_rows.is_empty():
 		return {}
 
-	return NpcScheduleSystem.get_active_entry(schedule_rows, TimeManager.get_absolute_minutes())
+	return NpcScheduleSystem.get_active_entry(schedule_rows, absolute_minutes)
+
+
+func _get_schedule_rows(definition: Dictionary, spawn_data: Dictionary) -> Array:
+	return spawn_data.get("schedule", definition.get("schedule", [])) as Array
+
+
+func _schedule_entry_matches_location_context(entry: Dictionary) -> bool:
+	if grid == null:
+		return true
+	var scheduled_location_id := str(entry.get("location_id", grid.location_id))
+	return scheduled_location_id == grid.location_id or _schedule_entry_starts_from_current_location(entry)
+
+
+func _schedule_entry_starts_from_current_location(entry: Dictionary) -> bool:
+	return not _get_transition_anchor_for_current_location(entry).is_empty()
 
 
 func _apply_schedule_entry_to_spawn_data(spawn_data: Dictionary, entry: Dictionary, scheduled_location_id: String) -> void:
@@ -1032,6 +1092,144 @@ func _apply_offscreen_state_to_spawn_data(spawn_data: Dictionary, offscreen_stat
 	spawn_data["activity"] = str(offscreen_state.get("activity", spawn_data.get("activity", "idle")))
 	spawn_data["movement"] = str(offscreen_state.get("movement", spawn_data.get("movement", "walk")))
 	spawn_data["scheduled_location_id"] = str(offscreen_state.get("location_id", grid.location_id))
+
+
+func _try_spawn_cross_scene_traveler(
+	spawn_data: Dictionary,
+	definition: Dictionary,
+	active_entry: Dictionary,
+	absolute_minutes: int,
+	result: ActionResult
+) -> bool:
+	if grid == null or _npc_movement_agent == null:
+		return false
+
+	var target_anchor_id := _get_transition_anchor_for_current_location(active_entry)
+	if target_anchor_id.is_empty():
+		return false
+	if _minutes_since_entry_start(active_entry, absolute_minutes) > 1:
+		return false
+
+	var previous_entry := _get_entry_before_active_start(definition, spawn_data, active_entry, absolute_minutes)
+	if previous_entry.is_empty() or str(previous_entry.get("id", "")) == str(active_entry.get("id", "")):
+		return false
+
+	var source_anchor_id := _get_transition_anchor_for_current_location(previous_entry)
+	if source_anchor_id.is_empty() or source_anchor_id == target_anchor_id:
+		return false
+
+	var source_anchor: Dictionary = grid.get_anchor(source_anchor_id)
+	var target_anchor: Dictionary = grid.get_anchor(target_anchor_id)
+	if source_anchor.is_empty() or target_anchor.is_empty():
+		return false
+
+	var source_cell := _cell_from_dict(source_anchor.get("grid_position", {}) as Dictionary)
+	var target_cell := _cell_from_dict(target_anchor.get("grid_position", {}) as Dictionary)
+	var spawn_cell := _find_cross_scene_spawn_cell(source_cell, target_cell)
+	if spawn_cell.x < 0 or spawn_cell.y < 0:
+		return false
+
+	var resolved_spawn_data: Dictionary = _build_spawn_data(spawn_data, definition)
+	resolved_spawn_data["grid_position"] = _dict_from_cell(spawn_cell)
+	resolved_spawn_data["facing"] = str(source_anchor.get("facing", resolved_spawn_data.get("facing", "down")))
+	resolved_spawn_data["schedule_entry_id"] = str(active_entry.get("id", ""))
+	resolved_spawn_data["anchor_id"] = str(active_entry.get("anchor_id", ""))
+	resolved_spawn_data["activity_type"] = str(active_entry.get("activity_type", "idle"))
+	resolved_spawn_data["activity"] = str(active_entry.get("activity", "idle"))
+	resolved_spawn_data["movement"] = str(active_entry.get("movement", "walk"))
+	resolved_spawn_data["scheduled_location_id"] = str(active_entry.get("location_id", grid.location_id))
+
+	var character := _spawn_character(definition, resolved_spawn_data)
+	if character == null:
+		return false
+
+	var movement_entry: Dictionary = active_entry.duplicate(true)
+	movement_entry["facing"] = str(target_anchor.get("facing", active_entry.get("facing", character.facing)))
+	var movement_request: Dictionary = _request_scheduled_character_movement(
+		character,
+		movement_entry,
+		str(active_entry.get("location_id", grid.location_id)),
+		target_cell
+	)
+	var movement_state := str(movement_request.get("state", ""))
+	if movement_state == "started":
+		result.add_world_change({
+			"type": "scheduled_character_cross_scene_segment_started",
+			"character_id": character.character_id,
+			"location_id": grid.location_id,
+			"entry_id": str(active_entry.get("id", "")),
+			"from_anchor_id": source_anchor_id,
+			"to_anchor_id": target_anchor_id,
+			"from": spawn_cell,
+			"target": target_cell,
+			"to_location_id": str(active_entry.get("location_id", "")),
+		})
+		result.add_feedback("%s left %s for %s." % [
+			character.display_name,
+			str(previous_entry.get("activity", "the previous stop")),
+			str(active_entry.get("activity", "the next stop")),
+		])
+		return true
+
+	if movement_state == "arrived":
+		_depart_scheduled_character_after_cross_scene_arrival(character.character_id, result)
+		return true
+
+	result.add_world_change({
+		"type": "scheduled_character_blocked",
+		"character_id": character.character_id,
+		"location_id": grid.location_id,
+		"entry_id": str(active_entry.get("id", "")),
+		"target": target_cell,
+		"reason": str(movement_request.get("reason", "cross_scene_segment_blocked")),
+	})
+	result.add_feedback("%s could not leave for %s." % [character.display_name, str(active_entry.get("activity", "schedule"))])
+	return true
+
+
+func _get_entry_before_active_start(definition: Dictionary, spawn_data: Dictionary, active_entry: Dictionary, absolute_minutes: int) -> Dictionary:
+	var schedule_rows: Array = _get_schedule_rows(definition, spawn_data)
+	if schedule_rows.is_empty():
+		return {}
+
+	var elapsed_since_start: int = _minutes_since_entry_start(active_entry, absolute_minutes)
+	if elapsed_since_start < 0:
+		return NpcScheduleSystem.get_active_entry(schedule_rows, maxi(0, absolute_minutes - 1))
+
+	var previous_absolute_minute: int = maxi(0, absolute_minutes - elapsed_since_start - 1)
+	return NpcScheduleSystem.get_active_entry(schedule_rows, previous_absolute_minute)
+
+
+func _minutes_since_entry_start(entry: Dictionary, absolute_minutes: int) -> int:
+	var start_minute: int = TimeManager.parse_time_to_minute(str(entry.get("start", "")))
+	if start_minute < 0:
+		return -1
+	var current_minute: int = absolute_minutes % TimeManager.MINUTES_PER_DAY
+	return (current_minute - start_minute + TimeManager.MINUTES_PER_DAY) % TimeManager.MINUTES_PER_DAY
+
+
+func _find_cross_scene_spawn_cell(source_cell: Vector2i, target_cell: Vector2i) -> Vector2i:
+	var candidates: Array[Vector2i] = [
+		source_cell,
+		source_cell + Vector2i.LEFT,
+		source_cell + Vector2i.RIGHT,
+		source_cell + Vector2i.DOWN,
+		source_cell + Vector2i.UP,
+		source_cell + Vector2i(-1, 1),
+		source_cell + Vector2i(1, 1),
+		source_cell + Vector2i(-1, -1),
+		source_cell + Vector2i(1, -1),
+	]
+	var best_cell := Vector2i(-1, -1)
+	var best_distance := INF
+	for candidate in candidates:
+		if not grid.can_enter(candidate):
+			continue
+		var distance := candidate.distance_squared_to(target_cell)
+		if distance < best_distance:
+			best_distance = distance
+			best_cell = candidate
+	return best_cell
 
 
 func _apply_schedule_entry_to_character(character: CharacterEntity, entry: Dictionary, scheduled_location_id: String, result: ActionResult) -> bool:
@@ -1114,6 +1312,8 @@ func _apply_schedule_entry_to_character(character: CharacterEntity, entry: Dicti
 func _resolve_schedule_target(entry: Dictionary) -> Dictionary:
 	var target: Dictionary = {}
 	var anchor_id: String = str(entry.get("anchor_id", ""))
+	if str(entry.get("location_id", grid.location_id)) != grid.location_id:
+		anchor_id = _get_transition_anchor_for_current_location(entry)
 	if not anchor_id.is_empty() and grid != null:
 		var anchor: Dictionary = grid.get_anchor(anchor_id)
 		if not anchor.is_empty():
@@ -1130,6 +1330,14 @@ func _resolve_schedule_target(entry: Dictionary) -> Dictionary:
 		target["facing"] = str(entry.get("facing", "down"))
 
 	return target
+
+
+func _get_transition_anchor_for_current_location(entry: Dictionary) -> String:
+	if grid == null:
+		return ""
+
+	var anchors_by_location: Dictionary = entry.get("transition_anchor_by_location", {}) as Dictionary
+	return str(anchors_by_location.get(grid.location_id, ""))
 
 
 func _request_scheduled_character_movement(character: CharacterEntity, entry: Dictionary, scheduled_location_id: String, target_cell: Vector2i) -> Dictionary:
@@ -1662,6 +1870,10 @@ func _cell_array_has(cells: Array, target_cell: Vector2i) -> bool:
 
 
 func _submit_object_interaction(target_object: LocationObject, target_cell: Vector2i) -> void:
+	if target_object.is_scene_transition():
+		_submit_scene_transition_object(target_object)
+		return
+
 	if target_object.is_facility():
 		match target_object.facility_type:
 			"crafting", "shop":
@@ -1684,6 +1896,26 @@ func _submit_object_interaction(target_object: LocationObject, target_cell: Vect
 	var action: GameAction = ActionSystem.create_action(action_type, controlled_character, target, context) as GameAction
 	ActionSystem.submit(action)
 	_refresh_interaction_overlay()
+
+
+func _submit_scene_transition_object(target_object: LocationObject) -> void:
+	var transition_data: Dictionary = target_object.get_transition_data()
+	var target_scene_path := str(transition_data.get("target_scene_path", ""))
+	var target_entrance_id := str(transition_data.get("target_entrance_id", ""))
+	if target_scene_path == "__return__":
+		SceneLoader.load_pending_return_location()
+		return
+	if target_scene_path.is_empty():
+		return
+
+	var return_entrance_id := str(transition_data.get("return_entrance_id", ""))
+	if not return_entrance_id.is_empty():
+		SceneLoader.set_pending_return_location(SceneLoader.current_scene_path, return_entrance_id)
+
+	var context: Dictionary = transition_data.get("context", {}) as Dictionary
+	if not context.is_empty():
+		SceneLoader.set_pending_location_context(context)
+	SceneLoader.load_location(target_scene_path, target_entrance_id)
 
 
 func _submit_talk_interaction(target_character: CharacterEntity) -> void:
@@ -1745,12 +1977,7 @@ func _submit_save_facility(_target_object: LocationObject) -> void:
 
 
 func _read_location_data() -> Dictionary:
-	var location_data: Dictionary = DefinitionLoader.load_location(location_data_path)
-	var generator_data: Dictionary = location_data.get("generator", {}) as Dictionary
-	if str(generator_data.get("type", "")) == "village_bsp":
-		var generator: RefCounted = VillageBspGenerator.new()
-		return generator.generate_location(location_data)
-	return location_data
+	return DefinitionLoader.load_resolved_location(location_data_path, SceneLoader.consume_pending_location_context())
 
 
 func _read_json_resource(resource_path: String) -> Dictionary:
@@ -1874,6 +2101,10 @@ func _get_character_display_name(character_id: String) -> String:
 
 func _cell_from_dict(value: Dictionary) -> Vector2i:
 	return Vector2i(int(value.get("x", 0)), int(value.get("y", 0)))
+
+
+func _dict_from_cell(cell: Vector2i) -> Dictionary:
+	return { "x": cell.x, "y": cell.y }
 
 
 func _has_controlled_character() -> bool:

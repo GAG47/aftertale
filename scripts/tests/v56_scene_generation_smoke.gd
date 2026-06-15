@@ -1,6 +1,6 @@
 extends SceneTree
 
-const VillageBspGeneratorScript := preload("res://scripts/systems/scenes/village_bsp_generator.gd")
+const VillageRoadGeneratorScript := preload("res://scripts/systems/scenes/village_road_generator.gd")
 
 
 func _initialize() -> void:
@@ -9,7 +9,7 @@ func _initialize() -> void:
 
 func _run() -> void:
 	var source_data: Dictionary = DefinitionLoader.load_location("res://data/locations/test_village.json")
-	var generator: RefCounted = VillageBspGeneratorScript.new()
+	var generator: RefCounted = VillageRoadGeneratorScript.new()
 	var generated: Dictionary = generator.generate_location(source_data)
 	var grid: LocationGrid = LocationGrid.from_dictionary(generated)
 	if not grid.is_valid():
@@ -25,16 +25,140 @@ func _run() -> void:
 		_fail("v56 plaza entrance is not open")
 		return
 
-	for anchor_id in [
-		"house_sleep_spot",
-		"workbench_spot",
-		"shop_counter_spot",
-		"tavern_table_spot",
+	var required_anchor_ids: Array[String] = [
 		"plaza_social_spot",
 		"training_yard_guard_post",
 		"wild_gate_guard_post",
 		"field_work_spot",
-	]:
+	]
+	for building_value in (generated.get("buildings", []) as Array):
+		var building: Dictionary = building_value as Dictionary
+		required_anchor_ids.append(str(building.get("exterior_door_anchor_id", "")))
+	if (generated.get("buildings", []) as Array).is_empty():
+		_fail("v56 generated village has no building instances")
+		return
+	if (generated.get("interiors", []) as Array).is_empty():
+		_fail("v56 generated village has no interior instances")
+		return
+	if (generated.get("parcels", []) as Array).is_empty():
+		_fail("v57 generated village has no parcels")
+		return
+	if (generated.get("building_prefabs", []) as Array).is_empty():
+		_fail("v57 generated village has no placeholder building prefab library")
+		return
+	if str(generated.get("building_prefab_catalog", "")).is_empty():
+		_fail("v58 generated village missing building prefab catalog source")
+		return
+	var town_zone_ids: Dictionary = {}
+	for zone_value in (generated.get("town_zones", []) as Array):
+		var zone: Dictionary = zone_value as Dictionary
+		var zone_id := str(zone.get("id", ""))
+		if zone_id.is_empty():
+			_fail("v59 generated town zone missing id")
+			return
+		town_zone_ids[zone_id] = true
+	for required_zone in ["plaza", "residential", "market", "farm", "training", "gate"]:
+		if not town_zone_ids.has(required_zone):
+			_fail("v59 generated village missing town zone: %s" % required_zone)
+			return
+
+	var parcel_ids: Dictionary = {}
+	for parcel_value in (generated.get("parcels", []) as Array):
+		var parcel: Dictionary = parcel_value as Dictionary
+		var parcel_id := str(parcel.get("id", ""))
+		if parcel_id.is_empty():
+			_fail("v57 generated parcel missing id")
+			return
+		parcel_ids[parcel_id] = true
+		if str(parcel.get("door_side", "")) != "south":
+			_fail("v57 generated parcel door side is not south: %s" % parcel_id)
+			return
+		if (parcel.get("door_slot", {}) as Dictionary).is_empty():
+			_fail("v57 generated parcel missing door_slot: %s" % parcel_id)
+			return
+		var semantic_zone_id := str(parcel.get("semantic_zone_id", ""))
+		if semantic_zone_id.is_empty() or not town_zone_ids.has(semantic_zone_id):
+			_fail("v59 generated parcel missing valid semantic zone: %s / %s" % [parcel_id, semantic_zone_id])
+			return
+
+	var prefab_ids: Dictionary = {}
+	for prefab_value in (generated.get("building_prefabs", []) as Array):
+		var prefab: Dictionary = prefab_value as Dictionary
+		var prefab_id := str(prefab.get("id", ""))
+		if prefab_id.is_empty():
+			_fail("v57 generated building prefab missing id")
+			return
+		prefab_ids[prefab_id] = true
+		if str(prefab.get("door_side", "")) != "south":
+			_fail("v57 generated building prefab door side is not south: %s" % prefab_id)
+			return
+		var exterior_slot_contract: Dictionary = prefab.get("exterior_slot_contract", {}) as Dictionary
+		if str(exterior_slot_contract.get("content_source", "")) != "prefab_declared_only":
+			_fail("v58 generated building prefab must declare prefab-only exterior slot source: %s" % prefab_id)
+			return
+		if str(exterior_slot_contract.get("coordinate_space", "")) != "prefab_local_grid":
+			_fail("v58 generated building prefab must use prefab_local_grid exterior slots: %s" % prefab_id)
+			return
+		var visual: Dictionary = prefab.get("visual", {}) as Dictionary
+		if str(visual.get("placeholder_style", "")).is_empty():
+			_fail("v58 generated building prefab missing visual placeholder style: %s" % prefab_id)
+			return
+		for slot_value in (prefab.get("exterior_slots", []) as Array):
+			var slot: Dictionary = slot_value as Dictionary
+			if str(slot.get("id", "")).is_empty():
+				_fail("v58 generated building prefab exterior slot missing id: %s" % prefab_id)
+				return
+			if (slot.get("local_position", {}) as Dictionary).is_empty():
+				_fail("v58 generated building prefab exterior slot missing local_position: %s" % prefab_id)
+				return
+			if bool(slot.get("blocks_movement", false)) or bool(slot.get("blocks_sight", false)):
+				_fail("v58 generated building prefab exterior slot blocks gameplay: %s / %s" % [prefab_id, str(slot.get("id", ""))])
+				return
+
+	var floor_overlay_counts: Dictionary = {
+		"parcel_surface": 0,
+		"front_clearance": 0,
+		"front_path": 0,
+		"building_foundation": 0,
+	}
+	for overlay_value in (generated.get("floor_overlays", []) as Array):
+		var overlay: Dictionary = overlay_value as Dictionary
+		var overlay_type := str(overlay.get("type", ""))
+		if floor_overlay_counts.has(overlay_type):
+			floor_overlay_counts[overlay_type] = int(floor_overlay_counts.get(overlay_type, 0)) + 1
+	var building_count := (generated.get("buildings", []) as Array).size()
+	for overlay_type in floor_overlay_counts.keys():
+		if int(floor_overlay_counts.get(overlay_type, 0)) < building_count:
+			_fail("v58 generated village missing parcel presentation overlays: %s" % overlay_type)
+			return
+
+	for building_value in (generated.get("buildings", []) as Array):
+		var building: Dictionary = building_value as Dictionary
+		var building_id := str(building.get("id", ""))
+		if not parcel_ids.has(str(building.get("parcel_id", ""))):
+			_fail("v57 generated building references missing parcel: %s" % building_id)
+			return
+		if not prefab_ids.has(str(building.get("prefab_id", ""))):
+			_fail("v57 generated building references missing prefab: %s" % building_id)
+			return
+		if str(building.get("door_side", "")) != "south":
+			_fail("v57 generated building door side is not south: %s" % building_id)
+			return
+		var prefab_contract: Dictionary = building.get("prefab_contract", {}) as Dictionary
+		var building_slot_contract: Dictionary = prefab_contract.get("exterior_slot_contract", {}) as Dictionary
+		if str(building_slot_contract.get("content_source", "")) != "prefab_declared_only":
+			_fail("v58 generated building missing prefab-only exterior slot contract: %s" % building_id)
+			return
+		var declared_slots: Array = prefab_contract.get("exterior_slots", []) as Array
+		var materialized_slots: Array = building.get("materialized_exterior_slots", []) as Array
+		if materialized_slots.size() != declared_slots.size():
+			_fail("v58 generated building did not materialize all declared exterior slots: %s" % building_id)
+			return
+
+	for anchor_id in required_anchor_ids:
+		if anchor_id.is_empty():
+			_fail("v56 generated building missing exterior door anchor id")
+			return
 		var anchor: Dictionary = grid.get_anchor(anchor_id)
 		if anchor.is_empty():
 			_fail("v56 generated village missing anchor: %s" % anchor_id)
@@ -80,6 +204,7 @@ func _run() -> void:
 		var character: Dictionary = character_value as Dictionary
 		for schedule_value in (character.get("schedule", []) as Array):
 			var entry: Dictionary = schedule_value as Dictionary
+			var scheduled_location_id := str(entry.get("location_id", str(generated.get("id", ""))))
 			var anchor_id: String = str(entry.get("anchor_id", ""))
 			if anchor_id.is_empty():
 				_fail("v56 schedule entry missing anchor_id: %s / %s" % [str(character.get("id", "")), str(entry.get("id", ""))])
@@ -87,9 +212,18 @@ func _run() -> void:
 			if entry.has("grid_position"):
 				_fail("v56 schedule entry should not hand-author grid_position: %s / %s" % [str(character.get("id", "")), str(entry.get("id", ""))])
 				return
-			if grid.get_anchor(anchor_id).is_empty():
+			if scheduled_location_id == str(generated.get("id", "")) and grid.get_anchor(anchor_id).is_empty():
 				_fail("v56 schedule references missing generated anchor: %s" % anchor_id)
 				return
+			if scheduled_location_id != str(generated.get("id", "")):
+				var anchors_by_location: Dictionary = entry.get("transition_anchor_by_location", {}) as Dictionary
+				var transition_anchor_id := str(anchors_by_location.get(str(generated.get("id", "")), ""))
+				if transition_anchor_id.is_empty():
+					_fail("v56 cross-scene schedule missing transition anchor: %s / %s" % [str(character.get("id", "")), str(entry.get("id", ""))])
+					return
+				if grid.get_anchor(transition_anchor_id).is_empty():
+					_fail("v56 cross-scene schedule references missing transition anchor: %s" % transition_anchor_id)
+					return
 
 	print("v56 scene generation smoke test passed")
 	quit(0)

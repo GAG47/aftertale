@@ -5,6 +5,7 @@ signal offscreen_settled(location_id: String, from_absolute_minutes: int, to_abs
 
 var active_location_root: Node
 var active_location_data_path: String = ""
+var active_location_id: String = ""
 var active_location_registered_minutes: int = 0
 var offscreen_states: Dictionary = {}
 var last_settled_minutes_by_location: Dictionary = {}
@@ -19,9 +20,11 @@ func register_location_root(location_root: Node) -> void:
 	if location_root == null or not is_instance_valid(location_root):
 		return
 
-	_settle_location_before_entry(str(location_root.get("location_data_path")))
+	var location_id := _location_id_from_root(location_root)
+	_settle_location_before_entry(location_id, str(location_root.get("location_data_path")))
 	active_location_root = location_root
 	active_location_data_path = str(location_root.get("location_data_path"))
+	active_location_id = location_id
 	active_location_registered_minutes = TimeManager.get_absolute_minutes()
 	_apply_current_location_schedule()
 
@@ -34,9 +37,10 @@ func unregister_location_root(location_root: Node) -> void:
 		if _skip_next_unregister_settle:
 			_skip_next_unregister_settle = false
 		elif not active_location_data_path.is_empty():
-			settle_offscreen_location(active_location_data_path, active_location_registered_minutes, TimeManager.get_absolute_minutes())
+			settle_offscreen_location(active_location_data_path, active_location_registered_minutes, TimeManager.get_absolute_minutes(), active_location_id)
 		active_location_root = null
 		active_location_data_path = ""
+		active_location_id = ""
 		active_location_registered_minutes = 0
 
 
@@ -64,13 +68,16 @@ func get_active_entry(schedule: Array, absolute_minutes: int) -> Dictionary:
 	return {}
 
 
-func settle_offscreen_location(location_data_path: String, from_absolute_minutes: int, to_absolute_minutes: int) -> Dictionary:
-	var location_data: Dictionary = _read_json_resource(location_data_path)
+func settle_offscreen_location(location_data_path: String, from_absolute_minutes: int, to_absolute_minutes: int, resolved_location_id: String = "") -> Dictionary:
+	var location_data: Dictionary = DefinitionLoader.resolve_location_by_id(resolved_location_id) if not resolved_location_id.is_empty() else {}
+	if location_data.is_empty():
+		location_data = DefinitionLoader.load_resolved_location(location_data_path)
 	if location_data.is_empty():
 		return {}
 
 	var location_id: String = str(location_data.get("id", ""))
 	var character_states: Array[Dictionary] = []
+	var states_by_location: Dictionary = {}
 	var character_rows: Array = location_data.get("characters", []) as Array
 	for character_spawn_value in character_rows:
 		var spawn_data: Dictionary = character_spawn_value as Dictionary
@@ -91,7 +98,7 @@ func settle_offscreen_location(location_data_path: String, from_absolute_minutes
 		if scheduled_location_id != location_id:
 			scheduled_location_data = _read_location_data_by_id(scheduled_location_id)
 		var target: Dictionary = _resolve_schedule_target(active_entry, scheduled_location_data)
-		character_states.append({
+		var character_state := {
 			"character_id": str(spawn_data.get("id", character_definition.get("id", ""))),
 			"location_id": scheduled_location_id,
 			"anchor_id": str(active_entry.get("anchor_id", "")),
@@ -101,7 +108,11 @@ func settle_offscreen_location(location_data_path: String, from_absolute_minutes
 			"activity": str(active_entry.get("activity", "idle")),
 			"entry_id": str(active_entry.get("id", "")),
 			"movement": str(active_entry.get("movement", "walk")),
-		})
+		}
+		character_states.append(character_state)
+		if not states_by_location.has(scheduled_location_id):
+			states_by_location[scheduled_location_id] = []
+		(states_by_location[scheduled_location_id] as Array).append(character_state)
 
 	var summary: Dictionary = {
 		"location_id": location_id,
@@ -111,6 +122,15 @@ func settle_offscreen_location(location_data_path: String, from_absolute_minutes
 	}
 	offscreen_states[location_id] = summary
 	last_settled_minutes_by_location[location_id] = to_absolute_minutes
+	for target_location_id_value in states_by_location.keys():
+		var target_location_id := str(target_location_id_value)
+		offscreen_states[target_location_id] = {
+			"location_id": target_location_id,
+			"from_absolute_minutes": from_absolute_minutes,
+			"to_absolute_minutes": to_absolute_minutes,
+			"characters": (states_by_location[target_location_id] as Array).duplicate(true),
+		}
+		last_settled_minutes_by_location[target_location_id] = to_absolute_minutes
 	offscreen_settled.emit(location_id, from_absolute_minutes, to_absolute_minutes)
 	return summary
 
@@ -152,6 +172,7 @@ func apply_save_state(state: Dictionary) -> void:
 func reset_schedule_state() -> void:
 	active_location_root = null
 	active_location_data_path = ""
+	active_location_id = ""
 	active_location_registered_minutes = 0
 	offscreen_states.clear()
 	last_settled_minutes_by_location.clear()
@@ -192,15 +213,17 @@ func _read_json_resource(resource_path: String) -> Dictionary:
 	return DefinitionLoader.load_json_resource(resource_path)
 
 
-func _settle_location_before_entry(location_data_path: String) -> void:
-	if location_data_path.is_empty():
+func _settle_location_before_entry(location_id: String, location_data_path: String) -> void:
+	if location_id.is_empty() and location_data_path.is_empty():
 		return
 
-	var location_data: Dictionary = _read_json_resource(location_data_path)
+	var location_data: Dictionary = DefinitionLoader.resolve_location_by_id(location_id) if not location_id.is_empty() else {}
+	if location_data.is_empty():
+		location_data = DefinitionLoader.load_resolved_location(location_data_path)
 	if location_data.is_empty():
 		return
 
-	var location_id: String = str(location_data.get("id", ""))
+	location_id = str(location_data.get("id", location_id))
 	if location_id.is_empty():
 		return
 
@@ -209,14 +232,23 @@ func _settle_location_before_entry(location_data_path: String) -> void:
 	if last_settled_minutes < 0 or last_settled_minutes >= current_minutes:
 		return
 
-	settle_offscreen_location(location_data_path, last_settled_minutes, current_minutes)
+	settle_offscreen_location(location_data_path, last_settled_minutes, current_minutes, location_id)
+
+
+func _location_id_from_root(location_root: Node) -> String:
+	if location_root == null or not is_instance_valid(location_root):
+		return ""
+	if not location_root.has_method("get_location_summary"):
+		return ""
+	var summary: Dictionary = location_root.get_location_summary()
+	return str(summary.get("id", ""))
 
 
 func _read_location_data_by_id(location_id: String) -> Dictionary:
 	if location_id.is_empty():
 		return {}
 
-	return DefinitionLoader.load_location("res://data/locations/%s.json" % location_id)
+	return DefinitionLoader.resolve_location_by_id(location_id)
 
 
 func _resolve_schedule_target(entry: Dictionary, location_data: Dictionary) -> Dictionary:

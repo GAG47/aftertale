@@ -4,6 +4,8 @@ extends Node2D
 const SceneComponents := preload("res://scripts/systems/scenes/scene_component_library.gd")
 
 @export_enum("floor", "structures", "roofs", "upper", "all") var render_mode: String = "all"
+@export var show_game_layers: bool = true
+@export var show_debug_layers: bool = false
 
 var grid: LocationGrid
 var floor_overlays: Array[Dictionary] = []
@@ -39,6 +41,14 @@ func set_active_cell(cell: Vector2i) -> void:
 	queue_redraw()
 
 
+func set_debug_layers_visible(value: bool) -> void:
+	if show_debug_layers == value:
+		return
+
+	show_debug_layers = value
+	queue_redraw()
+
+
 func _draw() -> void:
 	if grid == null or not grid.is_valid():
 		return
@@ -48,18 +58,35 @@ func _draw() -> void:
 			SceneComponents.draw_zone_hint(self, grid, zone)
 
 		for overlay in floor_overlays:
+			if not _should_draw_entry(overlay):
+				continue
 			SceneComponents.draw_floor_overlay(self, grid, overlay)
 
 		for decoration in floor_decorations:
+			if not _should_draw_entry(decoration):
+				continue
 			SceneComponents.draw_floor_decoration(self, grid, decoration)
 
 	if render_mode == "structures" or render_mode == "upper" or render_mode == "all":
 		for structure in structures:
+			if not _should_draw_entry(structure):
+				continue
 			SceneComponents.draw_structure(self, grid, structure)
 
 	if render_mode == "roofs" or render_mode == "upper" or render_mode == "all":
 		for roof in roofs:
+			if not _should_draw_entry(roof):
+				continue
 			SceneComponents.draw_roof(self, grid, roof, active_cell)
+
+
+func _should_draw_entry(entry: Dictionary) -> bool:
+	var layer := str(entry.get("presentation_layer", "game"))
+	if layer == "debug":
+		return show_debug_layers
+	if layer == "both":
+		return show_game_layers or show_debug_layers
+	return show_game_layers
 
 
 func _duplicate_dictionary_rows(rows: Array) -> Array[Dictionary]:

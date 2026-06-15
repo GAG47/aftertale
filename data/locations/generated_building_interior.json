@@ -1,0 +1,8 @@
+{
+  "id": "building_interior_template",
+  "display_name": "Building Interior Template",
+  "tile_size": 32,
+  "generator": {
+    "type": "building_interior"
+  }
+}

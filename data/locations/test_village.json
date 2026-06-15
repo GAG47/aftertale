@@ -3,7 +3,7 @@
   "display_name": "Generated Test Village",
   "tile_size": 32,
   "generator": {
-    "type": "village_bsp",
+    "type": "village_road",
     "seed": 5601,
     "size": { "width": 36, "height": 24 }
   }

@@ -1,0 +1,274 @@
+{
+  "id": "default_building_prefabs",
+  "schema_version": 1,
+  "prefabs": [
+    {
+      "id": "cottage_3x3_basic",
+      "archetype_tags": ["residential", "worker_cottage"],
+      "display_name": "Cottage",
+      "zone_type": "residential",
+      "role": "home",
+      "footprint_size": { "w": 3, "h": 3 },
+      "door_side": "south",
+      "door_offset": 1,
+      "required_front_clearance": 1,
+      "allowed_yard_policies": ["clear_frontage", "small_residential_yard"],
+      "interior_template_id": "home_basic",
+      "visual": {
+        "render_kind": "placeholder_facade",
+        "asset_id": "",
+        "placeholder_style": "home_basic",
+        "wall_palette": "warm_plaster",
+        "roof_palette": "brown"
+      },
+      "exterior_slot_contract": {
+        "schema_version": 1,
+        "coordinate_space": "prefab_local_grid",
+        "content_source": "prefab_declared_only",
+        "requires_clearance_validation": true
+      },
+      "exterior_slots": [
+        {
+          "id": "front_pot_left",
+          "kind": "floor_decoration",
+          "type": "flower_pot",
+          "local_position": { "x": 0, "y": 3 },
+          "placement_layer": "yard",
+          "blocks_movement": false
+        }
+      ]
+    },
+    {
+      "id": "cottage_4x3_garden",
+      "archetype_tags": ["residential", "farmer_cottage"],
+      "display_name": "Garden Cottage",
+      "zone_type": "residential",
+      "role": "home",
+      "footprint_size": { "w": 4, "h": 3 },
+      "door_side": "south",
+      "door_offset": 2,
+      "required_front_clearance": 2,
+      "allowed_yard_policies": ["small_residential_yard", "farmyard"],
+      "interior_template_id": "home_basic",
+      "visual": {
+        "render_kind": "placeholder_facade",
+        "asset_id": "",
+        "placeholder_style": "home_basic",
+        "wall_palette": "warm_plaster",
+        "roof_palette": "green"
+      },
+      "exterior_slot_contract": {
+        "schema_version": 1,
+        "coordinate_space": "prefab_local_grid",
+        "content_source": "prefab_declared_only",
+        "requires_clearance_validation": true
+      },
+      "exterior_slots": [
+        {
+          "id": "front_flower_bed",
+          "kind": "floor_decoration",
+          "type": "flower_patch",
+          "local_position": { "x": 0, "y": 3 },
+          "placement_layer": "yard",
+          "palette": "spring",
+          "blocks_movement": false
+        },
+        {
+          "id": "front_bucket",
+          "kind": "floor_decoration",
+          "type": "bucket",
+          "local_position": { "x": 3, "y": 3 },
+          "placement_layer": "yard",
+          "blocks_movement": false
+        }
+      ]
+    },
+    {
+      "id": "shop_4x3_street",
+      "archetype_tags": ["shop"],
+      "display_name": "Street Shop",
+      "zone_type": "shop",
+      "role": "commerce",
+      "footprint_size": { "w": 4, "h": 3 },
+      "door_side": "south",
+      "door_offset": 2,
+      "required_front_clearance": 1,
+      "allowed_yard_policies": ["clear_frontage"],
+      "interior_template_id": "shop_basic",
+      "visual": {
+        "render_kind": "placeholder_facade",
+        "asset_id": "",
+        "placeholder_style": "shop_street",
+        "wall_palette": "shop_plaster",
+        "roof_palette": "blue"
+      },
+      "exterior_slot_contract": {
+        "schema_version": 1,
+        "coordinate_space": "prefab_local_grid",
+        "content_source": "prefab_declared_only",
+        "requires_clearance_validation": true
+      },
+      "exterior_slots": [
+        {
+          "id": "facade_sign",
+          "kind": "structure",
+          "type": "sign_badge",
+          "local_position": { "x": 1, "y": 1 },
+          "placement_layer": "facade",
+          "label": "S",
+          "blocks_movement": false,
+          "blocks_sight": false
+        }
+      ]
+    },
+    {
+      "id": "workshop_4x3_basic",
+      "archetype_tags": ["workshop"],
+      "display_name": "Workshop",
+      "zone_type": "workshop",
+      "role": "production",
+      "footprint_size": { "w": 4, "h": 3 },
+      "door_side": "south",
+      "door_offset": 1,
+      "required_front_clearance": 1,
+      "allowed_yard_policies": ["clear_frontage", "workshop_service_yard"],
+      "interior_template_id": "workshop_basic",
+      "visual": {
+        "render_kind": "placeholder_facade",
+        "asset_id": "",
+        "placeholder_style": "workshop_basic",
+        "wall_palette": "workshop_stone",
+        "roof_palette": "brown"
+      },
+      "exterior_slot_contract": {
+        "schema_version": 1,
+        "coordinate_space": "prefab_local_grid",
+        "content_source": "prefab_declared_only",
+        "requires_clearance_validation": true
+      },
+      "exterior_slots": [
+        {
+          "id": "service_crates",
+          "kind": "structure",
+          "type": "material_crates",
+          "local_position": { "x": 3, "y": 3 },
+          "placement_layer": "yard",
+          "blocks_movement": false,
+          "blocks_sight": false
+        }
+      ]
+    },
+    {
+      "id": "tavern_5x3_basic",
+      "archetype_tags": ["tavern"],
+      "display_name": "Tavern",
+      "zone_type": "tavern",
+      "role": "social",
+      "footprint_size": { "w": 5, "h": 3 },
+      "door_side": "south",
+      "door_offset": 2,
+      "required_front_clearance": 1,
+      "allowed_yard_policies": ["clear_frontage"],
+      "interior_template_id": "tavern_basic",
+      "visual": {
+        "render_kind": "placeholder_facade",
+        "asset_id": "",
+        "placeholder_style": "tavern_basic",
+        "wall_palette": "tavern_plaster",
+        "roof_palette": "red"
+      },
+      "exterior_slot_contract": {
+        "schema_version": 1,
+        "coordinate_space": "prefab_local_grid",
+        "content_source": "prefab_declared_only",
+        "requires_clearance_validation": true
+      },
+      "exterior_slots": [
+        {
+          "id": "facade_sign",
+          "kind": "structure",
+          "type": "sign_badge",
+          "local_position": { "x": 3, "y": 1 },
+          "placement_layer": "facade",
+          "label": "T",
+          "blocks_movement": false,
+          "blocks_sight": false
+        }
+      ]
+    },
+    {
+      "id": "shed_3x2_storage",
+      "archetype_tags": ["storage_shed"],
+      "display_name": "Storage Shed",
+      "zone_type": "storage",
+      "role": "storage",
+      "footprint_size": { "w": 3, "h": 2 },
+      "door_side": "south",
+      "door_offset": 1,
+      "required_front_clearance": 1,
+      "allowed_yard_policies": ["clear_frontage", "farmyard"],
+      "interior_template_id": "storage_basic",
+      "visual": {
+        "render_kind": "placeholder_facade",
+        "asset_id": "",
+        "placeholder_style": "storage_basic",
+        "wall_palette": "storage_wood",
+        "roof_palette": "brown"
+      },
+      "exterior_slot_contract": {
+        "schema_version": 1,
+        "coordinate_space": "prefab_local_grid",
+        "content_source": "prefab_declared_only",
+        "requires_clearance_validation": true
+      },
+      "exterior_slots": [
+        {
+          "id": "front_tool",
+          "kind": "floor_decoration",
+          "type": "farm_tool",
+          "local_position": { "x": 0, "y": 2 },
+          "placement_layer": "yard",
+          "blocks_movement": false
+        }
+      ]
+    },
+    {
+      "id": "guardhouse_3x2_basic",
+      "archetype_tags": ["guardhouse"],
+      "display_name": "Guardhouse",
+      "zone_type": "guard",
+      "role": "guard",
+      "footprint_size": { "w": 3, "h": 2 },
+      "door_side": "south",
+      "door_offset": 1,
+      "required_front_clearance": 1,
+      "allowed_yard_policies": ["clear_frontage"],
+      "interior_template_id": "guardhouse_basic",
+      "visual": {
+        "render_kind": "placeholder_facade",
+        "asset_id": "",
+        "placeholder_style": "guardhouse_basic",
+        "wall_palette": "guard_stone",
+        "roof_palette": "gray"
+      },
+      "exterior_slot_contract": {
+        "schema_version": 1,
+        "coordinate_space": "prefab_local_grid",
+        "content_source": "prefab_declared_only",
+        "requires_clearance_validation": true
+      },
+      "exterior_slots": [
+        {
+          "id": "facade_slit",
+          "kind": "structure",
+          "type": "sign_badge",
+          "local_position": { "x": 0, "y": 0 },
+          "placement_layer": "facade",
+          "label": "",
+          "blocks_movement": false,
+          "blocks_sight": false
+        }
+      ]
+    }
+  ]
+}

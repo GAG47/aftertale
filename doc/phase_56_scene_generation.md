@@ -1,5 +1,8 @@
 # Phase 56: BSP Village Generation
 
+Note: Phase 60 supersedes BSP as the active village layout authority. This file
+remains the historical record for the first generated-village implementation.
+
 ## Status
 
 Complete.
@@ -103,33 +106,32 @@ and farm interiors as blocked road cells. This prevents roads from cutting
 through field plots or through a building body to reach a rotated side/back
 door.
 
-Building interiors are reached through their generated door cells. Gameplay
-anchors use open interior cells near the door, while facility objects and props
-are placed separately so NPC targets stay reachable.
+Building interiors are reached through their generated door cells. As of the
+Phase 57 architecture pass, normal building targets are no longer represented
+by shared semantic anchor names in the exterior map. Each placed building owns a
+stable building instance id, an exterior door anchor, and a generated interior
+location id.
 
 ## Semantic Anchors
 
-NPC schedules are now generated from anchors rather than hand-authored cells.
-The generated villager and guard schedules only reference `anchor_id`; they do
-not include author-supplied `grid_position` values.
+NPC schedules are now generated from produced scene data rather than
+hand-authored cells. The generated villager and guard schedules only reference
+anchors produced by the generator; they do not include author-supplied
+`grid_position` values.
 
 Generated anchors include:
 
-- `house_sleep_spot`
-- `workbench_spot`
-- `shop_counter_spot`
-- `tavern_table_spot`
-- `farmer_home_spot`
-- `worker_home_spot`
-- `storage_spot`
-- `guardhouse_spot`
+- one exterior door anchor for each building instance, such as
+  `b001.exterior_door`;
 - `plaza_social_spot`
 - `training_yard_guard_post`
 - `wild_gate_guard_post`
 - `field_work_spot`
 
-This keeps the gameplay layer pointed at named roles while the generator owns
-the concrete cells.
+Interior anchors are scoped by their generated interior location id and use
+slot names such as `entry`, `exit`, and `primary`. The identity of an NPC target
+is therefore the pair of concrete `location_id` and local `anchor_id`, not a
+global English role name.
 
 ## Validation
 

@@ -6,6 +6,7 @@ $questDir = Join-Path $root "data\quests"
 $characterDir = Join-Path $root "data\characters"
 $factionDir = Join-Path $root "data\factions"
 $relationDir = Join-Path $root "data\relations"
+$generationDir = Join-Path $root "data\generation"
 $errors = New-Object System.Collections.Generic.List[string]
 $questIds = @{}
 $locationsById = @{}
@@ -217,6 +218,53 @@ foreach ($file in Get-ChildItem -LiteralPath $relationDir -Filter "*.json") {
     }
 }
 
+foreach ($file in Get-ChildItem -LiteralPath $generationDir -Filter "*.json") {
+    try {
+        $generationJson = Get-Content -Raw -Encoding UTF8 -LiteralPath $file.FullName | ConvertFrom-Json
+    }
+    catch {
+        $errors.Add("Invalid generation JSON: $($file.Name)")
+        continue
+    }
+
+    if ($generationJson.prefabs) {
+        foreach ($prefab in @($generationJson.prefabs)) {
+            if (-not $prefab.id) {
+                $errors.Add("Building prefab missing id: $($file.Name)")
+                continue
+            }
+
+            if ([string]$prefab.door_side -ne "south") {
+                $errors.Add("Building prefab door_side must be south '$($prefab.id)': $($file.Name)")
+            }
+
+            if (-not $prefab.footprint_size -or [int]$prefab.footprint_size.w -le 0 -or [int]$prefab.footprint_size.h -le 0) {
+                $errors.Add("Building prefab has invalid footprint_size '$($prefab.id)': $($file.Name)")
+            }
+
+            if (-not $prefab.visual -or -not $prefab.visual.placeholder_style) {
+                $errors.Add("Building prefab missing visual placeholder_style '$($prefab.id)': $($file.Name)")
+            }
+
+            if (-not $prefab.exterior_slot_contract -or [string]$prefab.exterior_slot_contract.content_source -ne "prefab_declared_only") {
+                $errors.Add("Building prefab exterior slots must be prefab declared '$($prefab.id)': $($file.Name)")
+            }
+
+            foreach ($slot in @($prefab.exterior_slots)) {
+                if (-not $slot.id) {
+                    $errors.Add("Building prefab exterior slot missing id '$($prefab.id)': $($file.Name)")
+                }
+                if (-not $slot.local_position) {
+                    $errors.Add("Building prefab exterior slot missing local_position '$($prefab.id)': $($file.Name)")
+                }
+                if ([bool]$slot.blocks_movement -or [bool]$slot.blocks_sight) {
+                    $errors.Add("Building prefab exterior slot must not block gameplay '$($prefab.id) / $($slot.id)': $($file.Name)")
+                }
+            }
+        }
+    }
+}
+
 foreach ($questFile in Get-ChildItem -LiteralPath $questDir -Filter "*.json") {
     try {
         $questJson = Get-Content -Raw -Encoding UTF8 -LiteralPath $questFile.FullName | ConvertFrom-Json
@@ -315,13 +363,17 @@ foreach ($file in Get-ChildItem -LiteralPath $locationDir -Filter "*.json") {
         $errors.Add("Missing id: $($file.Name)")
     }
 
-    if ($json.generator -and [string]$json.generator.type -eq "village_bsp") {
+    if ($json.generator -and [string]$json.generator.type -eq "village_road") {
         if (-not $json.generator.size -or [int]$json.generator.size.width -le 0 -or [int]$json.generator.size.height -le 0) {
             $errors.Add("Invalid generated location size: $($file.Name)")
         }
         if (-not $json.generator.seed) {
             $errors.Add("Generated location missing seed: $($file.Name)")
         }
+        continue
+    }
+
+    if ($json.generator -and [string]$json.generator.type -eq "building_interior") {
         continue
     }
 

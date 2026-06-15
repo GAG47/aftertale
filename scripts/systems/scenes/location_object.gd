@@ -22,11 +22,15 @@ extends Node2D
 @export var heal_amount: int = 0
 @export var full_restore: bool = false
 @export var cost: int = 0
+@export var target_scene_path: String = ""
+@export var target_entrance_id: String = ""
+@export var return_entrance_id: String = ""
 
 var location_root: Node
 var item_definition: Dictionary = {}
 var item_quantity: int = 0
 var recipe_ids: Array[String] = []
+var transition_context: Dictionary = {}
 
 
 func configure(data: Dictionary, parent_location: Node) -> void:
@@ -60,6 +64,10 @@ func configure(data: Dictionary, parent_location: Node) -> void:
 	heal_amount = max(0, int(data.get("heal_amount", heal_amount)))
 	full_restore = bool(data.get("full_restore", rest_type == "bed" or rest_type == "inn"))
 	cost = max(0, int(data.get("cost", cost)))
+	target_scene_path = str(data.get("target_scene_path", ""))
+	target_entrance_id = str(data.get("target_entrance_id", ""))
+	return_entrance_id = str(data.get("return_entrance_id", ""))
+	transition_context = (data.get("transition_context", {}) as Dictionary).duplicate(true)
 	recipe_ids.clear()
 	var recipe_rows: Array = data.get("recipe_ids", []) as Array
 	for recipe_id_value in recipe_rows:
@@ -85,6 +93,10 @@ func configure(data: Dictionary, parent_location: Node) -> void:
 
 
 func _draw() -> void:
+	if kind == "door" or facility_type == "scene_transition":
+		_draw_interaction_badge()
+		return
+
 	_draw_shadow()
 
 	var item_id: String = str(item_definition.get("id", ""))
@@ -136,11 +148,29 @@ func get_summary() -> Dictionary:
 		"heal_amount": heal_amount,
 		"full_restore": full_restore,
 		"cost": cost,
+		"target_scene_path": target_scene_path,
+		"target_entrance_id": target_entrance_id,
+		"return_entrance_id": return_entrance_id,
 	}
 
 
 func is_facility() -> bool:
 	return facility_type == "crafting" or facility_type == "shop" or facility_type == "rest" or facility_type == "save"
+
+
+func is_scene_transition() -> bool:
+	return facility_type == "scene_transition" or not target_scene_path.is_empty()
+
+
+func get_transition_data() -> Dictionary:
+	return {
+		"id": object_id,
+		"display_name": display_name,
+		"target_scene_path": target_scene_path,
+		"target_entrance_id": target_entrance_id,
+		"return_entrance_id": return_entrance_id,
+		"context": transition_context.duplicate(true),
+	}
 
 
 func get_facility_data() -> Dictionary:
