@@ -5,8 +5,9 @@ This document tracks planned work after Phase 49. It is an index, not the full d
 ## Current Focus
 
 Phases 50 through 54 form the first complete battle-deepening slice. Phase 55
-restructured the full UI layer. Phases 56 through 60 move scene generation from
-a usable skeleton toward presentable generated places:
+restructured the full UI layer. Phase 60.1 resets scene generation back to a
+clean road skeleton after removing the BSP and incorrect first Phase 60 layout
+attempt:
 
 - pipeline-based skill effects and battle resources;
 - temporary tile states and elemental reactions;
@@ -14,17 +15,10 @@ a usable skeleton toward presentable generated places:
 - explainable enemy decision scoring;
 - independent editable UI scenes instead of one monolithic root and runtime
   construction of fixed controls;
-- deterministic generated village scenes with semantic gameplay anchors;
-- exterior building doors that transition to generated interior instances with
-  concrete building identities;
-- prefab-driven exterior presentation contracts for parcels, frontage, and
-  placeholder building facades;
-- data-driven building prefab catalogs with explicit non-blocking exterior
-  slot materialization;
-- semantic town zones that select and discard parcel candidates before building
-  placement;
-- road-first settlement generation that scans street frontage before placing
-  parcels and buildings.
+- deterministic generated village scene data;
+- a clean road skeleton generator with no active BSP, building, parcel,
+  generated interior, or building prefab path;
+- basic road-attached plaza, farm, training, and gate anchors.
 
 ## Battle Deepening Roadmap
 
@@ -40,7 +34,8 @@ a usable skeleton toward presentable generated places:
 | v57 | Complete | `doc/phase_57_exterior_doors_and_interiors.md` | Stop exposing building interiors in the exterior village; enter buildings through interactive doors, then place exterior buildings through parcel contracts and placeholder prefab contracts. |
 | v58 | Complete | `doc/phase_58_prefab_exterior_presentation.md` | Move building prefabs into data, render parcel/frontage/foundation presentation layers, and materialize only prefab-declared exterior slots without global random decoration. |
 | v59 | Complete | `doc/phase_59_semantic_town_layout.md` | Interpret BSP leaves as district candidates, assign town roles from that graph, select building parcels by score, and expose F3 parcel debug presentation. |
-| v60 | Complete | `doc/phase_60_road_first_settlement_generation.md` | Replace the BSP-led village layout core with a road-first skeleton, frontage lot allocation, and street-facing prefab placement. |
+| v60 | Removed | `doc/phase_60_road_first_settlement_generation.md` | Remove the incorrect first road-first attempt instead of repairing its shortcut-based building and frontage placement. |
+| v60.1 | Complete | `doc/phase_60_1_road_skeleton.md` | Keep only a validated road skeleton with road-attached core zones and no buildings, parcels, interiors, prefabs, or post-placement repair routes. |
 
 ## Dependency Order
 
@@ -55,7 +50,8 @@ v50 skill effect data model
 -> v57 exterior doors and generated interiors
 -> v58 prefab exterior presentation and slot materialization
 -> v59 semantic town layout
--> v60 road-first settlement generation
+-> v60 removed shortcut-based road-first attempt
+-> v60.1 clean road skeleton
 ```
 
 ## Minimum Tactical Slice

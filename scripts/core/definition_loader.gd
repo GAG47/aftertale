@@ -1,13 +1,9 @@
 extends Node
 
 const VillageRoadGenerator := preload("res://scripts/systems/scenes/village_road_generator.gd")
-const BuildingInteriorGenerator := preload("res://scripts/systems/scenes/building_interior_generator.gd")
-const GENERATED_INTERIOR_DATA_PATH := "res://data/locations/generated_building_interior.json"
-const GENERATED_INTERIOR_SCENE_PATH := "res://scenes/locations/generated_building_interior.tscn"
 
 var _json_cache: Dictionary = {}
 var _resolved_locations_by_id: Dictionary = {}
-var _generated_location_contexts_by_id: Dictionary = {}
 var _location_data_path_by_id: Dictionary = {}
 var _location_scene_path_by_id: Dictionary = {}
 
@@ -47,7 +43,7 @@ func load_resolved_location(resource_path: String, context: Dictionary = {}) -> 
 	return materialize_location(location_data, resource_path, context)
 
 
-func materialize_location(location_data: Dictionary, resource_path: String = "", context: Dictionary = {}) -> Dictionary:
+func materialize_location(location_data: Dictionary, resource_path: String = "", _context: Dictionary = {}) -> Dictionary:
 	var generator_data: Dictionary = location_data.get("generator", {}) as Dictionary
 	var generator_type := str(generator_data.get("type", ""))
 	match generator_type:
@@ -55,11 +51,6 @@ func materialize_location(location_data: Dictionary, resource_path: String = "",
 			var generator: RefCounted = VillageRoadGenerator.new()
 			var generated: Dictionary = generator.generate_location(location_data)
 			_register_resolved_location(generated, resource_path, "")
-			return generated.duplicate(true)
-		"building_interior":
-			var generator: RefCounted = BuildingInteriorGenerator.new()
-			var generated: Dictionary = generator.generate_location(location_data, context)
-			_register_resolved_location(generated, resource_path, GENERATED_INTERIOR_SCENE_PATH)
 			return generated.duplicate(true)
 		_:
 			_register_resolved_location(location_data, resource_path, "")
@@ -72,14 +63,6 @@ func resolve_location_by_id(location_id: String) -> Dictionary:
 
 	if _resolved_locations_by_id.has(location_id):
 		return (_resolved_locations_by_id[location_id] as Dictionary).duplicate(true)
-
-	if _generated_location_contexts_by_id.has(location_id):
-		var context: Dictionary = (_generated_location_contexts_by_id[location_id] as Dictionary).duplicate(true)
-		var data_path := str(context.get("location_data_path", GENERATED_INTERIOR_DATA_PATH))
-		var source_data: Dictionary = load_location(data_path)
-		if source_data.is_empty():
-			return {}
-		return materialize_location(source_data, data_path, context)
 
 	var data_path := "res://data/locations/%s.json" % location_id
 	return load_resolved_location(data_path)
@@ -103,18 +86,6 @@ func _register_resolved_location(location_data: Dictionary, resource_path: Strin
 		_location_data_path_by_id[location_id] = resource_path
 	if not scene_path.is_empty():
 		_location_scene_path_by_id[location_id] = scene_path
-
-	for interior_value in (location_data.get("interiors", []) as Array):
-		var interior: Dictionary = interior_value as Dictionary
-		var interior_id := str(interior.get("location_id", ""))
-		if interior_id.is_empty():
-			continue
-		var context: Dictionary = (interior.get("generation_context", {}) as Dictionary).duplicate(true)
-		context["location_id"] = interior_id
-		context["location_data_path"] = GENERATED_INTERIOR_DATA_PATH
-		_generated_location_contexts_by_id[interior_id] = context
-		_location_data_path_by_id[interior_id] = GENERATED_INTERIOR_DATA_PATH
-		_location_scene_path_by_id[interior_id] = GENERATED_INTERIOR_SCENE_PATH
 
 
 func load_character(resource_path: String) -> Dictionary:
@@ -161,7 +132,6 @@ func clear_cache(resource_path: String = "") -> void:
 	if resource_path.is_empty():
 		_json_cache.clear()
 		_resolved_locations_by_id.clear()
-		_generated_location_contexts_by_id.clear()
 		_location_data_path_by_id.clear()
 		_location_scene_path_by_id.clear()
 		return

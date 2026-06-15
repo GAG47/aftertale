@@ -62,14 +62,6 @@ static func draw_zone_hint(canvas: CanvasItem, grid: LocationGrid, zone: Diction
 static func draw_floor_overlay(canvas: CanvasItem, grid: LocationGrid, overlay: Dictionary) -> void:
 	var rect: Rect2 = _entry_rect(grid, overlay)
 	match str(overlay.get("type", "")):
-		"parcel_surface":
-			_draw_parcel_surface(canvas, rect, str(overlay.get("yard_policy", "clear_frontage")))
-		"front_clearance":
-			_draw_front_clearance(canvas, rect, str(overlay.get("yard_policy", "clear_frontage")))
-		"front_path":
-			_draw_front_path(canvas, rect, str(overlay.get("yard_policy", "clear_frontage")))
-		"building_foundation":
-			_draw_building_foundation(canvas, rect)
 		"foundation":
 			_draw_foundation(canvas, rect)
 		"steps":
@@ -104,8 +96,6 @@ static func draw_floor_decoration(canvas: CanvasItem, grid: LocationGrid, decora
 static func draw_structure(canvas: CanvasItem, grid: LocationGrid, structure: Dictionary) -> void:
 	var rect: Rect2 = _entry_rect(grid, structure)
 	match str(structure.get("type", "")):
-		"building_prefab_placeholder":
-			_draw_building_prefab_placeholder(canvas, rect, structure)
 		"wall_ring":
 			_draw_wall_ring(canvas, grid, structure)
 		"wall":
@@ -245,58 +235,6 @@ static func _draw_training_floor(canvas: CanvasItem, grid: LocationGrid, cell: V
 		canvas.draw_line(Vector2(rect.position.x + 5.0, y), Vector2(rect.end.x - 5.0, y + 1.0), rake_color, 1.0)
 
 
-static func _draw_parcel_surface(canvas: CanvasItem, rect: Rect2, yard_policy: String) -> void:
-	var fill := Color(0.58, 0.66, 0.46, 0.18)
-	var border := Color(0.28, 0.34, 0.22, 0.24)
-	match yard_policy:
-		"small_residential_yard":
-			fill = Color(0.63, 0.72, 0.49, 0.18)
-			border = Color(0.34, 0.45, 0.26, 0.26)
-		"farmyard":
-			fill = Color(0.61, 0.51, 0.31, 0.16)
-			border = Color(0.39, 0.29, 0.15, 0.26)
-		"workshop_service_yard":
-			fill = Color(0.48, 0.46, 0.39, 0.18)
-			border = Color(0.26, 0.24, 0.20, 0.28)
-		_:
-			fill = Color(0.62, 0.58, 0.44, 0.10)
-			border = Color(0.36, 0.31, 0.20, 0.16)
-
-	canvas.draw_rect(rect.grow(-2.0), fill, true)
-	canvas.draw_rect(rect.grow(-2.0), border, false, 1.0)
-
-
-static func _draw_front_clearance(canvas: CanvasItem, rect: Rect2, yard_policy: String) -> void:
-	var fill := Color(0.72, 0.61, 0.39, 0.22)
-	if yard_policy == "workshop_service_yard":
-		fill = Color(0.52, 0.50, 0.45, 0.24)
-	elif yard_policy == "farmyard":
-		fill = Color(0.64, 0.52, 0.31, 0.24)
-	canvas.draw_rect(rect.grow(-3.0), fill, true)
-	canvas.draw_rect(rect.grow(-6.0), Color(1.0, 0.92, 0.68, 0.07), false, 1.0)
-
-
-static func _draw_front_path(canvas: CanvasItem, rect: Rect2, yard_policy: String) -> void:
-	var fill := Color(0.62, 0.50, 0.31, 0.30)
-	var edge := Color(0.30, 0.24, 0.15, 0.18)
-	if yard_policy == "workshop_service_yard":
-		fill = Color(0.48, 0.46, 0.40, 0.32)
-		edge = Color(0.20, 0.19, 0.16, 0.22)
-	elif yard_policy == "farmyard":
-		fill = Color(0.58, 0.45, 0.25, 0.30)
-		edge = Color(0.32, 0.22, 0.12, 0.18)
-	canvas.draw_rect(rect.grow(-5.0), fill, true)
-	canvas.draw_line(rect.position + Vector2(6.0, rect.size.y * 0.5), rect.end - Vector2(6.0, rect.size.y * 0.5), edge, 1.0)
-	for index in range(2):
-		var x: float = rect.position.x + 8.0 + float(index) * maxf(8.0, rect.size.x * 0.38)
-		canvas.draw_circle(Vector2(x, rect.position.y + rect.size.y * 0.52), 1.4, edge)
-
-
-static func _draw_building_foundation(canvas: CanvasItem, rect: Rect2) -> void:
-	canvas.draw_rect(rect.grow(-1.0), Color(0.38, 0.37, 0.33, 0.26), true)
-	canvas.draw_rect(rect.grow(-1.0), Color(0.12, 0.11, 0.10, 0.18), false, 1.0)
-
-
 static func _draw_soft_noise(canvas: CanvasItem, grid: LocationGrid, cell: Vector2i, rect: Rect2, color: Color) -> void:
 	var tint := Color(1.0, 1.0, 1.0, 0.04)
 	var shade := Color(0.0, 0.0, 0.0, 0.04)
@@ -332,77 +270,6 @@ static func _wall_color_for_structure(structure: Dictionary) -> Color:
 			return Color(0.46, 0.48, 0.48, 0.96)
 		_:
 			return Color(0.47, 0.47, 0.45, 0.96)
-
-
-static func _draw_building_prefab_placeholder(canvas: CanvasItem, rect: Rect2, structure: Dictionary) -> void:
-	var visual: Dictionary = structure.get("visual", {}) as Dictionary
-	var placeholder_style := str(visual.get("placeholder_style", "generic_basic"))
-	var body_color := _wall_color_for_structure(structure).darkened(0.04)
-	canvas.draw_rect(rect.grow(-4.0), Color(0.0, 0.0, 0.0, 0.10), true)
-	canvas.draw_rect(rect.grow(-5.0), body_color, true)
-	canvas.draw_rect(rect.grow(-5.0), Color(0.16, 0.13, 0.10, 0.45), false, 1.3)
-
-	match placeholder_style:
-		"shop_street":
-			_draw_placeholder_shop_front(canvas, rect)
-		"workshop_basic":
-			_draw_placeholder_workshop_front(canvas, rect)
-		"tavern_basic":
-			_draw_placeholder_tavern_front(canvas, rect)
-		"storage_basic":
-			_draw_placeholder_storage_front(canvas, rect)
-		"guardhouse_basic":
-			_draw_placeholder_guard_front(canvas, rect)
-		_:
-			_draw_placeholder_home_front(canvas, rect)
-
-
-static func _draw_placeholder_home_front(canvas: CanvasItem, rect: Rect2) -> void:
-	_draw_placeholder_window(canvas, rect.position + Vector2(rect.size.x * 0.26, rect.size.y * 0.58), Color(0.50, 0.70, 0.84, 0.78))
-	_draw_placeholder_window(canvas, rect.position + Vector2(rect.size.x * 0.74, rect.size.y * 0.58), Color(0.50, 0.70, 0.84, 0.68))
-
-
-static func _draw_placeholder_shop_front(canvas: CanvasItem, rect: Rect2) -> void:
-	var sign := Rect2(rect.position + Vector2(rect.size.x * 0.20, rect.size.y * 0.38), Vector2(rect.size.x * 0.60, 10.0))
-	canvas.draw_rect(sign, Color(0.39, 0.23, 0.11, 0.92), true)
-	canvas.draw_rect(sign, Color(0.12, 0.08, 0.05, 0.65), false, 1.0)
-	canvas.draw_line(sign.position + Vector2(7.0, 5.0), sign.end - Vector2(7.0, 5.0), Color(0.95, 0.78, 0.35, 0.65), 1.2)
-	_draw_placeholder_window(canvas, rect.position + Vector2(rect.size.x * 0.25, rect.size.y * 0.64), Color(0.60, 0.76, 0.86, 0.76))
-	_draw_placeholder_window(canvas, rect.position + Vector2(rect.size.x * 0.75, rect.size.y * 0.64), Color(0.60, 0.76, 0.86, 0.76))
-
-
-static func _draw_placeholder_workshop_front(canvas: CanvasItem, rect: Rect2) -> void:
-	for index in range(3):
-		var x: float = rect.position.x + rect.size.x * 0.22 + float(index) * rect.size.x * 0.18
-		canvas.draw_line(Vector2(x, rect.end.y - 19.0), Vector2(x + 10.0, rect.end.y - 30.0), Color(0.22, 0.20, 0.18, 0.38), 1.2)
-	_draw_placeholder_window(canvas, rect.position + Vector2(rect.size.x * 0.72, rect.size.y * 0.58), Color(0.48, 0.58, 0.62, 0.64))
-
-
-static func _draw_placeholder_tavern_front(canvas: CanvasItem, rect: Rect2) -> void:
-	var board := Rect2(rect.position + Vector2(rect.size.x * 0.33, rect.size.y * 0.34), Vector2(rect.size.x * 0.34, 12.0))
-	canvas.draw_rect(board, Color(0.47, 0.25, 0.12, 0.94), true)
-	canvas.draw_rect(board, Color(0.12, 0.07, 0.04, 0.70), false, 1.0)
-	canvas.draw_circle(board.get_center(), 3.5, Color(0.82, 0.58, 0.26, 0.80))
-	_draw_placeholder_window(canvas, rect.position + Vector2(rect.size.x * 0.24, rect.size.y * 0.64), Color(0.74, 0.58, 0.42, 0.70))
-	_draw_placeholder_window(canvas, rect.position + Vector2(rect.size.x * 0.76, rect.size.y * 0.64), Color(0.74, 0.58, 0.42, 0.70))
-
-
-static func _draw_placeholder_storage_front(canvas: CanvasItem, rect: Rect2) -> void:
-	canvas.draw_line(rect.position + Vector2(8.0, rect.size.y * 0.54), rect.end - Vector2(8.0, rect.size.y * 0.46), Color(0.18, 0.14, 0.10, 0.26), 1.0)
-	canvas.draw_line(rect.position + Vector2(rect.size.x - 8.0, rect.size.y * 0.54), Vector2(rect.position.x + 8.0, rect.end.y - rect.size.y * 0.46), Color(0.18, 0.14, 0.10, 0.26), 1.0)
-
-
-static func _draw_placeholder_guard_front(canvas: CanvasItem, rect: Rect2) -> void:
-	var slit := Rect2(rect.position + Vector2(rect.size.x * 0.28, rect.size.y * 0.52), Vector2(rect.size.x * 0.44, 5.0))
-	canvas.draw_rect(slit, Color(0.15, 0.16, 0.15, 0.72), true)
-	canvas.draw_rect(slit, Color(0.65, 0.68, 0.64, 0.26), false, 1.0)
-
-
-static func _draw_placeholder_window(canvas: CanvasItem, center: Vector2, color: Color) -> void:
-	var window := Rect2(center + Vector2(-7.0, -5.0), Vector2(14.0, 10.0))
-	canvas.draw_rect(window, color, true)
-	canvas.draw_rect(window, Color(0.12, 0.10, 0.08, 0.62), false, 1.0)
-	canvas.draw_line(Vector2(window.get_center().x, window.position.y), Vector2(window.get_center().x, window.end.y), Color(0.12, 0.10, 0.08, 0.38), 0.8)
 
 
 static func _draw_wall_ring(canvas: CanvasItem, grid: LocationGrid, structure: Dictionary) -> void:
