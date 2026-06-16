@@ -31,16 +31,16 @@ Added the first settlement planning core under
 - `SettlementEvaluator`
 - `GenerationTrace`
 
-The session owns deterministic execution, random state, phase order, active
+The session owns deterministic execution, random state, step order, active
 agents, proposal ids, committed steps, trace output, feature maps, blueprint,
 resolver, and evaluator.
 
 ## Agent Loop
 
-Phase 61 includes three debug agents:
+Phase 61 established proposal-only agent participation:
 
 - `CoreSeedAgent`: submits a valid core proposal.
-- `ApproachAnchorAgent`: submits a valid approach path and anchor proposal.
+- a road-growth agent submits a valid road proposal.
 - `InvalidProposalAgent`: submits an intentionally invalid out-of-bounds
   proposal.
 
@@ -82,8 +82,8 @@ proposal id.
 ## Evaluator And Trace
 
 `SettlementEvaluator` runs after every committed proposal. Its reports include
-phase, committed proposal id, score, issues, core count, road count, anchor
-count, and occupied count.
+step, committed proposal id, score, issues, core count, road count, and
+occupied count.
 
 `GenerationTrace` records:
 
@@ -93,7 +93,7 @@ count, and occupied count.
 - committed proposals;
 - proposal scores;
 - evaluator reports;
-- phase transitions;
+- generation step transitions;
 - deterministic random decisions;
 - session events.
 

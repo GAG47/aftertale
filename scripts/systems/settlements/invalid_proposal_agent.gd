@@ -4,17 +4,21 @@ extends SettlementAgent
 
 func _init() -> void:
 	agent_id = "invalid_proposal_agent"
+	spec = AgentSpecScript.create(5, 5, 1)
 
 
 func is_active(session) -> bool:
-	return session.current_phase == "validation"
+	return session.current_step >= 5
 
 
 func propose(session) -> Array[PlanProposal]:
 	var bad_cell := Vector2i(session.context.map_size.x + 4, session.context.map_size.y + 4)
-	var proposal := PlanProposal.create(agent_id, "add_core", session.current_phase, "Submit an intentionally invalid out-of-bounds proposal.", 999)
+	var proposal := PlanProposal.create(agent_id, "add_core_seed", session.current_step, "blueprint_growth", "Submit an intentionally invalid out-of-bounds proposal.", 999)
 	proposal.proposal_id = session.next_proposal_id(agent_id)
-	proposal.affected_cells = [bad_cell]
+	var affected_cells: Array[Vector2i] = [bad_cell]
+	proposal.affected_cells = affected_cells
 	proposal.payload = { "id": "invalid_out_of_bounds_core", "cell": bad_cell }
-	proposal.tags = ["invalid", "v61_smoke"]
-	return [proposal]
+	var tags: Array[String] = ["invalid", "v62_step_smoke"]
+	proposal.tags = tags
+	var result: Array[PlanProposal] = [proposal]
+	return result

@@ -20,19 +20,21 @@ func run(root: Node) -> bool:
 	if (blueprint.get("roads", []) as Array).size() < 2:
 		return _fail("v62 must commit general road proposals")
 	if (blueprint.get("plots", []) as Array).size() < 4:
-		return _fail("v62 must commit road-accessible plot proposals")
+		return _fail("v62 must grow road-accessible generic plots")
 	if (blueprint.get("buildings", []) as Array).size() < 3:
-		return _fail("v62 must commit building proposals")
-	if (blueprint.get("landmarks", []) as Array).size() < 1:
-		return _fail("v62 must commit a landmark proposal")
+		return _fail("v62 must commit building footprint proposals")
+	if not _has_differentiated_plots(blueprint):
+		return _fail("v62 must differentiate generic plots")
 	if int(trace_summary.get("rejected_count", 0)) < 2:
 		return _fail("v62 must reject out-of-bounds and conflicting proposals")
 	if int(feature_maps.get("update_count", 0)) != int(trace_summary.get("committed_count", 0)):
 		return _fail("v62 feature maps must update after each commit")
 	if int(trace_summary.get("evaluator_report_count", 0)) != int(trace_summary.get("committed_count", 0)):
 		return _fail("v62 evaluator must report after each commit")
-	if not _trace_has_proposal_types(trace, ["add_road", "add_plot", "add_building", "add_landmark"]):
-		return _fail("v62 trace must record all general proposal types")
+	if int(trace_summary.get("step_count", 0)) <= 0:
+		return _fail("v62 trace must record generation steps")
+	if not _trace_has_proposal_types(trace, ["add_road_segment", "add_generic_plot", "differentiate_plot", "add_building_footprint"]):
+		return _fail("v62 trace must record road, generic plot, differentiation, and footprint proposals")
 	if not _trace_has_rejection_from(trace, "invalid_conflict_agent"):
 		return _fail("v62 resolver must reject the intentionally conflicting proposal")
 	if not _resolver_is_only_commit_entry():
@@ -74,6 +76,14 @@ func _trace_has_proposal_types(trace: Dictionary, types: Array[String]) -> bool:
 	return true
 
 
+func _has_differentiated_plots(blueprint: Dictionary) -> bool:
+	for plot_value in (blueprint.get("plots", []) as Array):
+		var plot: Dictionary = plot_value as Dictionary
+		if str(plot.get("status", "")) == "differentiated":
+			return true
+	return false
+
+
 func _trace_has_rejection_from(trace: Dictionary, proposer_id: String) -> bool:
 	for proposal_value in (trace.get("rejected_proposals", []) as Array):
 		var proposal: Dictionary = proposal_value as Dictionary
@@ -84,13 +94,13 @@ func _trace_has_rejection_from(trace: Dictionary, proposer_id: String) -> bool:
 
 func _resolver_is_only_commit_entry() -> bool:
 	var blueprint := SettlementBlueprint.new()
-	var proposal := PlanProposal.create("test", "add_landmark", "landmark", "Direct write should fail.", 1)
-	proposal.proposal_id = "direct_landmark_write"
+	var proposal := PlanProposal.create("test", "add_core_seed", 0, "blueprint_growth", "Direct write should fail.", 1)
+	proposal.proposal_id = "direct_core_write"
 	proposal.affected_cells = [Vector2i(4, 4)]
-	proposal.payload = { "id": "direct_landmark", "kind": "well", "cell": Vector2i(4, 4) }
+	proposal.payload = { "id": "direct_core", "cell": Vector2i(4, 4) }
 	if blueprint.apply_committed_proposal(proposal, "wrong_token"):
 		return _fail("v62 blueprint must reject direct commits without resolver token")
-	if not blueprint.landmarks.is_empty():
+	if not blueprint.cores.is_empty():
 		return _fail("v62 failed direct commit must not change blueprint")
 	return true
 
@@ -108,10 +118,10 @@ func _debug_view_renders(result: Dictionary) -> bool:
 		return _fail("v62 debug view must render buildings")
 	if int(summary.get("core_marker_count", 0)) <= 0:
 		return _fail("v62 debug view must render core markers")
-	if int(summary.get("landmark_marker_count", 0)) <= 0:
-		return _fail("v62 debug view must render landmark markers")
 	if int(summary.get("rejected_cell_count", 0)) <= 0:
 		return _fail("v62 debug view must render rejected proposal cells")
+	if int(summary.get("process_log_line_count", 0)) <= 0:
+		return _fail("v62 debug view must render step process logs")
 	_root.remove_child(view)
 	view.free()
 	return true

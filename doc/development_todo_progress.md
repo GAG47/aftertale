@@ -8,8 +8,8 @@ phase records remain in their own `doc/phase_*.md` files.
 Phase 60 completed the settlement-generation architecture reset. The active
 scene-generation line now starts from the new settlement architecture only.
 
-The current focus is Phase 63: compile the generated settlement blueprint into
-the normal Godot location pipeline.
+The current focus is the Phase 62 rewrite: make settlement output grow through
+generation steps before relying on the compiler for in-game inspection.
 
 ## Scene Generation Roadmap
 
@@ -17,8 +17,8 @@ the normal Godot location pipeline.
 | --- | --- | --- | --- |
 | v60 | Complete | `doc/phase_60_settlement_generation_architecture.md` | Define the unified settlement-generation architecture: policy, context, session, feature maps, agents, proposals, resolver, blueprint, evaluator, trace, and compiler. |
 | v61 | Complete | `doc/phase_61_decentralized_planning_core.md` | Implement decentralized iterative planning and expose the active blueprint, proposals, evaluator reports, and trace through a Godot-visible debug view. |
-| v62 | Complete | `doc/phase_62_general_settlement_generation.md` | Implement general road, plot, building, and landmark generation through the shared blueprint pipeline, with Godot-visible debug overlays for each layer. |
-| v63 | Complete | `doc/phase_63_settlement_scene_compiler.md` | Compile settlement blueprints into normal Godot location data with visible roads, plots, buildings, landmarks, collision, debug metadata, and seed reproduction. |
+| v62 | Complete | `doc/phase_62_general_settlement_generation.md` | Implement step-based road growth, generic plot growth, plot differentiation, and building footprint generation through the shared blueprint pipeline. |
+| v63 | Complete | `doc/phase_63_settlement_scene_compiler.md` | Compile settlement blueprints into normal Godot location data with visible roads, plots, buildings, collision, debug metadata, and seed reproduction. |
 | v64 | To be decided | To be decided | Further settlement work is intentionally left undecided until the compiled v63 result has been inspected in game. |
 
 ## Dependency Order
@@ -26,7 +26,7 @@ the normal Godot location pipeline.
 ```text
 v60 settlement generation architecture
 -> v61 decentralized planning core with Godot-visible debug output
--> v62 general road, plot, building, and landmark generation with debug overlays
+-> v62 step-based road growth, generic plot growth, plot differentiation, and footprint generation
 -> v63 settlement blueprint compiler into the normal Godot location pipeline
 -> v64 to be decided after in-game inspection
 ```

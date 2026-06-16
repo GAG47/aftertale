@@ -4,16 +4,17 @@ extends SettlementAgent
 
 func _init() -> void:
 	agent_id = "invalid_conflict_agent"
+	spec = AgentSpecScript.create(8, 4, 1)
 
 
 func is_active(session) -> bool:
-	return session.current_phase == "validation" and not session.blueprint.buildings.is_empty()
+	return session.current_step >= 8 and not session.blueprint.buildings.is_empty()
 
 
 func propose(session) -> Array[PlanProposal]:
 	var existing: Dictionary = session.blueprint.buildings[0] as Dictionary
 	var area: Dictionary = (existing.get("area", {}) as Dictionary).duplicate(true)
-	var proposal := PlanProposal.create(agent_id, "add_building", session.current_phase, "Submit an intentionally conflicting building footprint.", 999)
+	var proposal := PlanProposal.create(agent_id, "add_building_footprint", session.current_step, "footprint", "Submit an intentionally conflicting building footprint.", 999)
 	proposal.proposal_id = session.next_proposal_id(agent_id)
 	proposal.area = area
 	proposal.affected_cells = _area_cells(area)
@@ -23,8 +24,10 @@ func propose(session) -> Array[PlanProposal]:
 		"plot_id": str(existing.get("plot_id", "")),
 		"entrance_cell": proposal.affected_cells[0] if not proposal.affected_cells.is_empty() else Vector2i.ZERO,
 	}
-	proposal.tags = ["invalid", "conflict", "v62"]
-	return [proposal]
+	var tags: Array[String] = ["invalid", "conflict", "v62"]
+	proposal.tags = tags
+	var result: Array[PlanProposal] = [proposal]
+	return result
 
 
 func _area_cells(area: Dictionary) -> Array[Vector2i]:

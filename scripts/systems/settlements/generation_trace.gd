@@ -7,12 +7,13 @@ var rejected_proposals: Array[Dictionary] = []
 var committed_proposals: Array[Dictionary] = []
 var evaluator_reports: Array[Dictionary] = []
 var random_decisions: Array[Dictionary] = []
-var phase_transitions: Array[Dictionary] = []
+var step_transitions: Array[Dictionary] = []
+var step_resolutions: Array[Dictionary] = []
 var events: Array[Dictionary] = []
 
 
-func record_phase(phase: String) -> void:
-	phase_transitions.append({ "phase": phase, "index": phase_transitions.size() })
+func record_step(step: int) -> void:
+	step_transitions.append({ "step": step, "index": step_transitions.size() })
 
 
 func record_proposal(proposal: PlanProposal) -> void:
@@ -37,9 +38,22 @@ func record_evaluator_report(report: Dictionary) -> void:
 	evaluator_reports.append(report.duplicate(true))
 
 
-func record_random_decision(phase: String, reason: String, value: int) -> void:
+func record_step_resolution(step: int, winners: Array[PlanProposal], losers: Array[Dictionary]) -> void:
+	var winner_rows: Array[Dictionary] = []
+	for winner in winners:
+		winner_rows.append(winner.duplicate_for_trace())
+	step_resolutions.append({
+		"step": step,
+		"winners": winner_rows,
+		"losers": losers.duplicate(true),
+		"winner_count": winner_rows.size(),
+		"loser_count": losers.size(),
+	})
+
+
+func record_random_decision(step: int, reason: String, value: int) -> void:
 	random_decisions.append({
-		"phase": phase,
+		"step": step,
 		"reason": reason,
 		"value": value,
 		"index": random_decisions.size(),
@@ -62,7 +76,8 @@ func to_dictionary() -> Dictionary:
 		"committed_proposals": committed_proposals.duplicate(true),
 		"evaluator_reports": evaluator_reports.duplicate(true),
 		"random_decisions": random_decisions.duplicate(true),
-		"phase_transitions": phase_transitions.duplicate(true),
+		"step_transitions": step_transitions.duplicate(true),
+		"step_resolutions": step_resolutions.duplicate(true),
 		"events": events.duplicate(true),
 		"summary": summary(),
 	}
@@ -76,5 +91,6 @@ func summary() -> Dictionary:
 		"committed_count": committed_proposals.size(),
 		"evaluator_report_count": evaluator_reports.size(),
 		"random_decision_count": random_decisions.size(),
-		"phase_count": phase_transitions.size(),
+		"step_count": step_transitions.size(),
+		"step_resolution_count": step_resolutions.size(),
 	}

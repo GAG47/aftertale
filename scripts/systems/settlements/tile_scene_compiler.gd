@@ -52,7 +52,7 @@ func validate_compiled_location(location_data: Dictionary) -> Array[String]:
 		errors.append("compiled LocationGrid is invalid")
 		return errors
 	var summary: Dictionary = location_data.get("generation_summary", {}) as Dictionary
-	for key in ["road_count", "building_count", "landmark_count"]:
+	for key in ["road_count", "building_count"]:
 		if int(summary.get(key, 0)) <= 0:
 			errors.append("missing compiled layer count: %s" % key)
 	var entrance_cell := _cell_from_dict(_first_entrance(location_data).get("grid_position", {}) as Dictionary)

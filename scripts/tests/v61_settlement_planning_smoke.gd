@@ -65,7 +65,7 @@ func _agents_are_proposal_only() -> bool:
 	})
 	var session := SettlementGenerationSession.new(policy, context)
 	session.feature_maps.initialize(context)
-	session.current_phase = "core"
+	session.current_step = 0
 	var agent := CoreSeedAgent.new()
 	var before := session.blueprint.to_dictionary()
 	var proposals := agent.propose(session)
@@ -79,7 +79,7 @@ func _agents_are_proposal_only() -> bool:
 
 func _resolver_is_only_commit_entry() -> bool:
 	var blueprint := SettlementBlueprint.new()
-	var proposal := PlanProposal.create("test", "add_core", "core", "Direct write should fail.", 1)
+	var proposal := PlanProposal.create("test", "add_core_seed", 0, "blueprint_growth", "Direct write should fail.", 1)
 	proposal.proposal_id = "direct_write"
 	proposal.affected_cells = [Vector2i(4, 4)]
 	proposal.payload = { "id": "direct_core", "cell": Vector2i(4, 4) }

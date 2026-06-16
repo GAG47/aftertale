@@ -9,7 +9,8 @@ const STATUS_SUPERSEDED := "superseded"
 
 var proposal_id: String = ""
 var proposer_id: String = ""
-var phase: String = ""
+var step: int = -1
+var stage: String = ""
 var type: String = ""
 var priority: int = 0
 var score: float = 0.0
@@ -29,14 +30,16 @@ var status: String = STATUS_CREATED
 static func create(
 	p_proposer_id: String,
 	p_type: String,
-	p_phase: String,
+	p_step: int,
+	p_stage: String,
 	p_reason: String,
 	p_priority: int = 0
 ) -> PlanProposal:
 	var proposal := PlanProposal.new()
 	proposal.proposer_id = p_proposer_id
 	proposal.type = p_type
-	proposal.phase = p_phase
+	proposal.step = p_step
+	proposal.stage = p_stage
 	proposal.reason = p_reason
 	proposal.priority = p_priority
 	return proposal
@@ -58,7 +61,8 @@ func to_dictionary() -> Dictionary:
 	return {
 		"proposal_id": proposal_id,
 		"proposer_id": proposer_id,
-		"phase": phase,
+		"step": step,
+		"stage": stage,
 		"type": type,
 		"priority": priority,
 		"score": score,

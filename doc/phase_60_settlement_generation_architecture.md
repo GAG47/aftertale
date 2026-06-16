@@ -8,11 +8,10 @@ Complete.
 
 Phase 60 defines the permanent settlement generation architecture.
 
-This phase rejects the previous BSP-driven and road-first implementation
-records as active design authority. Phases 56 through 59, the removed first
-Phase 60 attempt, and the temporary road skeleton reset are historical records
-only. They may explain mistakes that must not be repeated, but they must not
-shape the new generator's data model, ownership boundaries, or output contract.
+This phase rejects previous scene-generation implementations as active design
+authority. Removed BSP, road-first, parcel, prefab, and generated-interior
+paths must not shape the new generator's data model, ownership boundaries, or
+output contract.
 
 From this phase forward, every settlement type must use the same generation
 pipeline:
@@ -35,14 +34,14 @@ FeatureMaps
 
 Village, forest village, fishing village, mining camp, roadside town, port
 town, fortress town, and city generation must not become separate generator
-families. Their differences must come from policy data, agent activation,
-agent weights, phase ordering, evaluator weights, and asset families.
+families. Their differences must come from policy data, agent activation by
+step, agent weights, evaluator weights, and asset families.
 
 ## Result
 
 Phase 60 establishes the new settlement-generation authority. It defines the
 pipeline, lifecycle owner, seed ownership, proposal lifecycle, trace model,
-blueprint authority, resolver/evaluator boundary, compiler contract, phase
+blueprint authority, resolver/evaluator boundary, compiler contract, roadmap
 boundaries, and forbidden implementation patterns.
 
 No runtime settlement behavior is implemented in this phase. That work begins
@@ -139,7 +138,7 @@ It owns:
 - policy;
 - context;
 - active random state;
-- current phase;
+- current step;
 - active agents;
 - deterministic execution order;
 - proposal history;
@@ -150,9 +149,9 @@ It owns:
 - compiler handoff.
 
 It must not create settlement intent directly. It initializes feature maps and
-the blueprint, activates agents by phase, gathers proposals, calls the resolver,
-calls the evaluator, advances generation steps, and hands the final blueprint to
-the compiler.
+the blueprint, activates agents by step, gathers proposals, calls the resolver,
+calls the evaluator, advances generation steps, and hands the final blueprint
+to the compiler.
 
 ### FeatureMapStore
 
@@ -228,7 +227,7 @@ Required agent families:
 - district agent;
 - plot agent;
 - building agent;
-- landmark agent;
+- public anchor or landmark agent;
 - production agent;
 - defense agent;
 - detail agent;
@@ -238,7 +237,7 @@ Agents are not NPCs. They are planning components.
 
 Required agent families must exist as part of the architecture, but they do not
 all run for every settlement. Activation is controlled by `SettlementPolicy`,
-generation phase, feature-map pressure, and evaluator feedback.
+agent activation step, feature-map pressure, and evaluator feedback.
 
 `CorrectionAgent` is not a late patching system. It participates in the normal
 proposal loop and may only submit correction proposals before compilation. It
@@ -255,7 +254,8 @@ It owns:
 
 - proposal id;
 - proposer id;
-- phase;
+- step;
+- stage;
 - type;
 - priority;
 - score;
@@ -300,7 +300,7 @@ It owns hard accept-or-reject authority:
 - road-continuity checks;
 - density checks;
 - hard settlement-policy checks;
-- phase compliance checks;
+- step compliance checks;
 - conflict arbitration;
 - priority arbitration;
 - blueprint mutation;
@@ -350,7 +350,7 @@ It owns:
 - validation notes;
 - evaluator reports;
 - feature-map update notes;
-- phase transitions;
+- generation step transitions;
 - deterministic random decisions;
 - debug diagnostics.
 
@@ -384,9 +384,9 @@ is implemented in Phase 64.
 Before Phase 64, the project must still provide Godot-visible debug output for
 the active blueprint state. Early visual output may be a debug renderer,
 blueprint overlay, generated report scene, or inspection view instead of final
-gameplay-ready scene data. Intermediate phases must not be invisible.
+gameplay-ready scene data. Intermediate roadmap versions must not be invisible.
 
-## Phase Boundaries
+## Roadmap Boundaries
 
 ### Phase 60
 
@@ -403,11 +403,15 @@ the current blueprint and generation trace in a debug view.
 
 ### Phase 62
 
-Implement general road, plot, building, and landmark generation through the
-shared pipeline. The output must be reachable, explainable, and renderable as a
-blueprint. It must not be hard-coded for one village type. Godot must be able to
-show roads, plots, buildings, landmarks, rejected proposals, and evaluator
-feedback as debug overlays or inspection views.
+Implement road growth, generic plot growth, plot differentiation, and building
+footprint generation through the shared pipeline. The output must be reachable,
+explainable, and renderable as a blueprint. It must not be hard-coded for one
+village type. Godot must be able to show roads, plots, differentiated plot
+uses, building footprints, rejected proposals, evaluator feedback, and a step
+process log as debug overlays or inspection views.
+
+Full landmark behavior is deferred. Phase 62 may keep only core or public
+anchors needed for debugging and feature-map pressure.
 
 ### Phase 63
 
@@ -448,7 +452,7 @@ Phase 60 is complete when the following are defined in code or design records:
 - the resolver's authority is explicit;
 - evaluator participation is part of the generation loop;
 - compiler authority is limited to blueprint-to-scene conversion;
-- intermediate phases have Godot-visible debug output requirements;
+- intermediate roadmap versions have Godot-visible debug output requirements;
 - settlement-type variation is policy-driven;
 - old village generation formats are not treated as compatibility targets;
 - future phases can implement behavior without changing the core pipeline.
@@ -461,7 +465,6 @@ Required checks:
 
 - the development roadmap points to this architecture as the active Phase 60
   record;
-- previous scene-generation phases remain historical records only;
 - later work can be assigned to Phase 61 through Phase 64 without changing the
   pipeline shape.
 

@@ -1,11 +1,14 @@
 class_name SettlementGenerationSession
 extends RefCounted
 
-const RoadAgentScript := preload("res://scripts/systems/settlements/road_agent.gd")
-const PlotAgentScript := preload("res://scripts/systems/settlements/plot_agent.gd")
-const BuildingAgentScript := preload("res://scripts/systems/settlements/building_agent.gd")
-const LandmarkAgentScript := preload("res://scripts/systems/settlements/landmark_agent.gd")
+const RoadExpandAgentScript := preload("res://scripts/systems/settlements/road_expand_agent.gd")
+const RoadBranchAgentScript := preload("res://scripts/systems/settlements/road_branch_agent.gd")
+const GenericPlotAgentScript := preload("res://scripts/systems/settlements/generic_plot_agent.gd")
+const PlotDifferentiationAgentScript := preload("res://scripts/systems/settlements/plot_differentiation_agent.gd")
+const BuildingFootprintAgentScript := preload("res://scripts/systems/settlements/building_footprint_agent.gd")
 const InvalidConflictAgentScript := preload("res://scripts/systems/settlements/invalid_conflict_agent.gd")
+
+const DEFAULT_MAX_BLUEPRINT_STEPS := 16
 
 var policy: SettlementPolicy
 var context: SettlementContext
@@ -15,11 +18,14 @@ var resolver: ProposalResolver
 var evaluator: SettlementEvaluator
 var trace: GenerationTrace
 var active_agents: Array[SettlementAgent] = []
-var current_phase: String = ""
+var current_step: int = -1
 var committed_step: int = 0
+var max_blueprint_steps: int = DEFAULT_MAX_BLUEPRINT_STEPS
+var evaluation_feedback: Dictionary = {}
 
 var _rng := RandomNumberGenerator.new()
 var _proposal_sequence: int = 0
+var _agent_commit_counts: Dictionary = {}
 
 
 func _init(p_policy: SettlementPolicy = null, p_context: SettlementContext = null) -> void:
@@ -35,31 +41,42 @@ func _init(p_policy: SettlementPolicy = null, p_context: SettlementContext = nul
 
 func run() -> Dictionary:
 	_initialize_run()
-	for phase in ["core", "road", "plot", "building", "landmark", "validation"]:
-		current_phase = phase
-		trace.record_phase(phase)
+	for step in range(max_blueprint_steps):
+		current_step = step
+		trace.record_step(step)
+		var candidates: Array[PlanProposal] = []
 		for agent in active_agents:
-			if not agent.is_active(self):
+			if not agent.can_run(self):
 				continue
-			var proposals := agent.propose(self)
+			var proposals: Array[PlanProposal] = agent.propose(self)
 			for proposal in proposals:
-				resolver.process_proposal(proposal, self, agent)
+				candidates.append(proposal)
+		resolver.resolve_step(candidates, self)
 	trace.record_event("session_finished", {
 		"committed_step": committed_step,
 		"proposal_count": trace.proposals.size(),
+		"max_blueprint_steps": max_blueprint_steps,
 	})
 	return get_result()
 
 
 func randi_range(from_value: int, to_value: int, reason: String) -> int:
 	var value := _rng.randi_range(from_value, to_value)
-	trace.record_random_decision(current_phase, reason, value)
+	trace.record_random_decision(current_step, reason, value)
 	return value
 
 
 func next_proposal_id(agent_id: String) -> String:
 	_proposal_sequence += 1
 	return "%s_%03d" % [agent_id, _proposal_sequence]
+
+
+func record_agent_commit(agent_id: String) -> void:
+	_agent_commit_counts[agent_id] = agent_commit_count(agent_id) + 1
+
+
+func agent_commit_count(agent_id: String) -> int:
+	return int(_agent_commit_counts.get(agent_id, 0))
 
 
 func result_signature() -> String:
@@ -79,9 +96,12 @@ func get_result() -> Dictionary:
 		"feature_maps": feature_maps.to_dictionary(),
 		"trace": trace.to_dictionary(),
 		"session_summary": {
-			"current_phase": current_phase,
+			"current_step": current_step,
 			"committed_step": committed_step,
 			"proposal_sequence": _proposal_sequence,
+			"max_blueprint_steps": max_blueprint_steps,
+			"agent_commit_counts": _agent_commit_counts.duplicate(),
+			"evaluation_feedback": evaluation_feedback.duplicate(true),
 			"result_signature": result_signature(),
 		},
 	}
@@ -90,23 +110,27 @@ func get_result() -> Dictionary:
 func _initialize_run() -> void:
 	_proposal_sequence = 0
 	committed_step = 0
-	current_phase = "initialize"
+	current_step = -1
+	evaluation_feedback.clear()
+	_agent_commit_counts.clear()
 	_rng.seed = _resolve_seed()
 	feature_maps.initialize(context)
 	blueprint = SettlementBlueprint.new()
 	trace = GenerationTrace.new()
 	active_agents = [
 		CoreSeedAgent.new(),
-		RoadAgentScript.new(),
-		PlotAgentScript.new(),
-		BuildingAgentScript.new(),
-		LandmarkAgentScript.new(),
+		RoadExpandAgentScript.new(),
+		RoadBranchAgentScript.new(),
+		GenericPlotAgentScript.new(),
+		PlotDifferentiationAgentScript.new(),
+		BuildingFootprintAgentScript.new(),
 		InvalidProposalAgent.new(),
 		InvalidConflictAgentScript.new(),
 	]
 	trace.record_event("session_initialized", {
 		"seed": _resolve_seed(),
 		"agent_count": active_agents.size(),
+		"max_blueprint_steps": max_blueprint_steps,
 	})
 
 

@@ -29,7 +29,7 @@ func _render() -> void:
 	for child in get_children():
 		child.queue_free()
 
-	custom_minimum_size = Vector2(1160, 620)
+	custom_minimum_size = Vector2(1240, 620)
 	var blueprint := session_result.get("blueprint", {}) as Dictionary
 	var feature_maps := session_result.get("feature_maps", {}) as Dictionary
 	var trace := session_result.get("trace", {}) as Dictionary
@@ -40,10 +40,10 @@ func _render() -> void:
 		(blueprint.get("roads", []) as Array).size(),
 		(blueprint.get("interaction_anchors", []) as Array).size(),
 	])
-	_add_label("LayerPanel", Vector2(236, 12), Vector2(210, 112), "Layers\nplots: %d\nbuildings: %d\nlandmarks: %d" % [
+	_add_label("LayerPanel", Vector2(236, 12), Vector2(210, 112), "Layers\nplots: %d\nbuildings: %d\npublic plots: %d" % [
 		(blueprint.get("plots", []) as Array).size(),
 		(blueprint.get("buildings", []) as Array).size(),
-		(blueprint.get("landmarks", []) as Array).size(),
+		_public_plot_count(blueprint),
 	])
 	_add_label("ProposalPanel", Vector2(482, 12), Vector2(220, 112), "Proposals\naccepted: %d\nrejected: %d\ncommitted: %d" % [
 		int(trace_summary.get("accepted_count", 0)),
@@ -54,13 +54,14 @@ func _render() -> void:
 		int(trace_summary.get("evaluator_report_count", 0)),
 		_last_evaluator_score(trace),
 	])
-	_add_label("TracePanel", Vector2(964, 12), Vector2(190, 112), "Trace\nrandom: %d\nphases: %d\nall proposals: %d" % [
+	_add_label("TracePanel", Vector2(964, 12), Vector2(190, 112), "Trace\nrandom: %d\nsteps: %d\nall proposals: %d" % [
 		int(trace_summary.get("random_decision_count", 0)),
-		int(trace_summary.get("phase_count", 0)),
+		int(trace_summary.get("step_count", 0)),
 		int(trace_summary.get("proposal_count", 0)),
 	])
 
-	_add_label("LegendPanel", Vector2(16, 138), Vector2(920, 32), "Legend: core=blue  road=tan  plot=green  building=brown  landmark=gold  rejected=red")
+	_add_label("LegendPanel", Vector2(16, 138), Vector2(920, 32), "Legend: core=blue  road=tan  plot=green  building=brown  rejected=red")
+	_add_label("StepLogPanel", Vector2(340, 190), Vector2(860, 330), _step_log_text(trace))
 
 	var grid_panel := Control.new()
 	grid_panel.name = "FeatureMapPanel"
@@ -86,7 +87,6 @@ func _render() -> void:
 	var road_cell_count := _draw_roads(grid_panel, blueprint)
 	var building_cell_count := _draw_buildings(grid_panel, blueprint)
 	var core_count := _draw_points(grid_panel, blueprint.get("cores", []) as Array, "CoreMarker", Color(0.25, 0.54, 1.0, 0.98), "cell")
-	var landmark_count := _draw_points(grid_panel, blueprint.get("landmarks", []) as Array, "LandmarkMarker", Color(1.0, 0.82, 0.20, 0.98), "cell")
 	var rejected_cell_count := _draw_rejected(grid_panel, trace)
 
 	_rendered_summary = {
@@ -100,10 +100,11 @@ func _render() -> void:
 		"plot_cell_count": plot_cell_count,
 		"building_cell_count": building_cell_count,
 		"core_marker_count": core_count,
-		"landmark_marker_count": landmark_count,
 		"rejected_cell_count": rejected_cell_count,
 		"accepted_count": int(trace_summary.get("accepted_count", 0)),
 		"rejected_count": int(trace_summary.get("rejected_count", 0)),
+		"step_count": int(trace_summary.get("step_count", 0)),
+		"process_log_line_count": _step_log_rows(trace).size(),
 	}
 
 
@@ -122,6 +123,57 @@ func _last_evaluator_score(trace: Dictionary) -> float:
 		return 0.0
 	var report: Dictionary = reports[reports.size() - 1] as Dictionary
 	return float(report.get("score", 0.0))
+
+
+func _public_plot_count(blueprint: Dictionary) -> int:
+	var count := 0
+	for plot_value in (blueprint.get("plots", []) as Array):
+		var plot: Dictionary = plot_value as Dictionary
+		if str(plot.get("use", "")) == "public":
+			count += 1
+	return count
+
+
+func _step_log_text(trace: Dictionary) -> String:
+	var rows := _step_log_rows(trace)
+	var start_index: int = max(0, rows.size() - 12)
+	var visible_rows := rows.slice(start_index)
+	var text := "Step Log"
+	for row in visible_rows:
+		text += "\n%s" % row
+	return text
+
+
+func _step_log_rows(trace: Dictionary) -> Array[String]:
+	var rows: Array[String] = []
+	for resolution_value in (trace.get("step_resolutions", []) as Array):
+		var resolution: Dictionary = resolution_value as Dictionary
+		var step := int(resolution.get("step", -1))
+		for winner_value in (resolution.get("winners", []) as Array):
+			var winner: Dictionary = winner_value as Dictionary
+			rows.append("step %02d: %s accepted" % [step, _proposal_label(winner)])
+		for loser_value in (resolution.get("losers", []) as Array):
+			var loser: Dictionary = loser_value as Dictionary
+			var proposal: Dictionary = loser.get("proposal", {}) as Dictionary
+			rows.append("step %02d: %s rejected" % [step, _proposal_label(proposal)])
+	return rows
+
+
+func _proposal_label(proposal: Dictionary) -> String:
+	var type := str(proposal.get("type", "proposal"))
+	match type:
+		"add_road_segment":
+			return "road segment"
+		"add_generic_plot":
+			return "generic plot"
+		"differentiate_plot":
+			return "plot -> %s" % str((proposal.get("payload", {}) as Dictionary).get("use", "use"))
+		"add_building_footprint":
+			return "building footprint"
+		"add_core_seed":
+			return "core seed"
+		_:
+			return type
 
 
 func _sample_cells(samples: Array) -> Dictionary:

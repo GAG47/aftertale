@@ -46,13 +46,9 @@ func _compiled_location_is_valid(location_data: Dictionary) -> bool:
 		return _fail("v63 compiler must preserve plots")
 	if int(summary.get("building_count", 0)) < 3:
 		return _fail("v63 compiler must preserve buildings")
-	if int(summary.get("landmark_count", 0)) < 1:
-		return _fail("v63 compiler must preserve landmarks")
 
 	if (location_data.get("roofs", []) as Array).is_empty():
 		return _fail("v63 compiler must create visible building roofs")
-	if (location_data.get("structures", []) as Array).is_empty():
-		return _fail("v63 compiler must create visible landmark structures")
 	if (location_data.get("collision_overrides", []) as Array).is_empty():
 		return _fail("v63 compiler must create building collision")
 	if not _has_debug_source_overlay(location_data):

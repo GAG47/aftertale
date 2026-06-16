@@ -64,7 +64,7 @@ data:
 - cores become plaza tiles and anchors;
 - buildings become building floor tiles, foundations, roofs, and collision
   overrides;
-- landmarks become visible structures;
+- optional landmarks become visible structures when present in the blueprint;
 - debug overlays retain blueprint source ids and proposal-derived metadata;
 - seed, proposal counts, rejected counts, and committed counts are stored in
   location state and generation summary.
@@ -85,9 +85,8 @@ The smoke test verifies:
 
 - deterministic compiled output for a fixed seed;
 - valid `LocationGrid` output;
-- preserved road, plot, building, and landmark counts;
+- preserved road, plot, and building counts;
 - visible building roofs;
-- visible landmark structures;
 - building collision overrides;
 - debug overlays with blueprint source ids;
 - player spawn data;
