@@ -81,7 +81,8 @@ func _resolver_is_only_commit_entry() -> bool:
 	var blueprint := SettlementBlueprint.new()
 	var proposal := PlanProposal.create("test", "add_core_seed", 0, "blueprint_growth", "Direct write should fail.", 1)
 	proposal.proposal_id = "direct_write"
-	proposal.affected_cells = [Vector2i(4, 4)]
+	var affected_cells: Array[Vector2i] = [Vector2i(4, 4)]
+	proposal.affected_cells = affected_cells
 	proposal.payload = { "id": "direct_core", "cell": Vector2i(4, 4) }
 	if blueprint.apply_committed_proposal(proposal, "wrong_token"):
 		return _fail("v61 blueprint must reject direct commits without resolver token")

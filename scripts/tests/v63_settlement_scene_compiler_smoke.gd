@@ -46,6 +46,12 @@ func _compiled_location_is_valid(location_data: Dictionary) -> bool:
 		return _fail("v63 compiler must preserve plots")
 	if int(summary.get("building_count", 0)) < 3:
 		return _fail("v63 compiler must preserve buildings")
+	if not _uses_settlement_plot_terrain(location_data):
+		return _fail("v63 compiler must use settlement plot terrain instead of farm/field terrain for generated plots")
+	if _has_field_plot_terrain(location_data):
+		return _fail("v63 generated settlement must not expose farm field terrain for settlement plots")
+	if not _road_tiles_are_visible(location_data):
+		return _fail("v63 compiler must preserve visible road tiles after plot compilation")
 
 	if (location_data.get("roofs", []) as Array).is_empty():
 		return _fail("v63 compiler must create visible building roofs")
@@ -104,6 +110,34 @@ func _has_player_spawn(location_data: Dictionary) -> bool:
 		if str(character.get("id", "")) == "debug_player" and bool(character.get("spawn_at_entrance", false)):
 			return true
 	return false
+
+
+func _uses_settlement_plot_terrain(location_data: Dictionary) -> bool:
+	var terrain: Dictionary = location_data.get("terrain", {}) as Dictionary
+	for terrain_value in terrain.values():
+		var terrain_row: Dictionary = terrain_value as Dictionary
+		if str(terrain_row.get("id", "")) == "settlement_plot":
+			return true
+	return false
+
+
+func _has_field_plot_terrain(location_data: Dictionary) -> bool:
+	var terrain: Dictionary = location_data.get("terrain", {}) as Dictionary
+	for terrain_value in terrain.values():
+		var terrain_row: Dictionary = terrain_value as Dictionary
+		if str(terrain_row.get("id", "")) == "field_plot":
+			return true
+	return false
+
+
+func _road_tiles_are_visible(location_data: Dictionary) -> bool:
+	var road_count := 0
+	for row_value in (location_data.get("tiles", []) as Array):
+		var row := str(row_value)
+		for index in range(row.length()):
+			if row.substr(index, 1) == "p":
+				road_count += 1
+	return road_count > 0
 
 
 func _fail(message: String) -> bool:

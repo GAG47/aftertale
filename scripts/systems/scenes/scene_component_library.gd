@@ -23,6 +23,10 @@ static func draw_ground_tile(canvas: CanvasItem, grid: LocationGrid, cell: Vecto
 			_draw_workshop_floor(canvas, grid, cell, rect)
 		"field_plot":
 			_draw_field_floor(canvas, cell, rect)
+		"settlement_plot":
+			_draw_settlement_plot_floor(canvas, grid, cell, rect, color)
+		"public_plot":
+			_draw_public_plot_floor(canvas, cell, rect)
 		"training_ground":
 			_draw_training_floor(canvas, grid, cell, rect, color)
 		"exit":
@@ -225,6 +229,25 @@ static func _draw_field_floor(canvas: CanvasItem, cell: Vector2i, rect: Rect2) -
 		var sprout_color := Color(0.30, 0.62, 0.28, 0.58)
 		canvas.draw_line(rect.get_center(), rect.get_center() + Vector2(-3.0, -6.0), sprout_color, 1.5)
 		canvas.draw_line(rect.get_center(), rect.get_center() + Vector2(4.0, -5.0), sprout_color, 1.5)
+
+
+static func _draw_settlement_plot_floor(canvas: CanvasItem, grid: LocationGrid, cell: Vector2i, rect: Rect2, color: Color) -> void:
+	_draw_soft_noise(canvas, grid, cell, rect, color)
+	var edge := Color(0.18, 0.16, 0.10, 0.22)
+	var yard := Color(0.72, 0.67, 0.45, 0.08)
+	canvas.draw_rect(rect.grow(-3.0), yard, true)
+	canvas.draw_rect(rect.grow(-4.0), edge, false, 1.0)
+	if _pattern_value(cell, 1, 17) % 3 == 0:
+		canvas.draw_circle(rect.position + Vector2(9.0, 21.0), 1.2, Color(0.25, 0.23, 0.16, 0.20))
+
+
+static func _draw_public_plot_floor(canvas: CanvasItem, cell: Vector2i, rect: Rect2) -> void:
+	canvas.draw_rect(rect.grow(-2.0), Color(0.70, 0.61, 0.38, 0.18), true)
+	var seam_color := Color(0.18, 0.15, 0.10, 0.18)
+	canvas.draw_line(Vector2(rect.position.x + 4.0, rect.position.y + rect.size.y * 0.5), Vector2(rect.end.x - 4.0, rect.position.y + rect.size.y * 0.5), seam_color, 1.0)
+	canvas.draw_line(Vector2(rect.position.x + rect.size.x * 0.5, rect.position.y + 4.0), Vector2(rect.position.x + rect.size.x * 0.5, rect.end.y - 4.0), seam_color, 1.0)
+	if _pattern_value(cell, 2, 23) % 4 == 0:
+		canvas.draw_circle(rect.get_center(), 1.4, Color(0.92, 0.84, 0.58, 0.16))
 
 
 static func _draw_training_floor(canvas: CanvasItem, grid: LocationGrid, cell: Vector2i, rect: Rect2, color: Color) -> void:

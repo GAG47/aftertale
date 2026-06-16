@@ -34,9 +34,9 @@ func compile_session_result(source_data: Dictionary, session_result: Dictionary)
 	_compiled = _base_location(source_data, session_result)
 	var blueprint: Dictionary = session_result.get("blueprint", {}) as Dictionary
 
-	_apply_roads(blueprint)
 	_apply_plots(blueprint)
 	_apply_cores(blueprint)
+	_apply_roads(blueprint)
 	_apply_buildings(blueprint)
 	_apply_landmarks(blueprint)
 	_add_player_spawn(context)
@@ -107,7 +107,8 @@ func _terrain_definitions() -> Dictionary:
 		"g": { "id": "grass", "label": "Grass", "walkable": true, "color": "#5fa35f" },
 		"p": { "id": "path", "label": "Settlement Road", "walkable": true, "color": "#b5975d" },
 		"s": { "id": "plaza", "label": "Settlement Core", "walkable": true, "color": "#8a8170" },
-		"f": { "id": "field_plot", "label": "Accepted Plot", "walkable": true, "plantable": true, "color": "#6f8f4d" },
+		"l": { "id": "settlement_plot", "label": "Settlement Plot", "walkable": true, "color": "#68735b" },
+		"u": { "id": "public_plot", "label": "Public Plot", "walkable": true, "color": "#9b8655" },
 		"h": { "id": "house_floor", "label": "Building Footprint", "walkable": true, "color": "#927047" },
 		"e": { "id": "exit", "label": "Entrance", "walkable": true, "color": "#c8b642" },
 	}
@@ -126,9 +127,10 @@ func _apply_plots(blueprint: Dictionary) -> void:
 	for plot_value in (blueprint.get("plots", []) as Array):
 		var plot: Dictionary = plot_value as Dictionary
 		var area: Dictionary = plot.get("area", {}) as Dictionary
+		var tile_key := _plot_tile_key(plot)
 		for cell in _area_cells(area):
-			_set_tile(cell, "f")
-		_add_zone(str(plot.get("id", "")), "settlement_plot", area)
+			_set_tile(cell, tile_key)
+		_add_zone(str(plot.get("id", "")), _plot_zone_type(plot), area)
 
 
 func _apply_cores(blueprint: Dictionary) -> void:
@@ -235,6 +237,19 @@ func _reset_tiles() -> void:
 		for _x in range(_width):
 			row.append("g")
 		_tiles.append(row)
+
+
+func _plot_tile_key(plot: Dictionary) -> String:
+	if str(plot.get("use", "")) == "public":
+		return "u"
+	return "l"
+
+
+func _plot_zone_type(plot: Dictionary) -> String:
+	var use := str(plot.get("use", "generic"))
+	if use.is_empty():
+		use = "generic"
+	return "settlement_%s_plot" % use
 
 
 func _stringify_tiles() -> Array[String]:

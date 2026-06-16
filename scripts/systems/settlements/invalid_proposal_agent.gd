@@ -20,5 +20,14 @@ func propose(session) -> Array[PlanProposal]:
 	proposal.payload = { "id": "invalid_out_of_bounds_core", "cell": bad_cell }
 	var tags: Array[String] = ["invalid", "v62_step_smoke"]
 	proposal.tags = tags
-	var result: Array[PlanProposal] = [proposal]
+	session.trace.record_agent_search(session.current_step, agent_id, {
+		"valid_candidates_count": 0,
+		"sampled_candidates_count": 1,
+		"top_score": 0.0,
+		"chosen_score": 0.0,
+		"chosen_cell": { "x": bad_cell.x, "y": bad_cell.y },
+		"rejected_reason_distribution": { "intentional_invalid": 1 },
+	})
+	var result: Array[PlanProposal] = []
+	result.append(proposal)
 	return result

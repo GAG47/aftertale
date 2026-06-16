@@ -62,7 +62,9 @@ func _pick_core_candidate(session) -> Dictionary:
 			var open_space := _open_space_score(cell, session)
 			var score := open_space * 2.0 + edge_distance - entrance_distance * 0.15
 			candidates.append({ "cell": cell, "score": score })
-	return _best_sample(candidates, session, 10)
+	var best := _best_sample(candidates, session, 10)
+	_record_search(session, candidates, best)
+	return best
 
 
 func _open_space_score(center: Vector2i, session) -> float:
@@ -92,3 +94,21 @@ func _direction_toward(from_cell: Vector2i, to_cell: Vector2i) -> Vector2i:
 	if absi(delta.x) >= absi(delta.y):
 		return Vector2i(1 if delta.x >= 0 else -1, 0)
 	return Vector2i(0, 1 if delta.y >= 0 else -1)
+
+
+func _record_search(session, candidates: Array[Dictionary], chosen: Dictionary) -> void:
+	var top_score := -9999.0
+	for candidate in candidates:
+		top_score = maxf(top_score, float(candidate.get("score", -9999.0)))
+	var chosen_cell := {}
+	if not chosen.is_empty():
+		var cell: Vector2i = chosen.get("cell", Vector2i(-9999, -9999)) as Vector2i
+		chosen_cell = { "x": cell.x, "y": cell.y }
+	session.trace.record_agent_search(session.current_step, agent_id, {
+		"valid_candidates_count": candidates.size(),
+		"sampled_candidates_count": min(10, candidates.size()),
+		"top_score": top_score if not candidates.is_empty() else 0.0,
+		"chosen_score": float(chosen.get("score", 0.0)) if not chosen.is_empty() else 0.0,
+		"chosen_cell": chosen_cell,
+		"rejected_reason_distribution": {},
+	})

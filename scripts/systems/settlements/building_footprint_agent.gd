@@ -4,18 +4,22 @@ extends SettlementAgent
 
 func _init() -> void:
 	agent_id = "building_footprint_agent"
-	spec = AgentSpecScript.create(6, 1, 8)
+	spec = AgentSpecScript.create(8, 1, 5)
 
 
 func is_active(session) -> bool:
+	if session.blueprint.buildings.size() >= max(3, int(floor(float(session.blueprint.plots.size()) * 0.55))):
+		return false
 	return _plots_without_buildings(session).size() > 0
 
 
 func propose(session) -> Array[PlanProposal]:
 	var candidates: Array[Dictionary] = []
+	var rejected := {}
 	for plot in _plots_without_buildings(session):
-		candidates.append_array(_footprint_candidates(plot, session))
+		candidates.append_array(_footprint_candidates(plot, session, rejected))
 	var best := _best_sample(candidates, session, 8)
+	_record_search(session, candidates, best, rejected)
 	if best.is_empty():
 		return []
 	var area: Dictionary = best.get("area", {}) as Dictionary
@@ -29,13 +33,17 @@ func propose(session) -> Array[PlanProposal]:
 		"id": "building_%02d" % session.blueprint.buildings.size(),
 		"plot_id": str(plot.get("id", "")),
 		"building_type": use,
+		"use_type": use,
 		"entrance_cell": best.get("entrance_cell", Vector2i.ZERO),
+		"front_access_cell": best.get("front_access_cell", Vector2i.ZERO),
+		"footprint_size": { "width": int(area.get("width", 0)), "height": int(area.get("height", 0)) },
 		"facing": str(best.get("facing", "")),
 	}
 	var tags: Array[String] = ["building_footprint", use]
 	proposal.tags = tags
 	proposal.score = float(best.get("score", 0.0))
-	var result: Array[PlanProposal] = [proposal]
+	var result: Array[PlanProposal] = []
+	result.append(proposal)
 	return result
 
 
@@ -49,13 +57,17 @@ func _plots_without_buildings(session) -> Array[Dictionary]:
 		var plot: Dictionary = plot_value as Dictionary
 		if str(plot.get("status", "")) != "differentiated":
 			continue
+		if str(plot.get("use", "")) == "public":
+			continue
+		if session.current_step - int(plot.get("differentiated_step", session.current_step)) < 2:
+			continue
 		if occupied_plot_ids.has(str(plot.get("id", ""))):
 			continue
 		result.append(plot)
 	return result
 
 
-func _footprint_candidates(plot: Dictionary, session) -> Array[Dictionary]:
+func _footprint_candidates(plot: Dictionary, session, rejected: Dictionary) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	var plot_area: Dictionary = plot.get("area", {}) as Dictionary
 	var road_cell := _cell_from_variant(plot.get("road_access_cell", {}))
@@ -63,17 +75,22 @@ func _footprint_candidates(plot: Dictionary, session) -> Array[Dictionary]:
 	for size in [Vector2i(1, 1), Vector2i(1, 2), Vector2i(2, 1), Vector2i(2, 2)]:
 		var area := _setback_area(plot_area, facing, size)
 		if area.is_empty():
+			_count_reject(rejected, "invalid_setback")
 			continue
 		var entrance := _entrance_for(area, facing)
 		if not _plot_contains(plot_area, entrance):
+			_count_reject(rejected, "entrance_outside_plot")
 			continue
 		var score: float = float(size.x * size.y)
 		score += session.feature_maps.get_value("land_value", entrance, 0.0)
 		score -= entrance.distance_to(road_cell) * 0.2
+		if bool(session.evaluation_feedback.get("need_more_footprints", false)):
+			score += 2.0
 		result.append({
 			"plot": plot,
 			"area": area,
 			"entrance_cell": entrance,
+			"front_access_cell": road_cell,
 			"facing": facing,
 			"score": score,
 		})
@@ -130,6 +147,28 @@ func _best_sample(candidates: Array[Dictionary], session, sample_count: int) -> 
 		if best.is_empty() or float(candidate.get("score", -9999.0)) > float(best.get("score", -9999.0)):
 			best = candidate
 	return best
+
+
+func _record_search(session, candidates: Array[Dictionary], chosen: Dictionary, rejected: Dictionary) -> void:
+	var top_score := -9999.0
+	for candidate in candidates:
+		top_score = maxf(top_score, float(candidate.get("score", -9999.0)))
+	var chosen_cell := {}
+	if not chosen.is_empty():
+		var entrance: Vector2i = chosen.get("entrance_cell", Vector2i(-9999, -9999)) as Vector2i
+		chosen_cell = { "x": entrance.x, "y": entrance.y }
+	session.trace.record_agent_search(session.current_step, agent_id, {
+		"valid_candidates_count": candidates.size(),
+		"sampled_candidates_count": min(8, candidates.size()),
+		"top_score": top_score if not candidates.is_empty() else 0.0,
+		"chosen_score": float(chosen.get("score", 0.0)) if not chosen.is_empty() else 0.0,
+		"chosen_cell": chosen_cell,
+		"rejected_reason_distribution": rejected.duplicate(true),
+	})
+
+
+func _count_reject(rejected: Dictionary, reason: String) -> void:
+	rejected[reason] = int(rejected.get(reason, 0)) + 1
 
 
 func _plot_contains(area: Dictionary, cell: Vector2i) -> bool:

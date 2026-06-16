@@ -1,14 +1,16 @@
 class_name SettlementGenerationSession
 extends RefCounted
 
-const RoadExpandAgentScript := preload("res://scripts/systems/settlements/road_expand_agent.gd")
+const RoadEndpointAgentScript := preload("res://scripts/systems/settlements/road_endpoint_agent.gd")
 const RoadBranchAgentScript := preload("res://scripts/systems/settlements/road_branch_agent.gd")
+const RoadReconnectAgentScript := preload("res://scripts/systems/settlements/road_reconnect_agent.gd")
 const GenericPlotAgentScript := preload("res://scripts/systems/settlements/generic_plot_agent.gd")
 const PlotDifferentiationAgentScript := preload("res://scripts/systems/settlements/plot_differentiation_agent.gd")
 const BuildingFootprintAgentScript := preload("res://scripts/systems/settlements/building_footprint_agent.gd")
 const InvalidConflictAgentScript := preload("res://scripts/systems/settlements/invalid_conflict_agent.gd")
+const DemandLedgerScript := preload("res://scripts/systems/settlements/settlement_demand_ledger.gd")
 
-const DEFAULT_MAX_BLUEPRINT_STEPS := 16
+const DEFAULT_MAX_BLUEPRINT_STEPS := 32
 
 var policy: SettlementPolicy
 var context: SettlementContext
@@ -17,6 +19,7 @@ var blueprint: SettlementBlueprint
 var resolver: ProposalResolver
 var evaluator: SettlementEvaluator
 var trace: GenerationTrace
+var demand_ledger: RefCounted
 var active_agents: Array[SettlementAgent] = []
 var current_step: int = -1
 var committed_step: int = 0
@@ -37,6 +40,7 @@ func _init(p_policy: SettlementPolicy = null, p_context: SettlementContext = nul
 	resolver = ProposalResolver.new()
 	evaluator = SettlementEvaluator.new()
 	trace = GenerationTrace.new()
+	demand_ledger = DemandLedgerScript.new()
 
 
 func run() -> Dictionary:
@@ -52,6 +56,7 @@ func run() -> Dictionary:
 			for proposal in proposals:
 				candidates.append(proposal)
 		resolver.resolve_step(candidates, self)
+		trace.record_blueprint_snapshot(step, blueprint)
 	trace.record_event("session_finished", {
 		"committed_step": committed_step,
 		"proposal_count": trace.proposals.size(),
@@ -102,6 +107,7 @@ func get_result() -> Dictionary:
 			"max_blueprint_steps": max_blueprint_steps,
 			"agent_commit_counts": _agent_commit_counts.duplicate(),
 			"evaluation_feedback": evaluation_feedback.duplicate(true),
+			"demand_ledger": demand_ledger.to_dictionary(),
 			"result_signature": result_signature(),
 		},
 	}
@@ -113,15 +119,20 @@ func _initialize_run() -> void:
 	current_step = -1
 	evaluation_feedback.clear()
 	_agent_commit_counts.clear()
+	demand_ledger.reset()
 	_rng.seed = _resolve_seed()
 	feature_maps.initialize(context)
 	blueprint = SettlementBlueprint.new()
+	blueprint.set_context_entrances(context.entrances)
 	trace = GenerationTrace.new()
 	active_agents = [
 		CoreSeedAgent.new(),
-		RoadExpandAgentScript.new(),
+		RoadEndpointAgentScript.new(),
 		RoadBranchAgentScript.new(),
-		GenericPlotAgentScript.new(),
+		RoadReconnectAgentScript.new(),
+		GenericPlotAgentScript.new("core_bias"),
+		GenericPlotAgentScript.new("road_bias"),
+		GenericPlotAgentScript.new("edge_bias"),
 		PlotDifferentiationAgentScript.new(),
 		BuildingFootprintAgentScript.new(),
 		InvalidProposalAgent.new(),

@@ -12,8 +12,10 @@ func is_active(session) -> bool:
 
 
 func propose(session) -> Array[PlanProposal]:
-	var candidates := _branch_candidates(session)
+	var rejected := {}
+	var candidates := _branch_candidates(session, rejected)
 	var best := _best_sample(candidates, session, 8)
+	_record_search(session, candidates, best, rejected)
 	if best.is_empty():
 		return []
 	var path: Array[Vector2i] = best.get("path", []) as Array[Vector2i]
@@ -25,39 +27,46 @@ func propose(session) -> Array[PlanProposal]:
 	var tags: Array[String] = ["road", "branch", "step_growth"]
 	proposal.tags = tags
 	proposal.score = float(best.get("score", 0.0))
-	var result: Array[PlanProposal] = [proposal]
+	var result: Array[PlanProposal] = []
+	result.append(proposal)
 	return result
 
 
-func _branch_candidates(session) -> Array[Dictionary]:
+func _branch_candidates(session, rejected: Dictionary) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	var road_cells: Array[Vector2i] = session.feature_maps.cells_for_map_value("road", 0.0)
 	for start in road_cells:
 		for direction in [Vector2i.UP, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT]:
-			var path := _segment_from(start, direction, session.randi_range(2, 3, "road_branch_length"), session)
-			if path.is_empty():
+			var segment := _segment_from(start, direction, session.randi_range(2, 3, "road_branch_length"), session)
+			if not bool(segment.get("valid", false)):
+				_count_reject(rejected, str(segment.get("reason", "invalid")))
 				continue
+			var path: Array[Vector2i] = segment.get("path", []) as Array[Vector2i]
 			var end_cell: Vector2i = path[path.size() - 1]
 			var score: float = session.feature_maps.get_value("road_distance", end_cell, 0.0) * 0.15
 			score += session.feature_maps.get_value("land_value", end_cell, 0.0)
 			score -= _nearby_road_count(path, session) * 0.6
+			if bool(session.evaluation_feedback.get("need_more_roads", false)):
+				score += 1.5
+			if bool(session.evaluation_feedback.get("entrance_disconnected", false)):
+				score += 8.0 / maxf(1.0, session.feature_maps.get_value("entrance_distance", end_cell, 99.0))
 			result.append({ "path": path, "score": score })
 	return result
 
 
-func _segment_from(start: Vector2i, direction: Vector2i, length: int, session) -> Array[Vector2i]:
+func _segment_from(start: Vector2i, direction: Vector2i, length: int, session) -> Dictionary:
 	var result: Array[Vector2i] = []
 	var cursor := start
 	for _i in range(length):
 		cursor += direction
 		if not session.context.in_bounds(cursor):
-			return []
+			return { "valid": false, "reason": "out_of_bounds" }
 		if not session.feature_maps.is_buildable(cursor):
-			return []
+			return { "valid": false, "reason": "not_buildable" }
 		if session.feature_maps.is_reserved(cursor):
-			return []
+			return { "valid": false, "reason": "reserved" }
 		result.append(cursor)
-	return result
+	return { "valid": true, "path": result }
 
 
 func _nearby_road_count(path: Array[Vector2i], session) -> float:
@@ -79,3 +88,27 @@ func _best_sample(candidates: Array[Dictionary], session, sample_count: int) -> 
 		if best.is_empty() or float(candidate.get("score", -9999.0)) > float(best.get("score", -9999.0)):
 			best = candidate
 	return best
+
+
+func _record_search(session, candidates: Array[Dictionary], chosen: Dictionary, rejected: Dictionary) -> void:
+	var top_score := -9999.0
+	for candidate in candidates:
+		top_score = maxf(top_score, float(candidate.get("score", -9999.0)))
+	var chosen_cell := {}
+	if not chosen.is_empty():
+		var path: Array[Vector2i] = chosen.get("path", []) as Array[Vector2i]
+		if not path.is_empty():
+			var cell := path[path.size() - 1]
+			chosen_cell = { "x": cell.x, "y": cell.y }
+	session.trace.record_agent_search(session.current_step, agent_id, {
+		"valid_candidates_count": candidates.size(),
+		"sampled_candidates_count": min(8, candidates.size()),
+		"top_score": top_score if not candidates.is_empty() else 0.0,
+		"chosen_score": float(chosen.get("score", 0.0)) if not chosen.is_empty() else 0.0,
+		"chosen_cell": chosen_cell,
+		"rejected_reason_distribution": rejected.duplicate(true),
+	})
+
+
+func _count_reject(rejected: Dictionary, reason: String) -> void:
+	rejected[reason] = int(rejected.get(reason, 0)) + 1

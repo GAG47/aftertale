@@ -12,7 +12,7 @@ func resolve_step(candidates: Array[PlanProposal], session) -> Array[PlanProposa
 			proposal.status = PlanProposal.STATUS_REJECTED
 			proposal.validation_notes = errors
 			session.trace.record_rejected(proposal, errors)
-			losers.append({ "proposal": proposal.duplicate_for_trace(), "reason": "validation_failed", "notes": errors })
+			losers.append(_loser_row(proposal, "validation_failed", errors, "", _conflict_keys(proposal)))
 			continue
 		valid.append(proposal)
 
@@ -24,6 +24,8 @@ func resolve_step(candidates: Array[PlanProposal], session) -> Array[PlanProposa
 
 	var winners: Array[PlanProposal] = []
 	var claimed: Dictionary = {}
+	var family_counts: Dictionary = {}
+	var family_winners: Dictionary = {}
 	for proposal in valid:
 		var conflict_keys := _conflict_keys(proposal)
 		var conflict_with := _first_claimed(conflict_keys, claimed)
@@ -32,9 +34,21 @@ func resolve_step(candidates: Array[PlanProposal], session) -> Array[PlanProposa
 			var notes: Array[String] = ["lost_step_conflict:%s" % conflict_with]
 			proposal.validation_notes = notes
 			session.trace.record_rejected(proposal, notes)
-			losers.append({ "proposal": proposal.duplicate_for_trace(), "reason": "lost_conflict", "winner_key": conflict_with, "notes": notes })
+			losers.append(_loser_row(proposal, "lost_conflict", notes, conflict_with, conflict_keys))
+			continue
+		var family_group := _family_group(proposal)
+		var family_count := int(family_counts.get(family_group, 0))
+		if family_count >= _family_capacity(family_group):
+			proposal.status = PlanProposal.STATUS_SUPERSEDED
+			var winner_id := str(family_winners.get(family_group, family_group))
+			var notes: Array[String] = ["lost_family_capacity:%s" % family_group]
+			proposal.validation_notes = notes
+			session.trace.record_rejected(proposal, notes)
+			losers.append(_loser_row(proposal, "family_capacity", notes, winner_id, conflict_keys))
 			continue
 		winners.append(proposal)
+		family_counts[family_group] = family_count + 1
+		family_winners[family_group] = proposal.proposal_id
 		for key in conflict_keys:
 			claimed[key] = proposal.proposal_id
 
@@ -50,19 +64,22 @@ func resolve_step(candidates: Array[PlanProposal], session) -> Array[PlanProposa
 				var report: Dictionary = session.evaluator.evaluate_step(session, committed_single)
 				session.trace.record_evaluator_report(report)
 				session.evaluation_feedback = (report.get("feedback", {}) as Dictionary).duplicate(true)
+				session.demand_ledger.update_from_session(session, session.evaluation_feedback)
 		else:
 			proposal.status = PlanProposal.STATUS_REJECTED
 			var notes: Array[String] = ["failed_still_valid_check"]
 			proposal.validation_notes = notes
 			session.trace.record_rejected(proposal, notes)
-			losers.append({ "proposal": proposal.duplicate_for_trace(), "reason": "failed_still_valid_check", "notes": notes })
+			losers.append(_loser_row(proposal, "failed_still_valid_check", notes, "", _conflict_keys(proposal)))
 
 	session.trace.record_step_resolution(session.current_step, committed, losers)
 	return committed
 
 
 func process_proposal(proposal: PlanProposal, session, _agent: SettlementAgent) -> bool:
-	return not resolve_step([proposal], session).is_empty()
+	var proposals: Array[PlanProposal] = []
+	proposals.append(proposal)
+	return not resolve_step(proposals, session).is_empty()
 
 
 func validate(proposal: PlanProposal, session) -> Array[String]:
@@ -101,6 +118,8 @@ func validate(proposal: PlanProposal, session) -> Array[String]:
 				errors.append("unsupported_plot_use:%s" % use)
 			if not _plot_has_status(plot_id, "generic", session):
 				errors.append("plot_not_generic:%s" % plot_id)
+			if not _plot_is_old_enough(plot_id, session, 2):
+				errors.append("plot_not_mature_enough:%s" % plot_id)
 		"add_building_footprint":
 			_validate_area(proposal.area, session, errors, false)
 			var plot_id := str(proposal.payload.get("plot_id", ""))
@@ -108,6 +127,10 @@ func validate(proposal: PlanProposal, session) -> Array[String]:
 				errors.append("building_missing_plot_id")
 			elif not _plot_has_status(plot_id, "differentiated", session):
 				errors.append("building_plot_not_differentiated:%s" % plot_id)
+			elif not _plot_differentiation_is_old_enough(plot_id, session, 2):
+				errors.append("building_plot_not_mature_enough:%s" % plot_id)
+			elif _plot_use(plot_id, session) == "public":
+				errors.append("building_not_allowed_on_public_plot:%s" % plot_id)
 			elif not _area_inside_plot(proposal.area, plot_id, session):
 				errors.append("building_area_outside_plot:%s" % plot_id)
 			var entrance_cell := _cell_from_variant(proposal.payload.get("entrance_cell", Vector2i(-9999, -9999)))
@@ -173,6 +196,30 @@ func _plot_has_status(plot_id: String, status: String, session) -> bool:
 	return false
 
 
+func _plot_use(plot_id: String, session) -> String:
+	for plot_value in session.blueprint.plots:
+		var plot: Dictionary = plot_value as Dictionary
+		if str(plot.get("id", "")) == plot_id:
+			return str(plot.get("use", ""))
+	return ""
+
+
+func _plot_is_old_enough(plot_id: String, session, minimum_age: int) -> bool:
+	for plot_value in session.blueprint.plots:
+		var plot: Dictionary = plot_value as Dictionary
+		if str(plot.get("id", "")) == plot_id:
+			return session.current_step - int(plot.get("step", session.current_step)) >= minimum_age
+	return false
+
+
+func _plot_differentiation_is_old_enough(plot_id: String, session, minimum_age: int) -> bool:
+	for plot_value in session.blueprint.plots:
+		var plot: Dictionary = plot_value as Dictionary
+		if str(plot.get("id", "")) == plot_id:
+			return session.current_step - int(plot.get("differentiated_step", session.current_step)) >= minimum_age
+	return false
+
+
 func _area_inside_plot(area: Dictionary, plot_id: String, session) -> bool:
 	var plot_area := _plot_area(plot_id, session)
 	if plot_area.is_empty():
@@ -231,6 +278,55 @@ func _first_claimed(keys: Array[String], claimed: Dictionary) -> String:
 		if claimed.has(key):
 			return str(claimed[key])
 	return ""
+
+
+func _loser_row(proposal: PlanProposal, reason: String, notes: Array[String], winner_key: String, conflict_keys: Array[String]) -> Dictionary:
+	return {
+		"proposal": proposal.duplicate_for_trace(),
+		"reason": reason,
+		"winner_key": winner_key,
+		"notes": notes.duplicate(),
+		"score": proposal.score,
+		"priority": proposal.priority,
+		"conflict_keys": conflict_keys.duplicate(),
+		"family_group": _family_group(proposal),
+	}
+
+
+func _family_group(proposal: PlanProposal) -> String:
+	match proposal.type:
+		"add_core_seed":
+			return "core_group"
+		"add_road_segment":
+			return "road_group"
+		"add_generic_plot":
+			return "plot_group"
+		"differentiate_plot":
+			if str(proposal.payload.get("use", "")) == "public":
+				return "public_group"
+			return "differentiation_group"
+		"add_building_footprint":
+			return "footprint_group"
+		_:
+			return "unknown_group"
+
+
+func _family_capacity(family_group: String) -> int:
+	match family_group:
+		"road_group":
+			return 1
+		"plot_group":
+			return 1
+		"differentiation_group":
+			return 1
+		"footprint_group":
+			return 1
+		"public_group":
+			return 1
+		"core_group":
+			return 1
+		_:
+			return 1
 
 
 func _cell_from_variant(value: Variant) -> Vector2i:

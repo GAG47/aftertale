@@ -47,12 +47,17 @@ Each step:
 - collects proposals from active agents;
 - sends all proposals to `ProposalResolver`;
 - lets the resolver arbitrate conflicts and commit winners;
+- may commit multiple non-conflicting winners in the same generation step;
 - rebuilds feature maps after each committed proposal;
 - runs `SettlementEvaluator` after each committed proposal.
 
 There is no road step, plot step, building step, or landmark step. Agents may
-be active on the same generation step, and the resolver decides which proposals
-survive.
+be active on the same generation step. The resolver enforces per-family and
+per-spatial conflict capacity instead of a global one-winner queue. Road, plot,
+differentiation, footprint, and public-space proposals can all commit in the
+same step if they do not exceed their family capacity and do not claim the same
+space. Losing candidates are recorded with reason, score, conflict group,
+family group, and winner target data.
 
 ## Proposal Semantics
 
@@ -100,11 +105,13 @@ Phase 62 uses these active agents:
 
 - `CoreSeedAgent`: chooses an initial core seed and a short road seed from
   feature-map fitness.
-- `RoadExpandAgent`: grows short road segments from road endpoints.
+- `RoadEndpointAgent`: grows road segments from recorded road endpoint state.
 - `RoadBranchAgent`: grows branch roads from the existing road network.
-- `GenericPlotAgent`: grows road-connected generic building plots.
-- `PlotDifferentiationAgent`: scores generic plots and assigns one use:
-  residential, commercial, production, or public.
+- `RoadReconnectAgent`: repairs entrance or approach disconnection pressure.
+- Three `GenericPlotAgent` instances with the same logic and different bias:
+  core bias, road bias, and edge bias.
+- `PlotDifferentiationAgent`: turns generic plots into use proposals through
+  utility bids for residential, commercial, production, and public use.
 - `BuildingFootprintAgent`: chooses a footprint inside a differentiated plot
   while preserving entrance space.
 - `InvalidProposalAgent`: submits an out-of-bounds proposal for rejection
@@ -123,18 +130,31 @@ The growth chain is:
 
 ```text
 generic plot
+-> waits across later generation steps
 -> differentiated plot use
+-> waits across later generation steps
 -> building footprint
 ```
 
-The current differentiation scores are intentionally simple:
+The current differentiation scores are intentionally simple, but they are
+recorded as explicit bids:
 
 - residential prefers local land value and lower nearby density;
 - commercial prefers road junction pressure;
 - production prefers edge and entrance pressure;
-- public is limited and prefers central or junction pressure.
+- public is limited and receives strong pressure when no public plot exists.
 
-There is no economy simulation in Phase 62.
+Each bid records plot id, use type, score, reason, nearby use counts, road
+access score, core distance score, public-need score, and policy-weight score.
+The resolver chooses among these bids by normal proposal arbitration.
+
+There is no economy simulation in Phase 62. The only global demand model is a
+small `DemandLedger` with housing, commerce, production, public, and road need.
+It is updated after commits and gives differentiation a simple global pressure
+source without adding workers, goods, income, or production chains.
+
+Public plots do not receive building footprints in Phase 62. This prevents
+plot count and building count from becoming a 1:1 immediate binding.
 
 ## Resolver
 
@@ -149,11 +169,34 @@ For each generation step it:
   ownership;
 - groups conflicts by affected cells and explicit conflict keys;
 - sorts valid proposals by score and priority;
-- selects winners;
+- selects winners under family and spatial capacity;
 - rejects conflict losers into `GenerationTrace`;
+- rejects non-winning valid candidates as conflict or family-capacity losers;
 - commits winners through `SettlementBlueprint.COMMIT_TOKEN`;
 - rebuilds feature maps after each commit;
 - runs evaluator reports after each commit.
+
+Phase 62 family capacity is deliberately small:
+
+- `road_group`: at most one road winner per step;
+- `plot_group`: at most one generic plot winner per step;
+- `differentiation_group`: at most one non-public differentiation winner per
+  step;
+- `public_group`: at most one public differentiation winner per step;
+- `footprint_group`: at most one footprint winner per step.
+
+These are not execution phases. They are capacity groups that prevent a single
+agent family from flooding a step while still allowing different families to
+grow the blueprint together.
+
+Rejected proposal rows include:
+
+- resolver reason;
+- validation notes;
+- score;
+- priority;
+- winner target;
+- conflict keys.
 
 Agents never mutate `SettlementBlueprint`, `FeatureMapStore`, or compiled scene
 data directly.
@@ -197,12 +240,46 @@ Reports include:
 - score;
 - issues;
 - feedback flags;
+- feedback pressure;
 - core count;
 - road count;
 - generic plot count;
 - differentiated plot count;
+- public plot count;
 - building footprint count;
 - occupied count.
+
+Current feedback pressure includes:
+
+- `need_more_roads`;
+- `need_more_generic_plots`;
+- `need_more_differentiation`;
+- `need_more_footprints`;
+- `need_public_space`;
+- `entrance_disconnected`;
+- `road_overdensity_zones`;
+- `isolated_plots`;
+- `weak_core_zones`.
+
+Agents consume this feedback during later steps. Road agents react to road and
+entrance pressure, generic plots react to plot pressure, plot differentiation
+reacts to public-space pressure, and building footprints react to footprint
+pressure.
+
+## Blueprint Anchors
+
+Phase 62 now records semantic anchors in the blueprint:
+
+- entrance anchors;
+- core anchors;
+- road endpoint anchors;
+- road junction anchors;
+- plot access anchors;
+- building entrance anchors;
+- public plot anchors.
+
+These anchors are semantic relationship records. They are not final props and
+do not imply landmark art.
 
 `GenerationTrace` records:
 
@@ -213,6 +290,8 @@ Reports include:
 - evaluator reports;
 - generation step transitions;
 - step resolutions;
+- agent candidate search, sampling, scoring, and rejection statistics;
+- blueprint snapshots for time-slice replay;
 - deterministic random decisions;
 - session events.
 
@@ -228,6 +307,7 @@ It renders:
 - layer summary;
 - proposal summary;
 - evaluator summary;
+- evaluator feedback pressure;
 - trace summary;
 - feature-map grid;
 - committed roads;
@@ -235,7 +315,13 @@ It renders:
 - building footprints;
 - core markers;
 - rejected proposal cells;
-- a step log showing accepted and rejected proposal events.
+- agent search statistics: valid candidates, sampled candidates, top score,
+  chosen score, and rejection distribution;
+- a replay step selector backed by `GenerationTrace.blueprint_snapshots`;
+- footprint details: plot id, use type, facing, entrance cell, front access
+  cell, and footprint size;
+- a step log showing accepted and rejected proposal events, including reject
+  reason, score, winner target, and conflict group.
 
 Example process rows:
 
@@ -256,16 +342,28 @@ The smoke test verifies:
 - core generation;
 - road growth;
 - road-accessible generic plot growth;
+- multiple generic plot bias agents;
 - plot differentiation;
+- differentiation bid payloads;
+- public plot generation;
+- delayed plot differentiation and delayed footprint generation;
 - building footprint generation inside differentiated plots;
+- building footprint debug details;
+- plot count exceeding building count;
+- semantic anchor recording;
 - invalid out-of-bounds proposal rejection;
 - invalid conflicting footprint rejection;
+- parallel non-conflicting commits within the same generation step;
+- per-family capacity enforcement;
 - resolver-only commit authority;
 - feature-map update count after commits;
 - evaluator report count after commits;
+- evaluator feedback pressure output;
+- trace coverage for agent search statistics;
+- trace coverage for blueprint replay snapshots;
 - trace coverage for generation steps and all Phase 62 proposal types;
 - Godot debug view rendering for roads, plots, buildings, core markers,
-  rejected proposal cells, and step process logs.
+  rejected proposal cells, evaluator pressure, and step process logs.
 
 ## Verification
 

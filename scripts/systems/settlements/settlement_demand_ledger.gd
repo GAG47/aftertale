@@ -1,0 +1,69 @@
+class_name SettlementDemandLedger
+extends RefCounted
+
+var housing_need: int = 4
+var commerce_need: int = 2
+var production_need: int = 2
+var public_need: int = 1
+var road_need: int = 1
+
+
+func reset() -> void:
+	housing_need = 4
+	commerce_need = 2
+	production_need = 2
+	public_need = 1
+	road_need = 1
+
+
+func update_from_session(session, feedback: Dictionary = {}) -> void:
+	var counts := _plot_use_counts(session)
+	housing_need = max(0, 4 - int(counts.get("residential", 0)))
+	commerce_need = max(0, 2 - int(counts.get("commercial", 0)))
+	production_need = max(0, 2 - int(counts.get("production", 0)))
+	public_need = max(0, 1 - int(counts.get("public", 0)))
+	var isolated_count := (feedback.get("isolated_plots", []) as Array).size()
+	road_need = isolated_count
+	if bool(feedback.get("need_more_roads", false)):
+		road_need += 1
+	if bool(feedback.get("entrance_disconnected", false)):
+		road_need += 2
+
+
+func need_for_use(use: String) -> int:
+	match use:
+		"residential":
+			return housing_need
+		"commercial":
+			return commerce_need
+		"production":
+			return production_need
+		"public":
+			return public_need
+		_:
+			return 0
+
+
+func to_dictionary() -> Dictionary:
+	return {
+		"housing_need": housing_need,
+		"commerce_need": commerce_need,
+		"production_need": production_need,
+		"public_need": public_need,
+		"road_need": road_need,
+	}
+
+
+func _plot_use_counts(session) -> Dictionary:
+	var result := {
+		"residential": 0,
+		"commercial": 0,
+		"production": 0,
+		"public": 0,
+	}
+	for plot_value in session.blueprint.plots:
+		var plot: Dictionary = plot_value as Dictionary
+		var use := str(plot.get("use", ""))
+		if result.has(use):
+			result[use] = int(result.get(use, 0)) + 1
+	return result

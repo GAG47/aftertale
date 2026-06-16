@@ -26,7 +26,16 @@ func propose(session) -> Array[PlanProposal]:
 	}
 	var tags: Array[String] = ["invalid", "conflict", "v62"]
 	proposal.tags = tags
-	var result: Array[PlanProposal] = [proposal]
+	session.trace.record_agent_search(session.current_step, agent_id, {
+		"valid_candidates_count": 0,
+		"sampled_candidates_count": 1,
+		"top_score": 0.0,
+		"chosen_score": 0.0,
+		"chosen_cell": proposal.payload.get("entrance_cell", Vector2i.ZERO),
+		"rejected_reason_distribution": { "intentional_conflict": 1 },
+	})
+	var result: Array[PlanProposal] = []
+	result.append(proposal)
 	return result
 
 
