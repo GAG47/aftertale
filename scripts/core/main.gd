@@ -6,6 +6,8 @@ extends Node
 
 func _ready() -> void:
 	SceneLoader.configure(world_root)
+	if _try_run_smoke_test_from_flag():
+		return
 
 	InputManager.debug_toggle_requested.connect(_on_debug_toggle_requested)
 	InputManager.cancel_requested.connect(_on_cancel_requested)
@@ -20,6 +22,29 @@ func _ready() -> void:
 	_start_new_game()
 
 
+func _try_run_smoke_test_from_flag() -> bool:
+	var smoke_path := ""
+	if FileAccess.file_exists("res://data/run_v63_smoke.json"):
+		smoke_path = "res://scripts/tests/v63_settlement_scene_compiler_smoke.gd"
+	elif FileAccess.file_exists("res://data/run_v62_smoke.json"):
+		smoke_path = "res://scripts/tests/v62_general_settlement_generation_smoke.gd"
+	elif FileAccess.file_exists("res://data/run_v61_smoke.json"):
+		smoke_path = "res://scripts/tests/v61_settlement_planning_smoke.gd"
+	else:
+		return false
+
+	var smoke_script := load(smoke_path) as Script
+	if smoke_script == null:
+		push_error("Could not load settlement smoke test script: %s" % smoke_path)
+		get_tree().quit(1)
+		return true
+
+	var smoke_test = smoke_script.new()
+	var ok: bool = smoke_test.run(self)
+	get_tree().quit(0 if ok else 1)
+	return true
+
+
 func _start_new_game() -> void:
 	GameState.start_new_session()
 	NpcScheduleSystem.reset_schedule_state()
@@ -29,7 +54,7 @@ func _start_new_game() -> void:
 	TimeManager.reset()
 	TimeManager.set_paused(false)
 
-	SceneLoader.load_location("res://scenes/locations/test_village.tscn", "plaza")
+	SceneLoader.load_location("res://scenes/locations/generated_settlement.tscn", "main_entrance")
 
 
 func _on_debug_toggle_requested() -> void:

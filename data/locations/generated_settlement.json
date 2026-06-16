@@ -1,0 +1,24 @@
+{
+  "id": "generated_settlement",
+  "display_name": "Generated Settlement",
+  "tile_size": 32,
+  "generator": {
+	"type": "settlement_blueprint",
+	"seed": 6301,
+	"size": { "width": 20, "height": 14 },
+	"policy": {
+	  "settlement_type": "v63_gameplay_visible_settlement",
+	  "scale": "village",
+	  "density": 0.45,
+	  "seed_override": 6301
+	},
+	"context": {
+	  "map_size": { "width": 20, "height": 14 },
+	  "entrances": [{ "x": 0, "y": 7 }],
+	  "existing_obstacles": [{ "x": 5, "y": 2 }, { "x": 6, "y": 2 }, { "x": 16, "y": 10 }],
+	  "existing_water": [{ "x": 17, "y": 3 }, { "x": 18, "y": 3 }],
+	  "important_world_points": [{ "x": 14, "y": 8 }],
+	  "world_seed": 6301
+	}
+  }
+}

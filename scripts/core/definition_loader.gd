@@ -1,6 +1,7 @@
 extends Node
 
 const VillageRoadGenerator := preload("res://scripts/systems/scenes/village_road_generator.gd")
+const TileSceneCompiler := preload("res://scripts/systems/settlements/tile_scene_compiler.gd")
 
 var _json_cache: Dictionary = {}
 var _resolved_locations_by_id: Dictionary = {}
@@ -52,6 +53,11 @@ func materialize_location(location_data: Dictionary, resource_path: String = "",
 			var generated: Dictionary = generator.generate_location(location_data)
 			_register_resolved_location(generated, resource_path, "")
 			return generated.duplicate(true)
+		"settlement_blueprint":
+			var compiler: RefCounted = TileSceneCompiler.new()
+			var compiled: Dictionary = compiler.generate_location(location_data)
+			_register_resolved_location(compiled, resource_path, "")
+			return compiled.duplicate(true)
 		_:
 			_register_resolved_location(location_data, resource_path, "")
 			return location_data.duplicate(true)
