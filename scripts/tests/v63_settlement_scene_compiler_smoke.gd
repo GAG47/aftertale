@@ -1,6 +1,8 @@
 extends RefCounted
 
 const TileSceneCompilerScript := preload("res://scripts/systems/settlements/tile_scene_compiler.gd")
+const GAME_SETTLEMENT_PATH := "res://data/locations/generated_settlement.json"
+const QUALITY_SETTLEMENT_PATH := "res://data/locations/generated_settlement_v62_48x32.json"
 
 var _root: Node
 
@@ -8,15 +10,21 @@ var _root: Node
 func run(root: Node) -> bool:
 	_root = root
 	DefinitionLoader.clear_cache()
-	var first := DefinitionLoader.load_resolved_location("res://data/locations/generated_settlement.json")
+	var first := DefinitionLoader.load_resolved_location(GAME_SETTLEMENT_PATH)
 	DefinitionLoader.clear_cache()
-	var second := DefinitionLoader.load_resolved_location("res://data/locations/generated_settlement.json")
+	var second := DefinitionLoader.load_resolved_location(GAME_SETTLEMENT_PATH)
 	if first.is_empty() or second.is_empty():
 		return _fail("v63 compiled settlement location must load")
 	if JSON.stringify(first.get("generation_summary", {})) != JSON.stringify(second.get("generation_summary", {})):
 		return _fail("v63 compiled settlement must be deterministic for a fixed seed")
 
-	if not _compiled_location_is_valid(first):
+	if not _compiled_location_is_valid(first, "generated_settlement", Vector2i(48, 32)):
+		return false
+	DefinitionLoader.clear_cache()
+	var quality_sample := DefinitionLoader.load_resolved_location(QUALITY_SETTLEMENT_PATH)
+	if quality_sample.is_empty():
+		return _fail("v63 48x32 settlement quality sample must load")
+	if not _compiled_location_is_valid(quality_sample, "generated_settlement_v62_48x32", Vector2i(48, 32)):
 		return false
 	if not _compiled_scene_instantiates(first):
 		return false
@@ -25,20 +33,20 @@ func run(root: Node) -> bool:
 	return true
 
 
-func _compiled_location_is_valid(location_data: Dictionary) -> bool:
+func _compiled_location_is_valid(location_data: Dictionary, expected_id: String, expected_size: Vector2i) -> bool:
 	var compiler: RefCounted = TileSceneCompilerScript.new()
 	var errors: Array[String] = compiler.validate_compiled_location(location_data)
 	if not errors.is_empty():
 		return _fail("v63 compiled location contract failed: %s" % ", ".join(errors))
 
 	var grid := LocationGrid.from_dictionary(location_data)
-	if grid.location_id != "generated_settlement":
+	if grid.location_id != expected_id:
 		return _fail("v63 compiled location id mismatch")
-	if grid.width <= 0 or grid.height <= 0:
-		return _fail("v63 compiled grid must have dimensions")
+	if grid.width != expected_size.x or grid.height != expected_size.y:
+		return _fail("v63 compiled grid size mismatch: expected %s got %sx%s" % [str(expected_size), grid.width, grid.height])
 
 	var summary: Dictionary = location_data.get("generation_summary", {}) as Dictionary
-	if str(summary.get("type", "")) != "settlement_blueprint_v63":
+	if str(summary.get("type", "")) not in ["settlement_blueprint_v63", "settlement_blueprint_v64"]:
 		return _fail("v63 generation summary must identify settlement compiler output")
 	if int(summary.get("road_count", 0)) < 2:
 		return _fail("v63 compiler must preserve roads")
@@ -52,6 +60,8 @@ func _compiled_location_is_valid(location_data: Dictionary) -> bool:
 		return _fail("v63 generated settlement must not expose farm field terrain for settlement plots")
 	if not _road_tiles_are_visible(location_data):
 		return _fail("v63 compiler must preserve visible road tiles after plot compilation")
+	if not _summary_has_connectivity_contract(summary):
+		return _fail("v63 generation summary must preserve road connectivity diagnostics")
 
 	if (location_data.get("roofs", []) as Array).is_empty():
 		return _fail("v63 compiler must create visible building roofs")
@@ -138,6 +148,20 @@ func _road_tiles_are_visible(location_data: Dictionary) -> bool:
 			if row.substr(index, 1) == "p":
 				road_count += 1
 	return road_count > 0
+
+
+func _summary_has_connectivity_contract(summary: Dictionary) -> bool:
+	var connectivity: Dictionary = summary.get("road_connectivity", {}) as Dictionary
+	for key in ["road_component_count", "entrance_connected", "core_connected", "all_plot_access_connected", "all_building_front_connected"]:
+		if not connectivity.has(key):
+			return false
+	if (summary.get("road_segments", []) as Array).is_empty():
+		return false
+	if (summary.get("plot_access", []) as Array).is_empty():
+		return false
+	if (summary.get("building_access", []) as Array).is_empty():
+		return false
+	return true
 
 
 func _fail(message: String) -> bool:

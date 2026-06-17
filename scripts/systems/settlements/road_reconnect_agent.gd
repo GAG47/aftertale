@@ -34,18 +34,27 @@ func propose(session) -> Array[PlanProposal]:
 
 func _candidates(session, rejected: Dictionary) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
-	for entrance in session.context.entrances:
-		var direction := _direction_toward_target(entrance, _nearest_target(entrance, session))
+	var starts := _start_cells(session)
+	var targets := _target_cells(session)
+	if starts.is_empty() or targets.is_empty():
+		return result
+	for start in starts:
+		var target := _nearest_from_list(start, targets)
+		var direction := _direction_toward_target(start, target)
 		for candidate_direction in [direction, Vector2i(-direction.y, direction.x), Vector2i(direction.y, -direction.x)]:
-			var segment := _segment_from(entrance, candidate_direction, session.randi_range(2, 4, "road_reconnect_length"), session)
+			var segment := _segment_from(start, candidate_direction, session.randi_range(2, 4, "road_reconnect_length"), session)
 			if not bool(segment.get("valid", false)):
 				_count_reject(rejected, str(segment.get("reason", "invalid")))
 				continue
 			var path: Array[Vector2i] = segment.get("path", []) as Array[Vector2i]
 			var end_cell: Vector2i = path[path.size() - 1]
-			var score := 20.0 / maxf(1.0, float(_distance_to_existing_road_or_core(end_cell, session)))
+			var target_distance := _nearest_distance(end_cell, targets)
+			var score := 30.0 / maxf(1.0, float(target_distance))
 			score += float(session.demand_ledger.road_need)
-			result.append({ "path": path, "score": score, "end_cell": end_cell })
+			if _touches_any(end_cell, targets):
+				score += 8.0
+			score *= session.agent_weight(agent_id, "road")
+			result.append({ "path": path, "score": score, "end_cell": end_cell, "target": target })
 	return result
 
 
@@ -66,21 +75,46 @@ func _segment_from(start: Vector2i, direction: Vector2i, length: int, session) -
 	return { "valid": true, "path": path }
 
 
-func _nearest_target(from_cell: Vector2i, session) -> Vector2i:
+func _start_cells(session) -> Array[Vector2i]:
+	var connectivity: Dictionary = session.evaluation_feedback.get("road_connectivity", {}) as Dictionary
+	var main_cells := _cells_from_rows(connectivity.get("main_road_cells", []) as Array)
+	if main_cells.is_empty():
+		return session.context.entrances.duplicate()
+	var result: Array[Vector2i] = []
+	for cell in main_cells:
+		for direction in [Vector2i.UP, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT]:
+			var next_cell: Vector2i = cell + direction
+			if session.context.in_bounds(next_cell) and session.feature_maps.is_buildable(next_cell) and not session.feature_maps.is_reserved(next_cell):
+				result.append(cell)
+				break
+	return result if not result.is_empty() else main_cells
+
+
+func _target_cells(session) -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	var connectivity: Dictionary = session.evaluation_feedback.get("road_connectivity", {}) as Dictionary
+	for cell_value in (connectivity.get("disconnected_core_cells", []) as Array):
+		_append_unique_cell(result, _cell_from_variant(cell_value))
+	for cell_value in (connectivity.get("disconnected_road_cells", []) as Array):
+		_append_unique_cell(result, _cell_from_variant(cell_value))
+	if result.is_empty():
+		for core_value in session.blueprint.cores:
+			var core: Dictionary = core_value as Dictionary
+			_append_unique_cell(result, _cell_from_variant(core.get("cell", {})))
+	if result.is_empty():
+		for point in session.context.important_world_points:
+			_append_unique_cell(result, point)
+	return result
+
+
+func _nearest_from_list(from_cell: Vector2i, targets: Array[Vector2i]) -> Vector2i:
 	var best_cell := from_cell + Vector2i.RIGHT
 	var best_distance := 999
-	for road_cell in session.feature_maps.cells_for_map_value("road", 0.0):
-		var distance := absi(from_cell.x - road_cell.x) + absi(from_cell.y - road_cell.y)
+	for target in targets:
+		var distance := absi(from_cell.x - target.x) + absi(from_cell.y - target.y)
 		if distance < best_distance:
 			best_distance = distance
-			best_cell = road_cell
-	for core_value in session.blueprint.cores:
-		var core: Dictionary = core_value as Dictionary
-		var core_cell := _cell_from_variant(core.get("cell", {}))
-		var distance := absi(from_cell.x - core_cell.x) + absi(from_cell.y - core_cell.y)
-		if distance < best_distance:
-			best_distance = distance
-			best_cell = core_cell
+			best_cell = target
 	return best_cell
 
 
@@ -91,15 +125,32 @@ func _direction_toward_target(from_cell: Vector2i, target: Vector2i) -> Vector2i
 	return Vector2i(0, 1 if delta.y >= 0 else -1)
 
 
-func _distance_to_existing_road_or_core(cell: Vector2i, session) -> int:
+func _nearest_distance(cell: Vector2i, targets: Array[Vector2i]) -> int:
 	var best := 999
-	for road_cell in session.feature_maps.cells_for_map_value("road", 0.0):
-		best = min(best, absi(cell.x - road_cell.x) + absi(cell.y - road_cell.y))
-	for core_value in session.blueprint.cores:
-		var core: Dictionary = core_value as Dictionary
-		var core_cell := _cell_from_variant(core.get("cell", {}))
-		best = min(best, absi(cell.x - core_cell.x) + absi(cell.y - core_cell.y))
+	for target in targets:
+		best = min(best, absi(cell.x - target.x) + absi(cell.y - target.y))
 	return best
+
+
+func _touches_any(cell: Vector2i, targets: Array[Vector2i]) -> bool:
+	for target in targets:
+		if absi(cell.x - target.x) + absi(cell.y - target.y) <= 1:
+			return true
+	return false
+
+
+func _cells_from_rows(rows: Array) -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	for row in rows:
+		_append_unique_cell(result, _cell_from_variant(row))
+	return result
+
+
+func _append_unique_cell(cells: Array[Vector2i], cell: Vector2i) -> void:
+	if cell.x < 0 or cell.y < 0:
+		return
+	if not cells.has(cell):
+		cells.append(cell)
 
 
 func _best_sample(candidates: Array[Dictionary], session, sample_count: int) -> Dictionary:
@@ -129,6 +180,7 @@ func _record_search(session, candidates: Array[Dictionary], chosen: Dictionary, 
 		"chosen_score": float(chosen.get("score", 0.0)) if not chosen.is_empty() else 0.0,
 		"chosen_cell": chosen_cell,
 		"rejected_reason_distribution": rejected.duplicate(true),
+		"policy_weight": session.agent_weight(agent_id, "road"),
 	})
 
 

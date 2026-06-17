@@ -68,6 +68,7 @@ func apply_committed_proposal(proposal: PlanProposal, commit_token: String) -> b
 			buildings.append({
 				"id": building_id,
 				"kind": str(proposal.payload.get("kind", proposal.payload.get("building_type", "dwelling"))),
+				"building_type": str(proposal.payload.get("building_type", proposal.payload.get("kind", "dwelling"))),
 				"use_type": str(proposal.payload.get("use_type", proposal.payload.get("building_type", "dwelling"))),
 				"plot_id": str(proposal.payload.get("plot_id", "")),
 				"area": _rect_to_dictionary(proposal.area),
@@ -75,10 +76,19 @@ func apply_committed_proposal(proposal: PlanProposal, commit_token: String) -> b
 				"front_access_cell": _dict_cell(_cell_from_variant(proposal.payload.get("front_access_cell", entrance_cell))),
 				"footprint_size": (proposal.payload.get("footprint_size", {}) as Dictionary).duplicate(true),
 				"facing": str(proposal.payload.get("facing", "")),
+				"asset_family": str(proposal.payload.get("asset_family", "")),
+				"interior_template_id": str(proposal.payload.get("interior_template_id", "")),
+				"npc_home_anchor": str(proposal.payload.get("npc_home_anchor", "")),
+				"npc_work_anchor": str(proposal.payload.get("npc_work_anchor", "")),
+				"interaction_anchor": str(proposal.payload.get("interaction_anchor", "")),
+				"shop_anchor": str(proposal.payload.get("shop_anchor", "")),
+				"quest_anchor": str(proposal.payload.get("quest_anchor", "")),
+				"presentation_note": str(proposal.payload.get("presentation_note", "")),
 				"tags": proposal.tags.duplicate(),
 				"step": proposal.step,
 			})
 			_upsert_anchor("building_entrance_%s" % building_id, "building_entrance", entrance_cell, building_id, proposal.step)
+			_upsert_optional_building_hooks(building_id, proposal.payload, entrance_cell, proposal.step)
 		_:
 			return false
 
@@ -104,8 +114,12 @@ func set_context_entrances(cells: Array[Vector2i]) -> void:
 		entrances.append({
 			"id": "context_entrance_%d" % index,
 			"cell": _dict_cell(cell),
+			"player_spawn_anchor": "player_spawn_%d" % index,
+			"settlement_entrance_anchor": "settlement_entrance_%d" % index,
 		})
 		_upsert_anchor("entrance_%d" % index, "entrance", cell, "context", -1)
+		_upsert_anchor("player_spawn_%d" % index, "player_spawn", cell, "context", -1)
+		_upsert_anchor("settlement_entrance_%d" % index, "settlement_entrance", cell, "context", -1)
 
 
 func to_dictionary() -> Dictionary:
@@ -164,7 +178,18 @@ func _differentiate_plot(proposal: PlanProposal) -> bool:
 		plot["tags"] = proposal.tags.duplicate()
 		plots[index] = plot
 		if selected_use == "public":
-			_upsert_anchor("public_anchor_%s" % plot_id, "public", _area_center(plot.get("area", {}) as Dictionary), plot_id, proposal.step)
+			var center := _area_center(plot.get("area", {}) as Dictionary)
+			plot["public_anchor"] = "public_anchor_%s" % plot_id
+			plot["npc_gather_anchor"] = "npc_gather_%s" % plot_id
+			plot["notice_anchor"] = "notice_%s" % plot_id
+			plot["quest_anchor"] = "quest_%s" % plot_id
+			plot["interaction_anchor"] = "public_interaction_%s" % plot_id
+			plots[index] = plot
+			_upsert_anchor(str(plot.get("public_anchor", "")), "public", center, plot_id, proposal.step)
+			_upsert_anchor(str(plot.get("npc_gather_anchor", "")), "npc_gather", center, plot_id, proposal.step)
+			_upsert_anchor(str(plot.get("notice_anchor", "")), "notice", center, plot_id, proposal.step)
+			_upsert_anchor(str(plot.get("quest_anchor", "")), "quest", center, plot_id, proposal.step)
+			_upsert_anchor(str(plot.get("interaction_anchor", "")), "public_interaction", center, plot_id, proposal.step)
 		return true
 	return false
 
@@ -206,6 +231,17 @@ func _sync_road_anchors(step: int) -> void:
 			_upsert_anchor("road_endpoint_%s" % _cell_key(cell), "road_endpoint", cell, "road_network", step)
 		elif neighbor_count >= 3:
 			_upsert_anchor("road_junction_%s" % _cell_key(cell), "road_junction", cell, "road_network", step)
+	if not road_cells.is_empty():
+		_upsert_anchor("road_network_anchor", "road_network", road_cells[0], "road_network", step)
+
+
+func _upsert_optional_building_hooks(building_id: String, payload: Dictionary, entrance_cell: Vector2i, step: int) -> void:
+	for key in ["npc_home_anchor", "npc_work_anchor", "interaction_anchor", "shop_anchor", "quest_anchor"]:
+		var anchor_id := str(payload.get(key, ""))
+		if anchor_id.is_empty():
+			continue
+		var kind := key.replace("_anchor", "")
+		_upsert_anchor(anchor_id, kind, entrance_cell, building_id, step)
 
 
 func _register_road_endpoint(road: Dictionary, path: Array, index: int, step: int, previous_endpoints: Dictionary) -> void:

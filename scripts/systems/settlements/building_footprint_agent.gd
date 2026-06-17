@@ -8,7 +8,7 @@ func _init() -> void:
 
 
 func is_active(session) -> bool:
-	if session.blueprint.buildings.size() >= max(3, int(floor(float(session.blueprint.plots.size()) * 0.55))):
+	if session.blueprint.buildings.size() >= max(3, int(floor(float(session.blueprint.plots.size()) * session.building_fill_ratio()))):
 		return false
 	return _plots_without_buildings(session).size() > 0
 
@@ -25,6 +25,8 @@ func propose(session) -> Array[PlanProposal]:
 	var area: Dictionary = best.get("area", {}) as Dictionary
 	var plot: Dictionary = best.get("plot", {}) as Dictionary
 	var use := str(plot.get("use", "residential"))
+	var building_type := session.building_type_for_use(use)
+	var gameplay_hooks := _gameplay_hooks(building_type, use, best, session)
 	var proposal := PlanProposal.create(agent_id, "add_building_footprint", session.current_step, "footprint", "Choose a footprint inside a differentiated plot with road-facing entrance space.", 50)
 	proposal.proposal_id = session.next_proposal_id(agent_id)
 	proposal.area = area
@@ -32,12 +34,20 @@ func propose(session) -> Array[PlanProposal]:
 	proposal.payload = {
 		"id": "building_%02d" % session.blueprint.buildings.size(),
 		"plot_id": str(plot.get("id", "")),
-		"building_type": use,
+		"building_type": building_type,
 		"use_type": use,
 		"entrance_cell": best.get("entrance_cell", Vector2i.ZERO),
 		"front_access_cell": best.get("front_access_cell", Vector2i.ZERO),
 		"footprint_size": { "width": int(area.get("width", 0)), "height": int(area.get("height", 0)) },
 		"facing": str(best.get("facing", "")),
+		"presentation_note": _presentation_note(use, area),
+		"asset_family": session.asset_family_for_use(use),
+		"interior_template_id": session.interior_template_for_building(building_type, use),
+		"npc_home_anchor": str(gameplay_hooks.get("npc_home_anchor", "")),
+		"npc_work_anchor": str(gameplay_hooks.get("npc_work_anchor", "")),
+		"interaction_anchor": str(gameplay_hooks.get("interaction_anchor", "")),
+		"shop_anchor": str(gameplay_hooks.get("shop_anchor", "")),
+		"quest_anchor": str(gameplay_hooks.get("quest_anchor", "")),
 	}
 	var tags: Array[String] = ["building_footprint", use]
 	proposal.tags = tags
@@ -86,6 +96,7 @@ func _footprint_candidates(plot: Dictionary, session, rejected: Dictionary) -> A
 		score -= entrance.distance_to(road_cell) * 0.2
 		if bool(session.evaluation_feedback.get("need_more_footprints", false)):
 			score += 2.0
+		score *= session.agent_weight(agent_id, "footprint")
 		result.append({
 			"plot": plot,
 			"area": area,
@@ -164,11 +175,47 @@ func _record_search(session, candidates: Array[Dictionary], chosen: Dictionary, 
 		"chosen_score": float(chosen.get("score", 0.0)) if not chosen.is_empty() else 0.0,
 		"chosen_cell": chosen_cell,
 		"rejected_reason_distribution": rejected.duplicate(true),
+		"policy_weight": session.agent_weight(agent_id, "footprint"),
 	})
 
 
 func _count_reject(rejected: Dictionary, reason: String) -> void:
 	rejected[reason] = int(rejected.get(reason, 0)) + 1
+
+
+func _presentation_note(use: String, area: Dictionary) -> String:
+	var width := int(area.get("width", 0))
+	var height := int(area.get("height", 0))
+	if use in ["residential", "commercial", "production"] and (width < 2 or height < 2):
+		return "future_visual_issue:formal_building_min_2x2"
+	return ""
+
+
+func _gameplay_hooks(building_type: String, use: String, candidate: Dictionary, session) -> Dictionary:
+	var index := session.blueprint.buildings.size()
+	var prefix := "building_%02d" % index
+	var result := {
+		"interaction_anchor": "interaction_%s" % prefix,
+		"quest_anchor": "",
+		"shop_anchor": "",
+		"npc_home_anchor": "",
+		"npc_work_anchor": "",
+	}
+	match use:
+		"residential":
+			result["npc_home_anchor"] = "home_%s" % prefix
+		"commercial":
+			result["npc_work_anchor"] = "work_%s" % prefix
+			result["shop_anchor"] = "shop_%s" % prefix
+			result["quest_anchor"] = "quest_%s" % prefix
+		"production":
+			result["npc_work_anchor"] = "work_%s" % prefix
+		_:
+			pass
+	var required_shop := bool(session.hook_rule("require_shop_for_commercial", true))
+	if use == "commercial" and not required_shop:
+		result["shop_anchor"] = ""
+	return result
 
 
 func _plot_contains(area: Dictionary, cell: Vector2i) -> bool:

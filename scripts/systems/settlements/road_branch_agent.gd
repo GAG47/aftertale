@@ -46,10 +46,12 @@ func _branch_candidates(session, rejected: Dictionary) -> Array[Dictionary]:
 			var score: float = session.feature_maps.get_value("road_distance", end_cell, 0.0) * 0.15
 			score += session.feature_maps.get_value("land_value", end_cell, 0.0)
 			score -= _nearby_road_count(path, session) * 0.6
+			score += _road_style_score(start, end_cell, direction, session)
 			if bool(session.evaluation_feedback.get("need_more_roads", false)):
 				score += 1.5
 			if bool(session.evaluation_feedback.get("entrance_disconnected", false)):
 				score += 8.0 / maxf(1.0, session.feature_maps.get_value("entrance_distance", end_cell, 99.0))
+			score *= session.agent_weight(agent_id, "road")
 			result.append({ "path": path, "score": score })
 	return result
 
@@ -107,8 +109,31 @@ func _record_search(session, candidates: Array[Dictionary], chosen: Dictionary, 
 		"chosen_score": float(chosen.get("score", 0.0)) if not chosen.is_empty() else 0.0,
 		"chosen_cell": chosen_cell,
 		"rejected_reason_distribution": rejected.duplicate(true),
+		"road_style": session.policy.road_style,
+		"policy_weight": session.agent_weight(agent_id, "road"),
 	})
 
 
 func _count_reject(rejected: Dictionary, reason: String) -> void:
 	rejected[reason] = int(rejected.get(reason, 0)) + 1
+
+
+func _road_style_score(start: Vector2i, end_cell: Vector2i, direction: Vector2i, session) -> float:
+	match session.policy.road_style:
+		"linear", "roadside":
+			var entrance_y := session.context.entrances[0].y if not session.context.entrances.is_empty() else start.y
+			return 5.0 / maxf(1.0, float(absi(end_cell.y - entrance_y) + 1)) + (1.0 if direction.x != 0 else -0.5)
+		"forest", "natural":
+			return 0.9 if direction.y != 0 else 0.1
+		"resource":
+			return _resource_direction_score(end_cell, session)
+		_:
+			return 0.0
+
+
+func _resource_direction_score(end_cell: Vector2i, session) -> float:
+	var best := 99
+	for point_value in session.context.important_world_points:
+		var point: Vector2i = point_value as Vector2i
+		best = min(best, absi(end_cell.x - point.x) + absi(end_cell.y - point.y))
+	return 7.0 / maxf(1.0, float(best))

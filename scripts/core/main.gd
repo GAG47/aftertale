@@ -24,7 +24,9 @@ func _ready() -> void:
 
 func _try_run_smoke_test_from_flag() -> bool:
 	var smoke_path := ""
-	if FileAccess.file_exists("res://data/run_v63_smoke.json"):
+	if FileAccess.file_exists("res://data/run_v64_smoke.json"):
+		smoke_path = "res://scripts/tests/v64_policy_playable_settlement_smoke.gd"
+	elif FileAccess.file_exists("res://data/run_v63_smoke.json"):
 		smoke_path = "res://scripts/tests/v63_settlement_scene_compiler_smoke.gd"
 	elif FileAccess.file_exists("res://data/run_v62_smoke.json"):
 		smoke_path = "res://scripts/tests/v62_general_settlement_generation_smoke.gd"

@@ -1,0 +1,53 @@
+{
+  "policy_id": "roadside_trade_village",
+  "settlement_type": "roadside_trade_village",
+  "scale": "village",
+  "economy_tags": ["trade", "inn", "shop"],
+  "road_style": "roadside",
+  "density": 0.60,
+  "wealth_level": 2,
+  "defense_level": 0,
+  "required_landmarks": ["public_anchor", "notice_board"],
+  "banned_landmarks": ["mine_gate", "harbor"],
+  "agent_weight_overrides": {
+    "road": 1.35,
+    "plot": 1.25,
+    "generic_plot_agent_core_bias": 1.05,
+    "generic_plot_agent_road_bias": 1.55,
+    "generic_plot_agent_edge_bias": 0.80,
+    "differentiation": 1.25,
+    "footprint": 1.20
+  },
+  "demand_weight_overrides": {
+    "residential": 1.10,
+    "commercial": 2.10,
+    "production": 0.55,
+    "public": 1.15
+  },
+  "plot_use_weight_overrides": {
+    "residential": 1.05,
+    "commercial": 2.45,
+    "production": 0.45,
+    "public": 1.10
+  },
+  "asset_family_preferences": ["roadside", "market", "wood"],
+  "gameplay_hook_rules": {
+    "building_type_by_use": {
+      "residential": "roadside_house",
+      "commercial": "shop",
+      "production": "supply_shed"
+    },
+    "interior_template_by_type": {
+      "roadside_house": "basic_house_interior",
+      "shop": "basic_shop_interior",
+      "supply_shed": "basic_workshop_interior"
+    },
+    "asset_family_by_use": {
+      "residential": "roadside",
+      "commercial": "market",
+      "production": "storage"
+    },
+    "require_shop_for_commercial": true
+  },
+  "random_seed": 6403
+}

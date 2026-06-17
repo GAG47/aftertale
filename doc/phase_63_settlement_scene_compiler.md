@@ -48,11 +48,17 @@ blueprint output from the resolver pipeline.
 Added:
 
 - `data/locations/generated_settlement.json`;
+- `data/locations/generated_settlement_v62_48x32.json`;
 - `scenes/locations/generated_settlement.tscn`.
 
 The main game start now loads `generated_settlement.tscn` at
 `main_entrance`, so the settlement blueprint output is visible in the normal
 game scene instead of only in the debug tool scene.
+
+`generated_settlement.json` remains a compact 20x14 gameplay integration and
+smoke-test sample. `generated_settlement_v62_48x32.json` is a separate 48x32
+quality-observation sample for judging Phase 62 growth behavior without the
+pressure of the small gameplay test map.
 
 ## Rendered Layers
 
@@ -67,7 +73,9 @@ data:
 - optional landmarks become visible structures when present in the blueprint;
 - debug overlays retain blueprint source ids and proposal-derived metadata;
 - seed, proposal counts, rejected counts, and committed counts are stored in
-  location state and generation summary.
+  location state and generation summary;
+- plot access cells, building front-access cells, and road graph connectivity
+  diagnostics are stored in `generation_summary`.
 
 ## Collision And Navigation Surface
 
@@ -76,6 +84,18 @@ them as movement and sight blockers.
 
 Roads, plots, entrance cells, and core tiles remain walkable. The player is
 spawned through the normal entrance system.
+
+Compiler validation rebuilds the road graph from compiled tile data. The
+compiled entrance must touch the main road component, that component must
+reach the settlement core, plot access cells must belong to it, and building
+front-access cells must belong to it. The compiler reports disconnected road
+cells instead of silently accepting a visually broken road network.
+
+The compiler also compares compiled road tiles against the blueprint road-cell
+count. Roads are painted after plot, public, and core ground layers so road
+tiles keep presentation priority. If a later compiled layer removes road
+tiles or splits the road graph, validation fails. The compiler does not repair
+invalid blueprint output.
 
 ## Validation
 
@@ -90,9 +110,20 @@ The smoke test verifies:
 - building collision overrides;
 - debug overlays with blueprint source ids;
 - player spawn data;
+- road graph connectivity from entrance to core;
+- plot and building access on the main road component;
+- `compiled_road_connected`;
+- `compiled_entrance_connected`;
+- `compiled_core_connected`;
+- `compiled_plot_access_connected`;
+- `compiled_building_front_connected`;
+- successful compilation of the 48x32 quality-observation sample;
 - successful instantiation of `generated_settlement.tscn`;
 - initialized `LocationRoot` grid and scene summary.
 
 ## Verification
 
-- `v63_settlement_scene_compiler_smoke.gd` passes under Godot headless.
+- Godot editor class registration passes.
+- Runtime headless smoke execution is currently blocked by a Godot runtime
+  access violation in this environment before the smoke script can report a
+  normal GDScript result.

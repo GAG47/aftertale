@@ -60,19 +60,29 @@ func _score_residential(plot: Dictionary, session) -> float:
 	var score: float = session.feature_maps.get_value("land_value", center, 0.0) + 1.0 - session.feature_maps.get_value("density_pressure", center, 0.0) * 0.4
 	if bool(session.evaluation_feedback.get("need_public_space", false)):
 		score -= 1.0
+	if session.policy.settlement_type == "forest_village":
+		score += session.feature_maps.get_value("edge_distance", center, 0.0) * 0.08
 	return score
 
 
 func _score_commercial(plot: Dictionary, session) -> float:
 	var access := _cell_from_variant(plot.get("road_access_cell", {}))
-	return _junction_score(access, session) * 2.0 + session.feature_maps.get_value("land_value", access, 0.0)
+	var score := _junction_score(access, session) * 2.0 + session.feature_maps.get_value("land_value", access, 0.0)
+	if session.policy.road_style in ["linear", "roadside"]:
+		score += 2.0 / maxf(1.0, session.feature_maps.get_value("entrance_distance", access, 99.0))
+	return score
 
 
 func _score_production(plot: Dictionary, session) -> float:
 	var center := _area_center(plot.get("area", {}) as Dictionary)
 	var edge: float = 8.0 - session.feature_maps.get_value("edge_distance", center, 0.0)
 	var entrance: float = 10.0 / maxf(1.0, session.feature_maps.get_value("entrance_distance", center, 99.0))
-	return edge + entrance
+	var score := edge + entrance
+	if "mining" in session.policy.economy_tags:
+		score += _resource_distance_score(center, session)
+	if "farming" in session.policy.economy_tags and session.feature_maps.get_value("center_distance", center, 99.0) < 4.0:
+		score -= 3.5
+	return score
 
 
 func _score_public(plot: Dictionary, session) -> float:
@@ -91,7 +101,7 @@ func _bid_candidate(plot: Dictionary, use: String, session) -> Dictionary:
 	var road_access_score := _junction_score(access, session)
 	var core_distance_score := 10.0 / maxf(1.0, session.feature_maps.get_value("center_distance", center, 99.0))
 	var public_need_score := float(session.demand_ledger.public_need) * 4.0 if use == "public" else 0.0
-	var policy_weight := float(session.demand_ledger.need_for_use(use))
+	var policy_weight := session.plot_use_weight(use) * session.demand_weight(use)
 	var nearby_types := _nearby_types(plot, session)
 	var score := 0.0
 	match use:
@@ -103,7 +113,7 @@ func _bid_candidate(plot: Dictionary, use: String, session) -> Dictionary:
 			score = _score_production(plot, session)
 		"public":
 			score = _score_public(plot, session)
-	score += policy_weight
+	score += float(session.demand_ledger.need_for_use(use)) + policy_weight * 2.0
 	var reason := "%s demand=%d road=%.2f core=%.2f public=%.2f" % [
 		use,
 		session.demand_ledger.need_for_use(use),
@@ -125,6 +135,8 @@ func _bid_candidate(plot: Dictionary, use: String, session) -> Dictionary:
 			"core_distance_score": core_distance_score,
 			"public_need_score": public_need_score,
 			"policy_weight": policy_weight,
+			"demand_weight": session.demand_weight(use),
+			"plot_use_weight": session.plot_use_weight(use),
 		},
 	}
 
@@ -195,6 +207,14 @@ func _nearby_types(plot: Dictionary, session) -> Dictionary:
 		if absi(center.x - other_center.x) + absi(center.y - other_center.y) <= 5:
 			result[use] = int(result.get(use, 0)) + 1
 	return result
+
+
+func _resource_distance_score(center: Vector2i, session) -> float:
+	var best := 99
+	for point_value in session.context.important_world_points:
+		var point: Vector2i = point_value as Vector2i
+		best = min(best, absi(center.x - point.x) + absi(center.y - point.y))
+	return 8.0 / maxf(1.0, float(best))
 
 
 func _area_center(area: Dictionary) -> Vector2i:

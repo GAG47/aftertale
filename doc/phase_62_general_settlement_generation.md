@@ -156,6 +156,13 @@ source without adding workers, goods, income, or production chains.
 Public plots do not receive building footprints in Phase 62. This prevents
 plot count and building count from becoming a 1:1 immediate binding.
 
+Small formal building footprints remain allowed for blueprint debugging in
+Phase 62. When a residential, commercial, or production footprint is smaller
+than 2x2, the building records a `presentation_note` marking it as a future
+visual issue. Later presentation work should map 1x2 and 2x1 footprints to
+stall, shed, kiosk, or similar minor structures, while formal house, shop, and
+workshop output should use at least 2x2.
+
 ## Resolver
 
 `ProposalResolver` is the only commit entry point.
@@ -239,6 +246,7 @@ Reports include:
 - committed proposal id;
 - score;
 - issues;
+- score penalties with reason, weight, and affected object;
 - feedback flags;
 - feedback pressure;
 - core count;
@@ -257,14 +265,29 @@ Current feedback pressure includes:
 - `need_more_footprints`;
 - `need_public_space`;
 - `entrance_disconnected`;
+- `road_component_count`;
+- `entrance_connected`;
+- `core_connected`;
+- `all_plot_access_connected`;
+- `all_building_front_connected`;
 - `road_overdensity_zones`;
 - `isolated_plots`;
+- disconnected building access;
 - `weak_core_zones`.
 
 Agents consume this feedback during later steps. Road agents react to road and
 entrance pressure, generic plots react to plot pressure, plot differentiation
 reacts to public-space pressure, and building footprints react to footprint
 pressure.
+
+Road connectivity is evaluated as a graph, not as a nearest-cell adjacency
+check. The main road component starts from road cells touching the primary
+entrance. Functional roads must form one connected component. Dead ends are
+allowed only when they belong to that component. The entrance must connect
+through the road graph to the core or a public plot. Core cells must touch the
+main component, generic plot `road_access_cell` values must belong to it, and
+building `front_access_cell` values must belong to it. Isolated road segments
+are reported with segment ids and do not count as valid roads.
 
 ## Blueprint Anchors
 
@@ -307,6 +330,10 @@ It renders:
 - layer summary;
 - proposal summary;
 - evaluator summary;
+- connectivity summary with `road_component_count`, `entrance_connected`,
+  `core_connected`, `all_plot_access_connected`,
+  `all_building_front_connected`, and compiled connectivity fields;
+- score penalties explaining why the current evaluator score is below 1.00;
 - evaluator feedback pressure;
 - trace summary;
 - feature-map grid;
@@ -319,7 +346,7 @@ It renders:
   chosen score, and rejection distribution;
 - a replay step selector backed by `GenerationTrace.blueprint_snapshots`;
 - footprint details: plot id, use type, facing, entrance cell, front access
-  cell, and footprint size;
+  cell, footprint size, and presentation notes;
 - a step log showing accepted and rejected proposal events, including reject
   reason, score, winner target, and conflict group.
 
@@ -339,6 +366,16 @@ Updated `scripts/tests/v62_general_settlement_generation_smoke.gd`.
 The smoke test verifies:
 
 - fixed-seed deterministic execution;
+- `road_component_count == 1`;
+- `entrance_connected == true`;
+- `core_connected == true`;
+- `all_plot_access_connected == true`;
+- `all_building_front_connected == true`;
+- `compiled_road_connected == true`;
+- `compiled_entrance_connected == true`;
+- `compiled_core_connected == true`;
+- `compiled_plot_access_connected == true`;
+- `compiled_building_front_connected == true`;
 - core generation;
 - road growth;
 - road-accessible generic plot growth;
@@ -349,6 +386,7 @@ The smoke test verifies:
 - delayed plot differentiation and delayed footprint generation;
 - building footprint generation inside differentiated plots;
 - building footprint debug details;
+- evaluator score-penalty details;
 - plot count exceeding building count;
 - semantic anchor recording;
 - invalid out-of-bounds proposal rejection;
@@ -359,6 +397,7 @@ The smoke test verifies:
 - feature-map update count after commits;
 - evaluator report count after commits;
 - evaluator feedback pressure output;
+- road graph connectivity pressure output;
 - trace coverage for agent search statistics;
 - trace coverage for blueprint replay snapshots;
 - trace coverage for generation steps and all Phase 62 proposal types;

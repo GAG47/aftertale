@@ -5,10 +5,16 @@ const CELL_SIZE := 6
 const REPLAY_CELL_SIZE := 4
 const REPLAY_SLICE_STEPS := [0, 5, 10, 15, 20, 25, 28]
 const DEFAULT_DEBUG_LOCATION_PATH := "res://data/locations/generated_settlement.json"
+const POLICY_IDS := ["farming_village", "forest_village", "roadside_trade_village", "mining_camp"]
+const RoadGraphScript := preload("res://scripts/systems/settlements/settlement_road_graph.gd")
+const TileSceneCompilerScript := preload("res://scripts/systems/settlements/tile_scene_compiler.gd")
+
+@export_file("*.json") var debug_location_path: String = DEFAULT_DEBUG_LOCATION_PATH
 
 var session_result: Dictionary = {}
 var _rendered_summary: Dictionary = {}
 var selected_replay_step: int = -1
+var selected_policy_id: String = ""
 
 
 func _ready() -> void:
@@ -37,6 +43,8 @@ func _render() -> void:
 	var feature_maps := session_result.get("feature_maps", {}) as Dictionary
 	var trace := session_result.get("trace", {}) as Dictionary
 	var trace_summary := trace.get("summary", {}) as Dictionary
+	if selected_policy_id.is_empty():
+		selected_policy_id = _policy_id_from_result(session_result)
 
 	var scroll := ScrollContainer.new()
 	scroll.name = "DebugScroll"
@@ -62,6 +70,9 @@ func _render() -> void:
 	content.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	content.add_theme_constant_override("separation", 10)
 	margin.add_child(content)
+
+	_add_policy_selector(content)
+	_add_text_panel(content, "PolicySummaryPanel", _policy_summary_text(), Vector2(0, 92))
 
 	var summary_row := HBoxContainer.new()
 	summary_row.name = "SummaryRow"
@@ -146,6 +157,8 @@ func _render() -> void:
 	main_row.add_child(detail_column)
 	_add_text_panel(detail_column, "StepLogPanel", _step_log_text(trace), Vector2(640, 230))
 	_add_text_panel(detail_column, "AgentSearchPanel", _agent_search_text(trace), Vector2(640, 230))
+	_add_text_panel(detail_column, "ScorePenaltyPanel", _score_penalty_text(trace), Vector2(640, 130))
+	_add_text_panel(detail_column, "ConnectivityPanel", _connectivity_text(trace), Vector2(640, 210))
 
 	var bottom_row := HBoxContainer.new()
 	bottom_row.name = "BottomRow"
@@ -169,6 +182,8 @@ func _render() -> void:
 		"has_feature_map_panel": find_child("FeatureMapPanel", true, false) != null,
 		"has_evaluator_panel": find_child("EvaluatorPanel", true, false) != null,
 		"has_trace_panel": find_child("TracePanel", true, false) != null,
+		"has_policy_selector": find_child("PolicySelector", true, false) != null,
+		"active_policy": selected_policy_id,
 		"feature_cell_count": cell_count,
 		"road_cell_count": road_cell_count,
 		"plot_cell_count": plot_cell_count,
@@ -181,15 +196,19 @@ func _render() -> void:
 		"step_count": int(trace_summary.get("step_count", 0)),
 		"process_log_line_count": _step_log_rows(trace).size(),
 		"agent_search_line_count": _agent_search_rows(trace).size(),
+		"score_penalty_line_count": _score_penalty_rows(trace).size(),
+		"connectivity_line_count": _connectivity_text(trace).split("\n").size(),
+		"policy_summary_line_count": _policy_summary_text().split("\n").size(),
 	}
 
 
 func _default_debug_result() -> Dictionary:
-	var generated_result := _debug_result_from_generated_location(DEFAULT_DEBUG_LOCATION_PATH)
+	var generated_result := _debug_result_from_generated_location(debug_location_path)
 	if not generated_result.is_empty():
 		return generated_result
 
 	var policy := SettlementPolicy.from_dictionary({
+		"policy_id": "v62_debug_settlement",
 		"settlement_type": "v62_debug_settlement",
 		"scale": "village",
 		"density": 0.45,
@@ -219,14 +238,27 @@ func _debug_result_from_generated_location(resource_path: String) -> Dictionary:
 	var generator_data: Dictionary = source_data.get("generator", {}) as Dictionary
 	if generator_data.is_empty():
 		return {}
-	var policy := SettlementPolicy.from_dictionary(generator_data.get("policy", {}) as Dictionary)
-	if policy.seed_override < 0:
-		policy.seed_override = int(generator_data.get("seed", 6301))
+	var policy := SettlementPolicy.from_generator_data(generator_data)
 	var context_data: Dictionary = generator_data.get("context", {}) as Dictionary
 	if context_data.is_empty():
 		context_data = _debug_context_from_generator(generator_data)
 	var context := SettlementContext.from_dictionary(context_data)
 	var session := SettlementGenerationSession.new(policy, context)
+	return session.run()
+
+
+func _debug_result_for_policy(policy_id: String) -> Dictionary:
+	var policy := SettlementPolicy.from_profile_id(policy_id)
+	var context := SettlementContext.from_dictionary({
+		"map_size": { "width": 48, "height": 32 },
+		"entrances": [{ "x": 0, "y": 16 }],
+		"existing_obstacles": [{ "x": 11, "y": 5 }, { "x": 12, "y": 5 }, { "x": 38, "y": 24 }],
+		"existing_water": [{ "x": 42, "y": 7 }, { "x": 43, "y": 7 }, { "x": 43, "y": 8 }],
+		"important_world_points": [{ "x": 36, "y": 20 }],
+		"world_seed": policy.seed_override if policy.seed_override >= 0 else policy.random_seed,
+	})
+	var session := SettlementGenerationSession.new(policy, context)
+	session.max_blueprint_steps = 32
 	return session.run()
 
 
@@ -262,6 +294,50 @@ func _add_text_panel(parent: Control, node_name: String, text: String, min_size:
 	return label
 
 
+func _add_policy_selector(parent: Control) -> void:
+	var row := HBoxContainer.new()
+	row.name = "PolicyControlRow"
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_theme_constant_override("separation", 8)
+	parent.add_child(row)
+	_add_text_panel(row, "PolicyLabelPanel", "Policy", Vector2(80, 34))
+	var selector := OptionButton.new()
+	selector.name = "PolicySelector"
+	selector.custom_minimum_size = Vector2(250, 34)
+	for index in range(POLICY_IDS.size()):
+		var policy_id := str(POLICY_IDS[index])
+		selector.add_item(policy_id)
+		selector.set_item_metadata(index, policy_id)
+		if policy_id == selected_policy_id:
+			selector.select(index)
+	selector.item_selected.connect(_on_policy_selected)
+	row.add_child(selector)
+	var button := Button.new()
+	button.name = "RegeneratePolicyButton"
+	button.text = "Regenerate"
+	button.custom_minimum_size = Vector2(130, 34)
+	button.pressed.connect(_on_regenerate_policy_pressed)
+	row.add_child(button)
+
+
+func _on_policy_selected(index: int) -> void:
+	var selector := find_child("PolicySelector", true, false) as OptionButton
+	if selector == null:
+		return
+	selected_policy_id = str(selector.get_item_metadata(index))
+	selected_replay_step = -1
+	session_result = _debug_result_for_policy(selected_policy_id)
+	call_deferred("_render")
+
+
+func _on_regenerate_policy_pressed() -> void:
+	if selected_policy_id.is_empty():
+		selected_policy_id = _policy_id_from_result(session_result)
+	selected_replay_step = -1
+	session_result = _debug_result_for_policy(selected_policy_id)
+	call_deferred("_render")
+
+
 func _add_replay_selector(parent: Control, trace: Dictionary) -> void:
 	var steps := _replay_steps(trace)
 	if steps.is_empty():
@@ -295,6 +371,119 @@ func _on_replay_step_selected(index: int) -> void:
 	call_deferred("_render")
 
 
+func _policy_summary_text() -> String:
+	var policy: Dictionary = session_result.get("policy", {}) as Dictionary
+	var summary: Dictionary = session_result.get("session_summary", {}) as Dictionary
+	var demand: Dictionary = summary.get("demand_ledger", {}) as Dictionary
+	var blueprint: Dictionary = session_result.get("blueprint", {}) as Dictionary
+	var text := "Active Policy: %s  type=%s  road=%s  density=%.2f  asset=%s" % [
+		str(policy.get("policy_id", selected_policy_id)),
+		str(policy.get("settlement_type", "")),
+		str(policy.get("road_style", "")),
+		float(policy.get("density", 0.0)),
+		_asset_family_text(policy),
+	]
+	text += "\nagent weights: %s" % _agent_weight_summary_text(summary.get("agent_weight_summary", {}) as Dictionary)
+	text += "\ndemand: %s" % _demand_ledger_text(demand)
+	text += "\nplot uses: %s" % _counts_text(_plot_use_counts(blueprint))
+	text += "\nbuilding types: %s" % _counts_text(_building_type_counts(blueprint))
+	text += "\nrequired landmarks: %s" % _required_landmarks_text(policy, blueprint)
+	return text
+
+
+func _policy_id_from_result(result: Dictionary) -> String:
+	var policy: Dictionary = result.get("policy", {}) as Dictionary
+	var policy_id := str(policy.get("policy_id", ""))
+	if not policy_id.is_empty():
+		return policy_id
+	return "roadside_trade_village"
+
+
+func _agent_weight_summary_text(summary: Dictionary) -> String:
+	if summary.is_empty():
+		return "-"
+	var parts: Array[String] = []
+	for key in summary.keys():
+		var row: Dictionary = summary.get(key, {}) as Dictionary
+		var short_key := _short_agent_id(str(key))
+		parts.append("%s=%.1f/%d" % [short_key, float(row.get("weight", 1.0)), int(row.get("max_commits", 0))])
+		if parts.size() >= 5:
+			break
+	return " ".join(parts)
+
+
+func _demand_ledger_text(demand: Dictionary) -> String:
+	if demand.is_empty():
+		return "-"
+	return "home=%d trade=%d prod=%d public=%d road=%d" % [
+		int(demand.get("housing_need", 0)),
+		int(demand.get("commerce_need", 0)),
+		int(demand.get("production_need", 0)),
+		int(demand.get("public_need", 0)),
+		int(demand.get("road_need", 0)),
+	]
+
+
+func _counts_text(counts: Dictionary) -> String:
+	if counts.is_empty():
+		return "-"
+	var parts: Array[String] = []
+	for key in counts.keys():
+		parts.append("%s=%d" % [_short_token(str(key)), int(counts.get(key, 0))])
+	return " ".join(parts)
+
+
+func _plot_use_counts(blueprint: Dictionary) -> Dictionary:
+	var result := {
+		"generic": 0,
+		"residential": 0,
+		"commercial": 0,
+		"production": 0,
+		"public": 0,
+	}
+	for plot_value in (blueprint.get("plots", []) as Array):
+		var plot: Dictionary = plot_value as Dictionary
+		var use := str(plot.get("use", "generic"))
+		result[use] = int(result.get(use, 0)) + 1
+	return result
+
+
+func _building_type_counts(blueprint: Dictionary) -> Dictionary:
+	var result: Dictionary = {}
+	for building_value in (blueprint.get("buildings", []) as Array):
+		var building: Dictionary = building_value as Dictionary
+		var type := str(building.get("building_type", building.get("kind", "")))
+		result[type] = int(result.get(type, 0)) + 1
+	return result
+
+
+func _required_landmarks_text(policy: Dictionary, blueprint: Dictionary) -> String:
+	var required: Array = policy.get("required_landmarks", []) as Array
+	if required.is_empty():
+		return "none"
+	var anchors: Array = (blueprint.get("interaction_anchors", []) as Array)
+	var parts: Array[String] = []
+	for item in required:
+		var required_id := str(item)
+		parts.append("%s=%s" % [required_id, _flag_text(_anchor_kind_exists(anchors, required_id))])
+	return " ".join(parts)
+
+
+func _anchor_kind_exists(anchors: Array, kind_or_id: String) -> bool:
+	for anchor_value in anchors:
+		var anchor: Dictionary = anchor_value as Dictionary
+		if str(anchor.get("kind", "")) == kind_or_id or str(anchor.get("id", "")).find(kind_or_id) >= 0:
+			return true
+	return false
+
+
+func _asset_family_text(policy: Dictionary) -> String:
+	var families: Array = policy.get("asset_family_preferences", []) as Array
+	if families.is_empty():
+		return "common"
+	return str(families[0])
+
+
 func _last_evaluator_score(trace: Dictionary) -> float:
 	var reports: Array = trace.get("evaluator_reports", []) as Array
 	if reports.is_empty():
@@ -316,6 +505,109 @@ func _last_feedback_text(trace: Dictionary) -> String:
 		(feedback.get("isolated_plots", []) as Array).size(),
 		(feedback.get("road_overdensity_zones", []) as Array).size(),
 	]
+
+
+func _score_penalty_text(trace: Dictionary) -> String:
+	var rows := _score_penalty_rows(trace)
+	var text := "Score Penalties"
+	if rows.is_empty():
+		return text + "\nnone"
+	var start_index: int = max(0, rows.size() - 6)
+	for row in rows.slice(start_index):
+		text += "\n%s" % row
+	return text
+
+
+func _score_penalty_rows(trace: Dictionary) -> Array[String]:
+	var reports: Array = trace.get("evaluator_reports", []) as Array
+	if reports.is_empty():
+		return []
+	var report: Dictionary = reports[reports.size() - 1] as Dictionary
+	var penalties: Array = report.get("score_penalties", []) as Array
+	var result: Array[String] = []
+	for penalty_value in penalties:
+		var penalty: Dictionary = penalty_value as Dictionary
+		result.append("- %s w=%.2f obj=%s" % [
+			_short_reason(str(penalty.get("reason", ""))),
+			float(penalty.get("weight", 0.0)),
+			_short_token(str(penalty.get("affected_object", ""))),
+		])
+	return result
+
+
+func _connectivity_text(trace: Dictionary) -> String:
+	var blueprint_connectivity := _last_connectivity(trace)
+	var compiled_connectivity := _compiled_connectivity()
+	var text := "Connectivity"
+	text += "\nroad components: %d" % int(blueprint_connectivity.get("road_component_count", 0))
+	text += "\nentrance connected: %s" % _flag_text(blueprint_connectivity.get("entrance_connected", false))
+	text += "\ncore connected: %s" % _flag_text(blueprint_connectivity.get("core_connected", false))
+	text += "\nplot access connected: %s" % _flag_text(blueprint_connectivity.get("all_plot_access_connected", false))
+	text += "\nbuilding front connected: %s" % _flag_text(blueprint_connectivity.get("all_building_front_connected", false))
+	text += "\ncompiled road connected: %s" % _flag_text(compiled_connectivity.get("compiled_road_connected", false))
+	text += "\ncompiled entrance connected: %s" % _flag_text(compiled_connectivity.get("compiled_entrance_connected", false))
+	text += "\ncompiled core connected: %s" % _flag_text(compiled_connectivity.get("compiled_core_connected", false))
+	text += "\ncompiled plot access connected: %s" % _flag_text(compiled_connectivity.get("compiled_plot_access_connected", false))
+	text += "\ncompiled building front connected: %s" % _flag_text(compiled_connectivity.get("compiled_building_front_connected", false))
+	var failures := _connectivity_failure_text(blueprint_connectivity, compiled_connectivity)
+	if not failures.is_empty():
+		text += "\nfailures: %s" % failures
+	return text
+
+
+func _last_connectivity(trace: Dictionary) -> Dictionary:
+	var reports: Array = trace.get("evaluator_reports", []) as Array
+	if reports.is_empty():
+		return {}
+	var report: Dictionary = reports[reports.size() - 1] as Dictionary
+	return report.get("road_connectivity", {}) as Dictionary
+
+
+func _compiled_connectivity() -> Dictionary:
+	if session_result.is_empty():
+		return {}
+	var compiler: RefCounted = TileSceneCompilerScript.new()
+	var compiled: Dictionary = compiler.compile_session_result({
+		"id": "settlement_debug_compiled",
+		"display_name": "Settlement Debug Compiled",
+		"tile_size": 32,
+	}, session_result)
+	return RoadGraphScript.analyze_compiled_location(compiled)
+
+
+func _connectivity_failure_text(blueprint_connectivity: Dictionary, compiled_connectivity: Dictionary) -> String:
+	var parts: Array[String] = []
+	_append_failure_part(parts, "roads", blueprint_connectivity.get("disconnected_road_segment_ids", []) as Array)
+	_append_failure_part(parts, "plots", blueprint_connectivity.get("disconnected_plot_ids", []) as Array)
+	_append_failure_part(parts, "buildings", blueprint_connectivity.get("disconnected_building_ids", []) as Array)
+	_append_failure_part(parts, "entrances", _failure_ids(blueprint_connectivity.get("failed_entrances", []) as Array))
+	_append_failure_part(parts, "front", _failure_cells(blueprint_connectivity.get("disconnected_building_front_access", []) as Array, "front_access_cell"))
+	_append_failure_part(parts, "compiled_roads", compiled_connectivity.get("disconnected_road_segment_ids", []) as Array)
+	_append_failure_part(parts, "compiled_plots", compiled_connectivity.get("disconnected_plot_ids", []) as Array)
+	_append_failure_part(parts, "compiled_buildings", compiled_connectivity.get("disconnected_building_ids", []) as Array)
+	return " | ".join(parts)
+
+
+func _append_failure_part(parts: Array[String], label: String, values: Array) -> void:
+	if values.is_empty():
+		return
+	parts.append("%s=%s" % [label, ",".join(_string_array(values))])
+
+
+func _failure_ids(rows: Array) -> Array[String]:
+	var result: Array[String] = []
+	for row_value in rows:
+		var row: Dictionary = row_value as Dictionary
+		result.append(str(row.get("id", "")))
+	return result
+
+
+func _failure_cells(rows: Array, cell_key: String) -> Array[String]:
+	var result: Array[String] = []
+	for row_value in rows:
+		var row: Dictionary = row_value as Dictionary
+		result.append("%s@%s" % [str(row.get("id", "")), _cell_text(row.get(cell_key, {}))])
+	return result
 
 
 func _flag_text(value: Variant) -> String:
@@ -421,7 +713,8 @@ func _footprint_detail_text(blueprint: Dictionary) -> String:
 	for index in range(start_index, buildings.size()):
 		var building: Dictionary = buildings[index] as Dictionary
 		var footprint_size: Dictionary = building.get("footprint_size", {}) as Dictionary
-		text += "\n%s plot=%s use=%s face=%s in=%s front=%s %dx%d" % [
+		var note := _footprint_note(building)
+		text += "\n%s plot=%s use=%s face=%s in=%s front=%s %dx%d%s" % [
 			_short_token(str(building.get("id", ""))),
 			_short_token(str(building.get("plot_id", ""))),
 			str(building.get("use_type", building.get("kind", ""))),
@@ -430,8 +723,16 @@ func _footprint_detail_text(blueprint: Dictionary) -> String:
 			_cell_text(building.get("front_access_cell", {})),
 			int(footprint_size.get("width", 0)),
 			int(footprint_size.get("height", 0)),
+			note,
 		]
 	return text
+
+
+func _footprint_note(building: Dictionary) -> String:
+	var note := str(building.get("presentation_note", ""))
+	if note.is_empty():
+		return ""
+	return " note=%s" % _short_token(note)
 
 
 func _proposal_label(proposal: Dictionary) -> String:
@@ -482,6 +783,13 @@ func _short_token(value: String) -> String:
 	result = result.replace("_agent", "")
 	if result.length() > 18:
 		return result.substr(0, 18)
+	return result
+
+
+func _string_array(values: Array) -> Array[String]:
+	var result: Array[String] = []
+	for value in values:
+		result.append(str(value))
 	return result
 
 

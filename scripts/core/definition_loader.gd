@@ -58,6 +58,11 @@ func materialize_location(location_data: Dictionary, resource_path: String = "",
 			var compiled: Dictionary = compiler.generate_location(location_data)
 			_register_resolved_location(compiled, resource_path, "")
 			return compiled.duplicate(true)
+		"settlement":
+			var compiler: RefCounted = TileSceneCompiler.new()
+			var compiled: Dictionary = compiler.generate_location(location_data)
+			_register_resolved_location(compiled, resource_path, "")
+			return compiled.duplicate(true)
 		_:
 			_register_resolved_location(location_data, resource_path, "")
 			return location_data.duplicate(true)

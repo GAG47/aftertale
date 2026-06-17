@@ -1,19 +1,24 @@
 {
-  "id": "generated_settlement",
-  "display_name": "Generated Settlement",
+  "id": "generated_settlement_v62_48x32",
+  "display_name": "Generated Settlement V62 48x32",
   "tile_size": 32,
   "generator": {
-    "type": "settlement",
-    "settlement_policy_id": "roadside_trade_village",
-    "seed": 6301,
+    "type": "settlement_blueprint",
+    "seed": 6217,
     "size": { "width": 48, "height": 32 },
+    "policy": {
+      "settlement_type": "v62_quality_observation_settlement",
+      "scale": "village",
+      "density": 0.45,
+      "seed_override": 6217
+    },
     "context": {
       "map_size": { "width": 48, "height": 32 },
       "entrances": [{ "x": 0, "y": 16 }],
       "existing_obstacles": [{ "x": 11, "y": 5 }, { "x": 12, "y": 5 }, { "x": 38, "y": 24 }],
       "existing_water": [{ "x": 42, "y": 7 }, { "x": 43, "y": 7 }, { "x": 43, "y": 8 }],
       "important_world_points": [{ "x": 36, "y": 20 }],
-      "world_seed": 6301
+      "world_seed": 6217
     }
   }
 }

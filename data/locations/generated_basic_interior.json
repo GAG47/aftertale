@@ -1,0 +1,53 @@
+{
+  "id": "generated_basic_interior",
+  "display_name": "Generated Basic Interior",
+  "size": { "width": 8, "height": 6 },
+  "tile_size": 32,
+  "default_entrance": "entry",
+  "tiles": [
+    "wwwwwwww",
+    "wffffffw",
+    "wffffffw",
+    "wffffffw",
+    "wffffffw",
+    "wwwewwww"
+  ],
+  "terrain": {
+    "w": { "id": "interior_wall", "label": "Interior Wall", "walkable": false, "color": "#443a32" },
+    "f": { "id": "interior_floor", "label": "Interior Floor", "walkable": true, "color": "#7b6a55" },
+    "e": { "id": "interior_entry", "label": "Interior Entry", "walkable": true, "color": "#b5975d" }
+  },
+  "entrances": [
+    { "id": "entry", "grid_position": { "x": 3, "y": 4 }, "facing": "up" }
+  ],
+  "anchors": [
+    { "id": "basic_interior_center", "kind": "interior_activity", "grid_position": { "x": 4, "y": 2 }, "facing": "down" }
+  ],
+  "objects": [
+    {
+      "id": "generated_interior_exit",
+      "display_name": "Return",
+      "grid_position": { "x": 3, "y": 5 },
+      "blocks_movement": false,
+      "kind": "door",
+      "is_inspectable": true,
+      "is_usable": true,
+      "facility_type": "scene_transition",
+      "target_scene_path": "__return__",
+      "inspect_text": "Return to the generated settlement."
+    }
+  ],
+  "characters": [
+    {
+      "id": "debug_player",
+      "source": "res://data/characters/debug_player.json",
+      "spawn_at_entrance": true,
+      "facing": "up"
+    }
+  ],
+  "state": {
+    "danger_level": 0,
+    "owner_faction": "field_neutral",
+    "interior_template": true
+  }
+}

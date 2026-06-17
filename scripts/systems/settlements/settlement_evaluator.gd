@@ -1,9 +1,12 @@
 class_name SettlementEvaluator
 extends RefCounted
 
+const RoadGraphScript := preload("res://scripts/systems/settlements/settlement_road_graph.gd")
+
 
 func evaluate_step(session, committed_proposals: Array[PlanProposal]) -> Dictionary:
 	var issues: Array[String] = []
+	var score_penalties: Array[Dictionary] = []
 	var feedback := {
 		"need_more_roads": false,
 		"need_more_generic_plots": false,
@@ -11,49 +14,81 @@ func evaluate_step(session, committed_proposals: Array[PlanProposal]) -> Diction
 		"need_more_footprints": false,
 		"need_public_space": false,
 		"entrance_disconnected": false,
+		"core_disconnected_from_entrance": false,
+		"road_component_count": 0,
+		"entrance_connected": false,
+		"core_connected": false,
+		"all_plot_access_connected": false,
+		"all_building_front_connected": false,
 		"road_overdensity_zones": [],
+		"road_disconnected_components": 0,
 		"isolated_plots": [],
+		"disconnected_buildings": [],
 		"weak_core_zones": [],
+		"road_connectivity": {},
 	}
+	var road_connectivity := _road_connectivity(session)
 	var road_overdensity_zones := _road_overdensity_zones(session)
-	var isolated_plots := _isolated_plot_ids(session)
-	var weak_core_zones := _weak_core_zones(session)
+	var isolated_plots: Array = road_connectivity.get("disconnected_plot_ids", []) as Array
+	var disconnected_buildings: Array = road_connectivity.get("disconnected_building_ids", []) as Array
+	var weak_core_zones := _weak_core_zones(session, road_connectivity)
+	feedback["road_connectivity"] = road_connectivity
+	feedback["road_component_count"] = int(road_connectivity.get("road_component_count", 0))
+	feedback["entrance_connected"] = bool(road_connectivity.get("entrance_connected", false))
+	feedback["core_connected"] = bool(road_connectivity.get("core_connected", false))
+	feedback["all_plot_access_connected"] = bool(road_connectivity.get("all_plot_access_connected", false))
+	feedback["all_building_front_connected"] = bool(road_connectivity.get("all_building_front_connected", false))
+	feedback["road_disconnected_components"] = max(0, int(road_connectivity.get("road_component_count", 0)) - 1)
 	feedback["road_overdensity_zones"] = road_overdensity_zones
 	feedback["isolated_plots"] = isolated_plots
+	feedback["disconnected_buildings"] = disconnected_buildings
 	feedback["weak_core_zones"] = weak_core_zones
 
 	if session.blueprint.cores.is_empty():
-		issues.append("missing_core_seed")
+		_add_penalty(issues, score_penalties, "missing_core_seed", 0.12, "core")
 	if session.blueprint.roads.size() < 3 and session.current_step >= 3:
-		issues.append("road_network_too_small")
+		_add_penalty(issues, score_penalties, "road_network_too_small", 0.12, "roads")
 		feedback["need_more_roads"] = true
-	if _entrance_road_distance(session) > 1 and session.current_step >= 4:
-		issues.append("entrance_disconnected")
+	if int(road_connectivity.get("road_component_count", 0)) > 1 and session.current_step >= 5:
+		_add_penalty(issues, score_penalties, "road_component_count_not_one", 0.12, "components:%d" % int(road_connectivity.get("road_component_count", 0)))
+		feedback["need_more_roads"] = true
+	if not bool(road_connectivity.get("entrance_connected", false)) and session.current_step >= 4:
+		_add_penalty(issues, score_penalties, "entrance_disconnected", 0.12, "entrance")
 		feedback["need_more_roads"] = true
 		feedback["entrance_disconnected"] = true
+	if not bool(road_connectivity.get("core_connected", false)) and session.current_step >= 5:
+		_add_penalty(issues, score_penalties, "core_disconnected_from_entrance", 0.12, "core")
+		feedback["need_more_roads"] = true
+		feedback["entrance_disconnected"] = true
+		feedback["core_disconnected_from_entrance"] = true
+	if int(road_connectivity.get("disconnected_road_cell_count", 0)) > 0 and session.current_step >= 5:
+		_add_penalty(issues, score_penalties, "road_graph_disconnected", 0.12, "road_cells:%d" % int(road_connectivity.get("disconnected_road_cell_count", 0)))
+		feedback["need_more_roads"] = true
 	if _generic_plot_count(session) < 3 and session.current_step >= 6:
-		issues.append("not_enough_generic_plots")
+		_add_penalty(issues, score_penalties, "not_enough_generic_plots", 0.12, "generic_plots")
 		feedback["need_more_generic_plots"] = true
 	if _differentiated_plot_count(session) < 2 and session.current_step >= 9:
-		issues.append("not_enough_differentiated_plots")
+		_add_penalty(issues, score_penalties, "not_enough_differentiated_plots", 0.12, "differentiated_plots")
 		feedback["need_more_differentiation"] = true
 	if _public_plot_count(session) < 1 and session.current_step >= 10:
-		issues.append("missing_public_space")
+		_add_penalty(issues, score_penalties, "missing_public_space", 0.12, "public_plot")
 		feedback["need_public_space"] = true
 		feedback["need_more_differentiation"] = true
 	if session.blueprint.buildings.size() < 2 and session.current_step >= 16:
-		issues.append("not_enough_building_footprints")
+		_add_penalty(issues, score_penalties, "not_enough_building_footprints", 0.12, "building_footprints")
 		feedback["need_more_footprints"] = true
-	if not session.blueprint.plots.is_empty() and not _plots_are_road_accessible(session):
-		issues.append("plot_without_road_access")
+	if not session.blueprint.plots.is_empty() and not bool(road_connectivity.get("all_plot_access_connected", true)):
+		_add_penalty(issues, score_penalties, "plot_without_road_access", 0.12, "plots")
 	if not isolated_plots.is_empty():
-		issues.append("isolated_plots:%d" % isolated_plots.size())
+		_add_penalty(issues, score_penalties, "isolated_plots", 0.12, "plots:%s" % ",".join(_string_array(isolated_plots)))
+	if not disconnected_buildings.is_empty():
+		_add_penalty(issues, score_penalties, "building_without_main_road_access", 0.12, "buildings:%s" % ",".join(_string_array(disconnected_buildings)))
 	if not road_overdensity_zones.is_empty():
-		issues.append("road_overdensity:%d" % road_overdensity_zones.size())
+		_add_penalty(issues, score_penalties, "road_overdensity", 0.12, "zones:%d" % road_overdensity_zones.size())
 	if not weak_core_zones.is_empty():
-		issues.append("weak_core_zones:%d" % weak_core_zones.size())
+		_add_penalty(issues, score_penalties, "weak_core_zones", 0.12, "zones:%s" % ",".join(weak_core_zones))
 
-	var score := 1.0 - float(issues.size()) * 0.12
+	var score := 1.0 - _penalty_weight_sum(score_penalties)
 	score = clampf(score, 0.0, 1.0)
 
 	return {
@@ -61,6 +96,7 @@ func evaluate_step(session, committed_proposals: Array[PlanProposal]) -> Diction
 		"committed_proposal_ids": _proposal_ids(committed_proposals),
 		"score": score,
 		"issues": issues,
+		"score_penalties": score_penalties,
 		"feedback": feedback,
 		"core_count": session.blueprint.cores.size(),
 		"road_count": session.blueprint.roads.size(),
@@ -69,6 +105,12 @@ func evaluate_step(session, committed_proposals: Array[PlanProposal]) -> Diction
 		"public_plot_count": _public_plot_count(session),
 		"building_count": session.blueprint.buildings.size(),
 		"occupied_count": session.feature_maps.occupied_count(),
+		"road_connectivity": road_connectivity,
+		"road_component_count": int(road_connectivity.get("road_component_count", 0)),
+		"entrance_connected": bool(road_connectivity.get("entrance_connected", false)),
+		"core_connected": bool(road_connectivity.get("core_connected", false)),
+		"all_plot_access_connected": bool(road_connectivity.get("all_plot_access_connected", false)),
+		"all_building_front_connected": bool(road_connectivity.get("all_building_front_connected", false)),
 	}
 
 
@@ -83,6 +125,29 @@ func _proposal_ids(proposals: Array[PlanProposal]) -> Array[String]:
 	var result: Array[String] = []
 	for proposal in proposals:
 		result.append(proposal.proposal_id)
+	return result
+
+
+func _add_penalty(issues: Array[String], penalties: Array[Dictionary], reason: String, weight: float, affected_object: String) -> void:
+	issues.append(reason)
+	penalties.append({
+		"reason": reason,
+		"weight": weight,
+		"affected_object": affected_object,
+	})
+
+
+func _penalty_weight_sum(penalties: Array[Dictionary]) -> float:
+	var result := 0.0
+	for penalty in penalties:
+		result += float(penalty.get("weight", 0.0))
+	return result
+
+
+func _string_array(values: Array) -> Array[String]:
+	var result: Array[String] = []
+	for value in values:
+		result.append(str(value))
 	return result
 
 
@@ -113,39 +178,12 @@ func _public_plot_count(session) -> int:
 	return count
 
 
-func _plots_are_road_accessible(session) -> bool:
-	for plot_value in session.blueprint.plots:
-		var plot: Dictionary = plot_value as Dictionary
-		var area: Dictionary = plot.get("area", {}) as Dictionary
-		var has_access := false
-		for cell in _area_cells(area):
-			for direction in [Vector2i.UP, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT]:
-				if session.feature_maps.is_road(cell + direction):
-					has_access = true
-					break
-			if has_access:
-				break
-		if not has_access:
-			return false
-	return true
-
-
-func _isolated_plot_ids(session) -> Array[String]:
-	var result: Array[String] = []
-	for plot_value in session.blueprint.plots:
-		var plot: Dictionary = plot_value as Dictionary
-		if not _plot_has_road_access(plot, session):
-			result.append(str(plot.get("id", "")))
-	return result
-
-
-func _plot_has_road_access(plot: Dictionary, session) -> bool:
-	var area: Dictionary = plot.get("area", {}) as Dictionary
-	for cell in _area_cells(area):
-		for direction in [Vector2i.UP, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT]:
-			if session.feature_maps.is_road(cell + direction):
-				return true
-	return false
+func _road_connectivity(session) -> Dictionary:
+	return RoadGraphScript.analyze_blueprint(
+		session.blueprint.to_dictionary(),
+		session.context.entrances,
+		session.context.map_size
+	)
 
 
 func _road_overdensity_zones(session) -> Array[Dictionary]:
@@ -163,13 +201,15 @@ func _road_overdensity_zones(session) -> Array[Dictionary]:
 	return result
 
 
-func _weak_core_zones(session) -> Array[String]:
+func _weak_core_zones(session, road_connectivity: Dictionary) -> Array[String]:
 	var result: Array[String] = []
 	if session.blueprint.cores.is_empty():
 		return result
 	if _public_plot_count(session) <= 0 and session.current_step >= 10:
 		result.append("core_missing_public_space")
-	if _nearest_road_distance_to_core(session) > 2 and session.current_step >= 5:
+	if not bool(road_connectivity.get("core_connected", false)) and session.current_step >= 5:
+		result.append("core_not_on_main_road")
+	elif _nearest_road_distance_to_core(session) > 2 and session.current_step >= 5:
 		result.append("core_road_pressure_weak")
 	return result
 

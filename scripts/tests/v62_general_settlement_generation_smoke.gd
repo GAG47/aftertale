@@ -1,5 +1,8 @@
 extends RefCounted
 
+const RoadGraphScript := preload("res://scripts/systems/settlements/settlement_road_graph.gd")
+const TileSceneCompilerScript := preload("res://scripts/systems/settlements/tile_scene_compiler.gd")
+
 var _root: Node
 
 
@@ -19,6 +22,10 @@ func run(root: Node) -> bool:
 		return _fail("v62 must commit a settlement core")
 	if (blueprint.get("roads", []) as Array).size() < 2:
 		return _fail("v62 must commit general road proposals")
+	if not _road_graph_is_connected_to_core(first):
+		return _fail("v62 road graph must connect the entrance, main roads, and settlement core")
+	if not _compiled_road_graph_is_connected(first):
+		return _fail("v62 compiled road graph must preserve blueprint connectivity")
 	if (blueprint.get("plots", []) as Array).size() < 4:
 		return _fail("v62 must grow road-accessible generic plots")
 	if (blueprint.get("buildings", []) as Array).size() < 3:
@@ -61,6 +68,10 @@ func run(root: Node) -> bool:
 		return _fail("v62 rejected proposal rows must include reason, score, and conflict target data")
 	if not _evaluator_reports_pressure(trace):
 		return _fail("v62 evaluator reports must expose feedback pressure")
+	if not _evaluator_reports_score_penalties(trace):
+		return _fail("v62 evaluator reports must expose score penalties")
+	if not _evaluator_reports_road_connectivity(trace):
+		return _fail("v62 evaluator reports must expose road graph connectivity pressure")
 	if not _resolver_is_only_commit_entry():
 		return false
 	if not _debug_view_renders(first):
@@ -238,7 +249,7 @@ func _trace_has_differentiation_bids(trace: Dictionary) -> bool:
 func _building_footprints_have_debug_details(blueprint: Dictionary) -> bool:
 	for building_value in (blueprint.get("buildings", []) as Array):
 		var building: Dictionary = building_value as Dictionary
-		for key in ["plot_id", "use_type", "facing", "entrance_cell", "front_access_cell", "footprint_size"]:
+		for key in ["plot_id", "use_type", "facing", "entrance_cell", "front_access_cell", "footprint_size", "presentation_note"]:
 			if not building.has(key):
 				return false
 	return not (blueprint.get("buildings", []) as Array).is_empty()
@@ -268,6 +279,71 @@ func _evaluator_reports_pressure(trace: Dictionary) -> bool:
 			if not feedback.has(key):
 				return false
 	return true
+
+
+func _evaluator_reports_score_penalties(trace: Dictionary) -> bool:
+	for report_value in (trace.get("evaluator_reports", []) as Array):
+		var report: Dictionary = report_value as Dictionary
+		if not report.has("score_penalties"):
+			return false
+		if float(report.get("score", 1.0)) < 1.0 and (report.get("score_penalties", []) as Array).is_empty():
+			return false
+		for penalty_value in (report.get("score_penalties", []) as Array):
+			var penalty: Dictionary = penalty_value as Dictionary
+			for key in ["reason", "weight", "affected_object"]:
+				if not penalty.has(key):
+					return false
+	return true
+
+
+func _evaluator_reports_road_connectivity(trace: Dictionary) -> bool:
+	for report_value in (trace.get("evaluator_reports", []) as Array):
+		var report: Dictionary = report_value as Dictionary
+		var feedback: Dictionary = report.get("feedback", {}) as Dictionary
+		if not feedback.has("road_connectivity"):
+			return false
+		var connectivity: Dictionary = feedback.get("road_connectivity", {}) as Dictionary
+		for key in ["road_component_count", "entrance_connected", "core_connected", "all_plot_access_connected", "all_building_front_connected"]:
+			if not connectivity.has(key):
+				return false
+	return true
+
+
+func _road_graph_is_connected_to_core(result: Dictionary) -> bool:
+	var blueprint: Dictionary = result.get("blueprint", {}) as Dictionary
+	var context: Dictionary = result.get("context", {}) as Dictionary
+	var map_size: Dictionary = context.get("map_size", {}) as Dictionary
+	var connectivity := RoadGraphScript.analyze_blueprint(
+		blueprint,
+		context.get("entrances", []) as Array,
+		Vector2i(int(map_size.get("width", 0)), int(map_size.get("height", 0)))
+	)
+	var road_component_count := int(connectivity.get("road_component_count", 0))
+	var entrance_connected := bool(connectivity.get("entrance_connected", false))
+	var core_connected := bool(connectivity.get("core_connected", false))
+	var plots_connected := bool(connectivity.get("all_plot_access_connected", false))
+	var buildings_connected := bool(connectivity.get("all_building_front_connected", false))
+	var roads_connected := bool(connectivity.get("all_roads_connected_to_entrance", false))
+	return road_component_count == 1 and entrance_connected and roads_connected and core_connected and plots_connected and buildings_connected
+
+
+func _compiled_road_graph_is_connected(result: Dictionary) -> bool:
+	var compiler: RefCounted = TileSceneCompilerScript.new()
+	var compiled: Dictionary = compiler.compile_session_result({
+		"id": "v62_smoke_compiled",
+		"display_name": "V62 Smoke Compiled",
+		"tile_size": 32,
+	}, result)
+	var errors: Array[String] = compiler.validate_compiled_location(compiled)
+	if not errors.is_empty():
+		return false
+	var connectivity := RoadGraphScript.analyze_compiled_location(compiled)
+	var road_connected := bool(connectivity.get("compiled_road_connected", false))
+	var entrance_connected := bool(connectivity.get("compiled_entrance_connected", false))
+	var core_connected := bool(connectivity.get("compiled_core_connected", false))
+	var plots_connected := bool(connectivity.get("compiled_plot_access_connected", false))
+	var buildings_connected := bool(connectivity.get("compiled_building_front_connected", false))
+	return road_connected and entrance_connected and core_connected and plots_connected and buildings_connected
 
 
 func _trace_has_rejection_from(trace: Dictionary, proposer_id: String) -> bool:
@@ -313,6 +389,8 @@ func _debug_view_renders(result: Dictionary) -> bool:
 		return _fail("v62 debug view must render agent search statistics")
 	if int(summary.get("replay_slice_count", 0)) <= 0:
 		return _fail("v62 debug view must render a selected blueprint replay slice")
+	if int(summary.get("connectivity_line_count", 0)) <= 0:
+		return _fail("v62 debug view must render road connectivity diagnostics")
 	_root.remove_child(view)
 	view.free()
 	return true

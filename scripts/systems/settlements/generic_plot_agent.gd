@@ -11,7 +11,7 @@ func _init(p_plot_bias: String = "road_bias") -> void:
 
 
 func is_active(session) -> bool:
-	if _generic_plot_count(session) >= 3 and not bool(session.evaluation_feedback.get("need_more_generic_plots", false)):
+	if _plot_count(session) >= session.desired_plot_count() and not bool(session.evaluation_feedback.get("need_more_generic_plots", false)):
 		return false
 	return not session.blueprint.roads.is_empty()
 
@@ -59,6 +59,7 @@ func _plot_candidates(session, rejected: Dictionary) -> Array[Dictionary]:
 				score += _bias_score(center, road_cell, session)
 				if bool(session.evaluation_feedback.get("need_more_generic_plots", false)):
 					score += 2.5
+				score *= session.agent_weight(agent_id, "plot")
 				result.append({
 					"area": area,
 					"score": score,
@@ -139,6 +140,7 @@ func _record_search(session, candidates: Array[Dictionary], chosen: Dictionary, 
 		"chosen_cell": chosen_cell,
 		"rejected_reason_distribution": rejected.duplicate(true),
 		"bias": plot_bias,
+		"policy_weight": session.agent_weight(agent_id, "plot"),
 	})
 
 
@@ -175,3 +177,7 @@ func _generic_plot_count(session) -> int:
 		if str(plot.get("status", "")) == "generic":
 			count += 1
 	return count
+
+
+func _plot_count(session) -> int:
+	return session.blueprint.plots.size()

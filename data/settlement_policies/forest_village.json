@@ -1,0 +1,53 @@
+{
+  "policy_id": "forest_village",
+  "settlement_type": "forest_village",
+  "scale": "village",
+  "economy_tags": ["forest", "woodcutting", "workshop"],
+  "road_style": "forest",
+  "density": 0.32,
+  "wealth_level": 1,
+  "defense_level": 0,
+  "required_landmarks": ["public_anchor"],
+  "banned_landmarks": ["mine_gate", "harbor"],
+  "agent_weight_overrides": {
+    "road": 0.85,
+    "plot": 0.80,
+    "generic_plot_agent_core_bias": 0.55,
+    "generic_plot_agent_road_bias": 0.85,
+    "generic_plot_agent_edge_bias": 1.50,
+    "differentiation": 0.95,
+    "footprint": 0.70
+  },
+  "demand_weight_overrides": {
+    "residential": 1.05,
+    "commercial": 0.45,
+    "production": 1.35,
+    "public": 0.85
+  },
+  "plot_use_weight_overrides": {
+    "residential": 1.25,
+    "commercial": 0.45,
+    "production": 1.35,
+    "public": 0.95
+  },
+  "asset_family_preferences": ["wood", "forest"],
+  "gameplay_hook_rules": {
+    "building_type_by_use": {
+      "residential": "wood_house",
+      "commercial": "forest_trader",
+      "production": "woodcutting_workshop"
+    },
+    "interior_template_by_type": {
+      "wood_house": "basic_house_interior",
+      "forest_trader": "basic_shop_interior",
+      "woodcutting_workshop": "basic_workshop_interior"
+    },
+    "asset_family_by_use": {
+      "residential": "wood",
+      "commercial": "forest",
+      "production": "wood"
+    },
+    "require_shop_for_commercial": true
+  },
+  "random_seed": 6402
+}

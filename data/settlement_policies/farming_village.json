@@ -1,0 +1,53 @@
+{
+  "policy_id": "farming_village",
+  "settlement_type": "farming_village",
+  "scale": "village",
+  "economy_tags": ["farming", "storage", "rural"],
+  "road_style": "organic",
+  "density": 0.42,
+  "wealth_level": 1,
+  "defense_level": 0,
+  "required_landmarks": ["public_anchor"],
+  "banned_landmarks": ["fort_gate", "harbor"],
+  "agent_weight_overrides": {
+    "road": 0.95,
+    "plot": 1.10,
+    "generic_plot_agent_core_bias": 0.75,
+    "generic_plot_agent_road_bias": 0.95,
+    "generic_plot_agent_edge_bias": 1.35,
+    "differentiation": 1.05,
+    "footprint": 0.90
+  },
+  "demand_weight_overrides": {
+    "residential": 1.05,
+    "commercial": 0.45,
+    "production": 2.15,
+    "public": 0.65
+  },
+  "plot_use_weight_overrides": {
+    "residential": 1.00,
+    "commercial": 0.40,
+    "production": 2.40,
+    "public": 0.70
+  },
+  "asset_family_preferences": ["farm", "rural", "wood"],
+  "gameplay_hook_rules": {
+    "building_type_by_use": {
+      "residential": "farmhouse",
+      "commercial": "market_stall",
+      "production": "farm_storage"
+    },
+    "interior_template_by_type": {
+      "farmhouse": "basic_house_interior",
+      "market_stall": "basic_shop_interior",
+      "farm_storage": "basic_workshop_interior"
+    },
+    "asset_family_by_use": {
+      "residential": "rural",
+      "commercial": "market",
+      "production": "farm"
+    },
+    "require_shop_for_commercial": true
+  },
+  "random_seed": 6401
+}

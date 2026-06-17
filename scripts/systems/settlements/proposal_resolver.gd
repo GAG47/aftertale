@@ -1,6 +1,8 @@
 class_name ProposalResolver
 extends RefCounted
 
+const RoadGraphScript := preload("res://scripts/systems/settlements/settlement_road_graph.gd")
+
 
 func resolve_step(candidates: Array[PlanProposal], session) -> Array[PlanProposal]:
 	var valid: Array[PlanProposal] = []
@@ -109,6 +111,9 @@ func validate(proposal: PlanProposal, session) -> Array[String]:
 			_validate_area(proposal.area, session, errors, true)
 			if not _area_has_road_access(proposal.area, session):
 				errors.append("generic_plot_missing_road_access")
+			var road_access_cell := _cell_from_variant(proposal.payload.get("road_access_cell", Vector2i(-9999, -9999)))
+			if not _cell_on_main_road(road_access_cell, session):
+				errors.append("generic_plot_access_not_on_main_road:%s" % str(road_access_cell))
 		"differentiate_plot":
 			var plot_id := str(proposal.payload.get("plot_id", ""))
 			var use := str(proposal.payload.get("use", ""))
@@ -120,6 +125,8 @@ func validate(proposal: PlanProposal, session) -> Array[String]:
 				errors.append("plot_not_generic:%s" % plot_id)
 			if not _plot_is_old_enough(plot_id, session, 2):
 				errors.append("plot_not_mature_enough:%s" % plot_id)
+			if not _plot_access_on_main_road(plot_id, session):
+				errors.append("plot_access_not_on_main_road:%s" % plot_id)
 		"add_building_footprint":
 			_validate_area(proposal.area, session, errors, false)
 			var plot_id := str(proposal.payload.get("plot_id", ""))
@@ -136,6 +143,9 @@ func validate(proposal: PlanProposal, session) -> Array[String]:
 			var entrance_cell := _cell_from_variant(proposal.payload.get("entrance_cell", Vector2i(-9999, -9999)))
 			if not _plot_contains_cell(plot_id, entrance_cell, session):
 				errors.append("building_entrance_outside_plot:%s" % str(entrance_cell))
+			var front_access_cell := _cell_from_variant(proposal.payload.get("front_access_cell", Vector2i(-9999, -9999)))
+			if not _cell_on_main_road(front_access_cell, session):
+				errors.append("building_front_access_not_on_main_road:%s" % str(front_access_cell))
 			if _area_fills_plot(proposal.area, plot_id, session):
 				errors.append("building_fills_entire_plot:%s" % plot_id)
 	return errors
@@ -185,6 +195,24 @@ func _area_has_road_access(area: Dictionary, session) -> bool:
 		for direction in [Vector2i.UP, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT]:
 			if session.feature_maps.is_road(cell + direction):
 				return true
+	return false
+
+
+func _cell_on_main_road(cell: Vector2i, session) -> bool:
+	var connectivity := RoadGraphScript.analyze_blueprint(session.blueprint.to_dictionary(), session.context.entrances, session.context.map_size)
+	for cell_value in (connectivity.get("main_road_cells", []) as Array):
+		var main_cell := _cell_from_variant(cell_value)
+		if main_cell == cell:
+			return true
+	return false
+
+
+func _plot_access_on_main_road(plot_id: String, session) -> bool:
+	for plot_value in session.blueprint.plots:
+		var plot: Dictionary = plot_value as Dictionary
+		if str(plot.get("id", "")) != plot_id:
+			continue
+		return _cell_on_main_road(_cell_from_variant(plot.get("road_access_cell", {})), session)
 	return false
 
 

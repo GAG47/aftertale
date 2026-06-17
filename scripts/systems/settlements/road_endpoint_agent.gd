@@ -73,10 +73,12 @@ func _road_segment_candidates(session, endpoints: Array[Dictionary], rejected: D
 			score -= _nearby_road_count(path, session) * 0.7
 			score -= int(endpoint.get("failed_attempts", 0)) * 0.2
 			score -= max(0, session.current_step - int(endpoint.get("last_extended_step", session.current_step))) * 0.02
+			score += _road_style_score(start, end_cell, direction, session)
 			if session.demand_ledger.road_need > 0:
 				score += float(session.demand_ledger.road_need) * 1.5
 			if str(endpoint.get("growth_intent", "")) == "connect_entrance":
 				score += 12.0 / maxf(1.0, float(_nearest_core_distance(end_cell, session)))
+			score *= session.agent_weight(agent_id, "road")
 			result.append({
 				"endpoint": endpoint,
 				"path": path,
@@ -179,6 +181,8 @@ func _record_search(session, endpoint_count: int, candidates: Array[Dictionary],
 		"chosen_score": float(chosen.get("score", 0.0)) if not chosen.is_empty() else 0.0,
 		"chosen_cell": chosen_cell,
 		"rejected_reason_distribution": rejected.duplicate(true),
+		"road_style": session.policy.road_style,
+		"policy_weight": session.agent_weight(agent_id, "road"),
 	})
 
 
@@ -200,6 +204,28 @@ func _direction_toward_nearest_core(from_cell: Vector2i, session) -> Vector2i:
 	if absi(delta.x) >= absi(delta.y):
 		return Vector2i(1 if delta.x >= 0 else -1, 0)
 	return Vector2i(0, 1 if delta.y >= 0 else -1)
+
+
+func _road_style_score(start: Vector2i, end_cell: Vector2i, direction: Vector2i, session) -> float:
+	match session.policy.road_style:
+		"linear", "roadside":
+			var entrance_y := session.context.entrances[0].y if not session.context.entrances.is_empty() else start.y
+			var alignment := 6.0 / maxf(1.0, float(absi(end_cell.y - entrance_y) + 1))
+			return alignment + (1.2 if direction.x != 0 else -0.4)
+		"forest", "natural":
+			return 0.8 if direction.y != 0 else 0.2
+		"resource":
+			return _resource_direction_score(end_cell, session)
+		_:
+			return 0.0
+
+
+func _resource_direction_score(end_cell: Vector2i, session) -> float:
+	var best := 99
+	for point_value in session.context.important_world_points:
+		var point: Vector2i = point_value as Vector2i
+		best = min(best, absi(end_cell.x - point.x) + absi(end_cell.y - point.y))
+	return 8.0 / maxf(1.0, float(best))
 
 
 func _nearest_core_distance(cell: Vector2i, session) -> int:

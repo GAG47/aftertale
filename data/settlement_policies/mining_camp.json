@@ -1,0 +1,53 @@
+{
+  "policy_id": "mining_camp",
+  "settlement_type": "mining_camp",
+  "scale": "camp",
+  "economy_tags": ["mining", "warehouse", "worker_housing"],
+  "road_style": "resource",
+  "density": 0.56,
+  "wealth_level": 1,
+  "defense_level": 1,
+  "required_landmarks": [],
+  "banned_landmarks": ["harbor", "garden_plaza"],
+  "agent_weight_overrides": {
+    "road": 1.20,
+    "plot": 1.10,
+    "generic_plot_agent_core_bias": 0.80,
+    "generic_plot_agent_road_bias": 1.15,
+    "generic_plot_agent_edge_bias": 1.25,
+    "differentiation": 1.15,
+    "footprint": 1.15
+  },
+  "demand_weight_overrides": {
+    "residential": 1.35,
+    "commercial": 0.50,
+    "production": 2.35,
+    "public": 0.35
+  },
+  "plot_use_weight_overrides": {
+    "residential": 1.45,
+    "commercial": 0.45,
+    "production": 2.50,
+    "public": 0.40
+  },
+  "asset_family_preferences": ["mine", "stone", "wood"],
+  "gameplay_hook_rules": {
+    "building_type_by_use": {
+      "residential": "worker_housing",
+      "commercial": "supply_shop",
+      "production": "warehouse"
+    },
+    "interior_template_by_type": {
+      "worker_housing": "basic_house_interior",
+      "supply_shop": "basic_shop_interior",
+      "warehouse": "basic_workshop_interior"
+    },
+    "asset_family_by_use": {
+      "residential": "worker_camp",
+      "commercial": "supply",
+      "production": "mine"
+    },
+    "require_shop_for_commercial": true
+  },
+  "random_seed": 6404
+}
