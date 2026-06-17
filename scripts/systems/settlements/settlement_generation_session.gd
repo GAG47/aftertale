@@ -42,6 +42,7 @@ func _init(p_policy: SettlementPolicy = null, p_context: SettlementContext = nul
 	evaluator = SettlementEvaluator.new()
 	trace = GenerationTrace.new()
 	demand_ledger = DemandLedgerScript.new()
+	demand_ledger.configure(policy, context)
 
 
 func run() -> Dictionary:
@@ -122,7 +123,7 @@ func _initialize_run() -> void:
 	evaluation_feedback.clear()
 	_agent_commit_counts.clear()
 	agent_weight_summary.clear()
-	demand_ledger.reset(policy)
+	demand_ledger.reset(policy, context)
 	_rng.seed = _resolve_seed()
 	feature_maps.initialize(context)
 	blueprint = SettlementBlueprint.new()
@@ -175,18 +176,31 @@ func demand_weight(use: String) -> float:
 
 
 func desired_plot_count() -> int:
-	var map_area := float(context.map_size.x * context.map_size.y)
-	var area_factor := clampf(map_area / 280.0, 1.0, 4.0)
-	var density_factor := clampf(policy.density / 0.45, 0.65, 1.65)
+	var usable_area := float(_usable_cell_count())
+	var spatial_target := int(round((usable_area / 36.0) * clampf(policy.density, 0.18, 1.20) * _scale_factor()))
 	var weighted_need := 0.0
 	var desired: Dictionary = demand_ledger.to_dictionary().get("desired_counts", {}) as Dictionary
 	for value in desired.values():
 		weighted_need += float(value)
-	return clampi(int(round(maxf(6.0, weighted_need + area_factor * density_factor))), 5, 18)
+	return max(6, int(round(maxf(weighted_need, float(spatial_target)))))
 
 
 func building_fill_ratio() -> float:
-	return clampf(0.30 + policy.density * 0.65, 0.35, 0.82)
+	return clampf(0.24 + policy.density * 0.62, 0.32, 0.86)
+
+
+func recommended_step_budget() -> int:
+	var plot_target := desired_plot_count()
+	var road_span := int(round(sqrt(float(max(1, context.map_size.x * context.map_size.y))) * (0.9 + policy.density)))
+	return max(DEFAULT_MAX_BLUEPRINT_STEPS, plot_target * 3 + road_span)
+
+
+func candidate_sample_count(candidate_count: int, baseline: int) -> int:
+	if candidate_count <= 0:
+		return 0
+	var target_factor := sqrt(float(max(1, desired_plot_count())) / 12.0)
+	var scaled := int(ceil(float(baseline) * maxf(1.0, target_factor)))
+	return min(candidate_count, max(baseline, scaled))
 
 
 func asset_family_for_use(use: String) -> String:
@@ -232,15 +246,24 @@ func hook_rule(key: String, default_value: Variant = null) -> Variant:
 
 func _apply_policy_to_agents() -> void:
 	for agent in active_agents:
-		var family := _agent_family(agent.agent_id)
-		var weight := agent_weight(agent.agent_id, family)
-		var original_max := agent.spec.max_commits
+		var family: String = _agent_family(agent.agent_id)
+		var weight: float = agent_weight(agent.agent_id, family)
+		var original_max: int = int(agent.spec.max_commits)
 		if weight <= 0.0:
 			agent.spec.max_commits = 0
 		elif agent.agent_id.begins_with("invalid_"):
 			agent.spec.max_commits = original_max
 		else:
 			agent.spec.max_commits = max(1, int(round(float(original_max) * weight)))
+			var plot_target := desired_plot_count()
+			if family == "road":
+				agent.spec.max_commits = max(agent.spec.max_commits, int(ceil(float(plot_target) * 0.75)))
+			elif family == "plot":
+				agent.spec.max_commits = max(agent.spec.max_commits, int(ceil(float(plot_target) / 2.0)))
+			elif family == "differentiation":
+				agent.spec.max_commits = max(agent.spec.max_commits, plot_target)
+			elif family == "footprint":
+				agent.spec.max_commits = max(agent.spec.max_commits, int(ceil(float(plot_target) * building_fill_ratio())))
 			if family == "plot" or family == "footprint":
 				agent.spec.max_commits = max(1, int(round(float(agent.spec.max_commits) * clampf(policy.density / 0.45, 0.65, 1.55))))
 			if weight >= 1.4 and agent.spec.activation_interval > 1:
@@ -268,3 +291,19 @@ func _agent_family(agent_id: String) -> String:
 	if agent_id.begins_with("core"):
 		return "core"
 	return agent_id
+
+
+func _usable_cell_count() -> int:
+	return max(1, context.map_size.x * context.map_size.y - context.existing_obstacles.size() - context.existing_water.size())
+
+
+func _scale_factor() -> float:
+	match policy.scale:
+		"camp":
+			return 0.78
+		"town":
+			return 1.45
+		"city":
+			return 2.20
+		_:
+			return 1.0

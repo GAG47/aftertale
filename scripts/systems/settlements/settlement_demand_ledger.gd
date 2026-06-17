@@ -15,22 +15,27 @@ var desired_counts: Dictionary = {
 var demand_weights: Dictionary = {}
 
 
-func configure(policy: SettlementPolicy) -> void:
+func configure(policy: SettlementPolicy, context: SettlementContext = null) -> void:
 	demand_weights = policy.demand_weight_overrides.duplicate(true)
-	var density_factor := clampf(policy.density / 0.45, 0.65, 1.65)
+	var density_factor: float = clampf(policy.density / 0.45, 0.65, 1.65)
+	var area_factor: float = 1.0
+	if context != null:
+		var usable_area: float = maxf(1.0, float(context.map_size.x * context.map_size.y - context.existing_obstacles.size() - context.existing_water.size()))
+		area_factor = maxf(1.0, sqrt(usable_area / 280.0))
+	var scale_factor: float = _scale_factor(policy.scale)
 	desired_counts = {
-		"residential": _desired_count("residential", 4, density_factor),
-		"commercial": _desired_count("commercial", 2, density_factor),
-		"production": _desired_count("production", 2, density_factor),
-		"public": _desired_count("public", 1, density_factor),
+		"residential": _desired_count("residential", 4, density_factor, area_factor, scale_factor),
+		"commercial": _desired_count("commercial", 2, density_factor, area_factor, scale_factor),
+		"production": _desired_count("production", 2, density_factor, area_factor, scale_factor),
+		"public": _desired_count("public", 1, density_factor, area_factor, scale_factor),
 	}
 	if policy.required_landmarks.size() > 0:
 		desired_counts["public"] = max(1, int(desired_counts.get("public", 1)))
 
 
-func reset(policy: SettlementPolicy = null) -> void:
+func reset(policy: SettlementPolicy = null, context: SettlementContext = null) -> void:
 	if policy != null:
-		configure(policy)
+		configure(policy, context)
 	housing_need = int(desired_counts.get("residential", 4))
 	commerce_need = int(desired_counts.get("commercial", 2))
 	production_need = int(desired_counts.get("production", 2))
@@ -78,12 +83,24 @@ func to_dictionary() -> Dictionary:
 	}
 
 
-func _desired_count(use: String, base_count: int, density_factor: float) -> int:
+func _desired_count(use: String, base_count: int, density_factor: float, area_factor: float, scale_factor: float) -> int:
 	var weight := float(demand_weights.get(use, 1.0))
-	var count := int(round(float(base_count) * density_factor * weight))
+	var count := int(round(float(base_count) * density_factor * area_factor * scale_factor * weight))
 	if use == "public":
 		return max(0, count)
 	return max(1, count)
+
+
+func _scale_factor(scale: String) -> float:
+	match scale:
+		"camp":
+			return 0.78
+		"town":
+			return 1.45
+		"city":
+			return 2.20
+		_:
+			return 1.0
 
 
 func _plot_use_counts(session) -> Dictionary:

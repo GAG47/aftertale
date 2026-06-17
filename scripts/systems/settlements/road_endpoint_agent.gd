@@ -15,7 +15,8 @@ func propose(session) -> Array[PlanProposal]:
 	var rejected := {}
 	var endpoints := _endpoint_rows(session)
 	var candidates := _road_segment_candidates(session, endpoints, rejected)
-	var best := _best_sample(candidates, session, 8)
+	var sample_count: int = session.candidate_sample_count(candidates.size(), 8)
+	var best := _best_sample(candidates, session, sample_count)
 	_record_search(session, endpoints.size(), candidates, best, rejected)
 	if best.is_empty():
 		return []
@@ -76,6 +77,8 @@ func _road_segment_candidates(session, endpoints: Array[Dictionary], rejected: D
 			score += _road_style_score(start, end_cell, direction, session)
 			if session.demand_ledger.road_need > 0:
 				score += float(session.demand_ledger.road_need) * 1.5
+			if bool(session.evaluation_feedback.get("entrance_disconnected", false)):
+				score += 14.0 / maxf(1.0, session.feature_maps.get_value("entrance_distance", end_cell, 99.0))
 			if str(endpoint.get("growth_intent", "")) == "connect_entrance":
 				score += 12.0 / maxf(1.0, float(_nearest_core_distance(end_cell, session)))
 			score *= session.agent_weight(agent_id, "road")
@@ -176,7 +179,7 @@ func _record_search(session, endpoint_count: int, candidates: Array[Dictionary],
 	session.trace.record_agent_search(session.current_step, agent_id, {
 		"endpoints_count": endpoint_count,
 		"valid_candidates_count": candidates.size(),
-		"sampled_candidates_count": min(8, candidates.size()),
+		"sampled_candidates_count": session.candidate_sample_count(candidates.size(), 8),
 		"top_score": top_score if not candidates.is_empty() else 0.0,
 		"chosen_score": float(chosen.get("score", 0.0)) if not chosen.is_empty() else 0.0,
 		"chosen_cell": chosen_cell,
@@ -209,8 +212,8 @@ func _direction_toward_nearest_core(from_cell: Vector2i, session) -> Vector2i:
 func _road_style_score(start: Vector2i, end_cell: Vector2i, direction: Vector2i, session) -> float:
 	match session.policy.road_style:
 		"linear", "roadside":
-			var entrance_y := session.context.entrances[0].y if not session.context.entrances.is_empty() else start.y
-			var alignment := 6.0 / maxf(1.0, float(absi(end_cell.y - entrance_y) + 1))
+			var entrance_y: int = int(session.context.entrances[0].y) if not session.context.entrances.is_empty() else start.y
+			var alignment: float = 6.0 / maxf(1.0, float(absi(end_cell.y - entrance_y) + 1))
 			return alignment + (1.2 if direction.x != 0 else -0.4)
 		"forest", "natural":
 			return 0.8 if direction.y != 0 else 0.2

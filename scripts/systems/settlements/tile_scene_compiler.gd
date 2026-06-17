@@ -20,6 +20,7 @@ func generate_location(source_data: Dictionary) -> Dictionary:
 		context_data = _default_context_data(generator_data)
 	var context := SettlementContext.from_dictionary(context_data)
 	var session := SettlementGenerationSession.new(policy, context)
+	session.max_blueprint_steps = int(generator_data.get("max_blueprint_steps", session.recommended_step_budget()))
 	var session_result: Dictionary = session.run()
 	return compile_session_result(source_data, session_result)
 
@@ -211,7 +212,8 @@ func _add_player_spawn(context: Dictionary) -> void:
 	var entrance_cell := Vector2i(0, int(_height / 2))
 	if not entrances.is_empty():
 		entrance_cell = _cell_from_variant(entrances[0])
-	_set_tile(entrance_cell, "e")
+	if _tile_at(entrance_cell) != "p":
+		_set_tile(entrance_cell, "e")
 	(_compiled.get("entrances", []) as Array).append({
 		"id": "main_entrance",
 		"grid_position": _dict_cell(entrance_cell),
@@ -319,6 +321,12 @@ func _set_tile(cell: Vector2i, key: String) -> void:
 	(_tiles[cell.y] as Array)[cell.x] = key
 
 
+func _tile_at(cell: Vector2i) -> String:
+	if not _in_bounds(cell):
+		return ""
+	return str((_tiles[cell.y] as Array)[cell.x])
+
+
 func _paint_square(center: Vector2i, radius: int, key: String) -> void:
 	for y in range(center.y - radius, center.y + radius + 1):
 		for x in range(center.x - radius, center.x + radius + 1):
@@ -352,54 +360,71 @@ func _apply_blueprint_anchors(blueprint: Dictionary) -> void:
 		if anchor_id.is_empty() or seen.has(anchor_id):
 			continue
 		var cell := _cell_from_variant(anchor.get("cell", {}))
-		(_compiled.get("anchors", []) as Array).append({
+		var row := {
 			"id": anchor_id,
 			"kind": str(anchor.get("kind", "")),
 			"grid_position": _dict_cell(cell),
 			"facing": _facing_for_anchor(str(anchor.get("kind", ""))),
 			"source_blueprint_id": str(anchor.get("source_id", "")),
 			"step": int(anchor.get("step", -1)),
-		})
+		}
+		var activity_cells := _activity_cells_around(cell)
+		if not activity_cells.is_empty():
+			row["activity_cells"] = activity_cells
+		(_compiled.get("anchors", []) as Array).append(row)
 		seen[anchor_id] = true
 
 
 func _apply_gameplay_hooks(blueprint: Dictionary, session_result: Dictionary) -> void:
-	var npc_anchor := ""
-	var npc_cell := Vector2i(-1, -1)
-	var public_anchor := ""
-	var generated_shop_id := ""
+	var home_points: Array[Dictionary] = []
+	var work_points: Array[Dictionary] = []
+	var public_points: Array[Dictionary] = []
+	var shop_buildings: Array[Dictionary] = []
 	var building_rows: Array = blueprint.get("buildings", []) as Array
 	for building_value in building_rows:
 		var building: Dictionary = building_value as Dictionary
 		_add_building_interaction_object(building)
-		if str(building.get("use_type", "")) == "commercial":
-			generated_shop_id = _add_shop_hook_object(building)
-		if npc_anchor.is_empty():
-			npc_anchor = _first_non_empty([
-				str(building.get("npc_work_anchor", "")),
-				str(building.get("npc_home_anchor", "")),
-				str(building.get("interaction_anchor", "")),
-			])
-			npc_cell = _cell_from_variant(building.get("entrance_cell", {}))
+		match str(building.get("use_type", "")):
+			"residential":
+				home_points.append(_building_schedule_point(building, "npc_home_anchor", "home"))
+			"commercial":
+				work_points.append(_building_schedule_point(building, "npc_work_anchor", "work"))
+				shop_buildings.append(building)
+			"production":
+				work_points.append(_building_schedule_point(building, "npc_work_anchor", "work"))
 	for plot_value in (blueprint.get("plots", []) as Array):
 		var plot: Dictionary = plot_value as Dictionary
 		if str(plot.get("use", "")) != "public":
 			continue
-		public_anchor = str(plot.get("npc_gather_anchor", plot.get("public_anchor", "")))
+		public_points.append(_public_schedule_point(plot))
 		_add_public_hook_object(plot)
-		if npc_anchor.is_empty():
-			npc_anchor = public_anchor
-			npc_cell = _area_center(plot.get("area", {}) as Dictionary)
-	if not npc_anchor.is_empty() and npc_cell.x >= 0:
-		_add_generated_npc(npc_anchor, npc_cell, generated_shop_id, session_result)
+
+	var npc_specs := _npc_specs(home_points, work_points, public_points, session_result)
+	var vendor_by_building: Dictionary = {}
+	for spec_value in npc_specs:
+		var spec: Dictionary = spec_value as Dictionary
+		var work_point: Dictionary = spec.get("work", {}) as Dictionary
+		var building_id := str(work_point.get("building_id", ""))
+		if not building_id.is_empty() and not vendor_by_building.has(building_id):
+			vendor_by_building[building_id] = str(spec.get("id", ""))
+	var fallback_vendor := str((npc_specs[0] as Dictionary).get("id", "")) if not npc_specs.is_empty() else ""
+	for building in shop_buildings:
+		var vendor_id := str(vendor_by_building.get(str(building.get("id", "")), fallback_vendor))
+		_add_shop_hook_object(building, vendor_id)
+	for spec in npc_specs:
+		_add_generated_npc(spec, session_result)
 
 
 func _add_building_interaction_object(building: Dictionary) -> void:
 	var building_id := str(building.get("id", ""))
 	var template_id := str(building.get("interior_template_id", ""))
 	var entrance_cell := _cell_from_variant(building.get("entrance_cell", {}))
+	var front_access_cell := _cell_from_variant(building.get("front_access_cell", entrance_cell))
 	if building_id.is_empty() or template_id.is_empty() or entrance_cell.x < 0:
 		return
+	var return_entrance_id := "return_%s" % building_id
+	_add_entrance(return_entrance_id, front_access_cell, _facing_toward(front_access_cell, entrance_cell))
+	_add_anchor("exterior_door_%s" % building_id, "exterior_door", entrance_cell, _facing_toward(entrance_cell, front_access_cell))
 	(_compiled.get("objects", []) as Array).append({
 		"id": "door_%s" % building_id,
 		"display_name": _building_display_name(building),
@@ -411,11 +436,13 @@ func _add_building_interaction_object(building: Dictionary) -> void:
 		"facility_type": "scene_transition",
 		"target_scene_path": GENERATED_INTERIOR_SCENE,
 		"target_entrance_id": "entry",
-		"return_entrance_id": "main_entrance",
+		"return_entrance_id": return_entrance_id,
 		"interior_template_id": template_id,
 		"source_blueprint_id": building_id,
 		"transition_context": {
 			"interior_template_id": template_id,
+			"interior_location_id": "%s__interior_%s" % [str(_compiled.get("id", "generated_settlement")), building_id],
+			"exterior_return_entrance_id": return_entrance_id,
 			"source_building_id": building_id,
 			"use_type": str(building.get("use_type", "")),
 		},
@@ -423,7 +450,7 @@ func _add_building_interaction_object(building: Dictionary) -> void:
 	})
 
 
-func _add_shop_hook_object(building: Dictionary) -> String:
+func _add_shop_hook_object(building: Dictionary, vendor_id: String) -> String:
 	var shop_anchor := str(building.get("shop_anchor", ""))
 	if shop_anchor.is_empty():
 		return ""
@@ -443,8 +470,8 @@ func _add_shop_hook_object(building: Dictionary) -> String:
 		"is_inspectable": true,
 		"is_usable": true,
 		"facility_type": "shop",
-		"shop_id": "field_stall",
-		"vendor_character_id": "generated_settlement_npc_00",
+		"shop_id": shop_id,
+		"vendor_character_id": vendor_id,
 		"source_blueprint_id": str(building.get("id", "")),
 		"source_anchor_id": shop_anchor,
 		"inspect_text": "A generated commercial hook bound to %s." % shop_anchor,
@@ -472,34 +499,134 @@ func _add_public_hook_object(plot: Dictionary) -> void:
 	})
 
 
-func _add_generated_npc(anchor_id: String, cell: Vector2i, shop_id: String, session_result: Dictionary) -> void:
+func _building_schedule_point(building: Dictionary, anchor_key: String, activity_type: String) -> Dictionary:
+	var anchor_id := str(building.get(anchor_key, ""))
+	if anchor_id.is_empty():
+		anchor_id = "building_entrance_%s" % str(building.get("id", ""))
+	return {
+		"anchor_id": anchor_id,
+		"cell": building.get("entrance_cell", {}),
+		"building_id": str(building.get("id", "")),
+		"use_type": str(building.get("use_type", "")),
+		"activity_type": activity_type,
+	}
+
+
+func _public_schedule_point(plot: Dictionary) -> Dictionary:
+	var anchor_id := str(plot.get("npc_gather_anchor", plot.get("public_anchor", "")))
+	return {
+		"anchor_id": anchor_id,
+		"cell": _dict_cell(_area_center(plot.get("area", {}) as Dictionary)),
+		"plot_id": str(plot.get("id", "")),
+		"use_type": "public",
+		"activity_type": "social",
+	}
+
+
+func _npc_specs(home_points: Array[Dictionary], work_points: Array[Dictionary], public_points: Array[Dictionary], _session_result: Dictionary) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var count: int = max(home_points.size(), work_points.size())
+	if count <= 0:
+		count = public_points.size()
+	if count <= 0:
+		return result
+	for index in range(count):
+		var home := _point_at(home_points, index, _fallback_point(work_points, public_points))
+		var work := _point_at(work_points, index, home)
+		var social := _point_at(public_points, index, work)
+		var spec := {
+			"id": "generated_settlement_npc_%02d" % index,
+			"home": home,
+			"work": work,
+			"social": social,
+			"shop_id": "",
+		}
+		result.append(spec)
+	return result
+
+
+func _point_at(points: Array[Dictionary], index: int, fallback: Dictionary) -> Dictionary:
+	if points.is_empty():
+		return fallback.duplicate(true)
+	return (points[index % points.size()] as Dictionary).duplicate(true)
+
+
+func _fallback_point(primary: Array[Dictionary], secondary: Array[Dictionary]) -> Dictionary:
+	if not primary.is_empty():
+		return (primary[0] as Dictionary).duplicate(true)
+	if not secondary.is_empty():
+		return (secondary[0] as Dictionary).duplicate(true)
+	return {}
+
+
+func _active_schedule_point_for_current_time(home: Dictionary, work: Dictionary, social: Dictionary) -> Dictionary:
+	var minute := TimeManager.get_absolute_minutes() % TimeManager.MINUTES_PER_DAY
+	if minute >= TimeManager.parse_time_to_minute("06:00") and minute <= TimeManager.parse_time_to_minute("11:59"):
+		var work_point := work.duplicate(true)
+		work_point["activity_type"] = "work"
+		work_point["activity"] = "working at generated settlement"
+		return work_point
+	if minute >= TimeManager.parse_time_to_minute("12:00") and minute <= TimeManager.parse_time_to_minute("17:59"):
+		var social_point := social.duplicate(true)
+		social_point["activity_type"] = "social"
+		social_point["activity"] = "using generated public space"
+		return social_point
+	var home_point := home.duplicate(true)
+	home_point["activity_type"] = "idle"
+	home_point["activity"] = "resting at generated home"
+	return home_point
+
+
+func _add_generated_npc(spec: Dictionary, session_result: Dictionary) -> void:
 	var location_id := str(_compiled.get("id", "generated_settlement"))
+	var home: Dictionary = spec.get("home", {}) as Dictionary
+	var work: Dictionary = spec.get("work", {}) as Dictionary
+	var social: Dictionary = spec.get("social", {}) as Dictionary
+	var spawn_point := _active_schedule_point_for_current_time(home, work, social)
 	var schedule := [
-		_schedule_row("generated_morning_work", "06:00", "11:59", location_id, anchor_id, cell, "work", "working at generated settlement"),
-		_schedule_row("generated_afternoon_social", "12:00", "17:59", location_id, anchor_id, cell, "social", "using generated activity point"),
-		_schedule_row("generated_evening_rest", "18:00", "05:59", location_id, anchor_id, cell, "idle", "resting near generated anchor"),
+		_schedule_row("generated_morning_work", "06:00", "11:59", location_id, str(work.get("anchor_id", "")), _cell_from_variant(work.get("cell", {})), "work", "working at generated settlement"),
+		_schedule_row("generated_afternoon_social", "12:00", "17:59", location_id, str(social.get("anchor_id", "")), _cell_from_variant(social.get("cell", {})), "social", "using generated public space"),
+		_schedule_row("generated_evening_home", "18:00", "05:59", location_id, str(home.get("anchor_id", "")), _cell_from_variant(home.get("cell", {})), "idle", "resting at generated home"),
 	]
 	(_compiled.get("characters", []) as Array).append({
-		"id": "generated_settlement_npc_00",
+		"id": str(spec.get("id", "")),
 		"display_name": "Generated Settler",
 		"source": "res://data/characters/debug_villager.json",
-		"grid_position": _dict_cell(cell),
+		"grid_position": _dict_cell(_cell_from_variant(spawn_point.get("cell", {}))),
 		"facing": "down",
-		"anchor_id": anchor_id,
-		"activity_type": "work",
-		"activity": "working at generated settlement",
+		"anchor_id": str(spawn_point.get("anchor_id", "")),
+		"activity_type": str(spawn_point.get("activity_type", "idle")),
+		"activity": str(spawn_point.get("activity", "generated settlement activity")),
 		"schedule": schedule,
 		"generated_from_blueprint": true,
-		"source_anchor_id": anchor_id,
-		"shop_id": shop_id,
+		"source_anchor_id": str(spawn_point.get("anchor_id", "")),
+		"shop_id": str(spec.get("shop_id", "")),
 		"policy_id": str((session_result.get("policy", {}) as Dictionary).get("policy_id", "")),
 	})
 
 
 func _add_anchor(anchor_id: String, kind: String, cell: Vector2i, facing: String) -> void:
-	(_compiled.get("anchors", []) as Array).append({
+	var row := {
 		"id": anchor_id,
 		"kind": kind,
+		"grid_position": _dict_cell(cell),
+		"facing": facing,
+	}
+	var activity_cells := _activity_cells_around(cell)
+	if not activity_cells.is_empty():
+		row["activity_cells"] = activity_cells
+	(_compiled.get("anchors", []) as Array).append(row)
+
+
+func _add_entrance(entrance_id: String, cell: Vector2i, facing: String) -> void:
+	if entrance_id.is_empty() or cell.x < 0:
+		return
+	for entrance_value in (_compiled.get("entrances", []) as Array):
+		var entrance: Dictionary = entrance_value as Dictionary
+		if str(entrance.get("id", "")) == entrance_id:
+			return
+	(_compiled.get("entrances", []) as Array).append({
+		"id": entrance_id,
 		"grid_position": _dict_cell(cell),
 		"facing": facing,
 	})
@@ -697,6 +824,25 @@ func _facing_for_anchor(kind: String) -> String:
 			return "right"
 		_:
 			return "down"
+
+
+func _facing_toward(from_cell: Vector2i, to_cell: Vector2i) -> String:
+	var delta := to_cell - from_cell
+	if absi(delta.x) >= absi(delta.y):
+		return "right" if delta.x >= 0 else "left"
+	return "down" if delta.y >= 0 else "up"
+
+
+func _activity_cells_around(cell: Vector2i) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for direction in [Vector2i.UP, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT]:
+		var candidate: Vector2i = cell + direction
+		if not _in_bounds(candidate):
+			continue
+		if _tile_at(candidate) in ["", "h"]:
+			continue
+		result.append(_dict_cell(candidate))
+	return result
 
 
 func _first_non_empty(values: Array) -> String:

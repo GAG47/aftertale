@@ -16,7 +16,7 @@ func propose(session) -> Array[PlanProposal]:
 	for plot in _generic_plots(session):
 		for use in ["residential", "commercial", "production", "public"]:
 			candidates.append(_bid_candidate(plot, use, session))
-	var sampled := _sample_candidates(candidates, session, 12)
+	var sampled := _sample_candidates(candidates, session, session.candidate_sample_count(candidates.size(), 12))
 	_record_search(session, candidates, sampled)
 	var result: Array[PlanProposal] = []
 	for candidate in sampled:
@@ -67,7 +67,7 @@ func _score_residential(plot: Dictionary, session) -> float:
 
 func _score_commercial(plot: Dictionary, session) -> float:
 	var access := _cell_from_variant(plot.get("road_access_cell", {}))
-	var score := _junction_score(access, session) * 2.0 + session.feature_maps.get_value("land_value", access, 0.0)
+	var score: float = _junction_score(access, session) * 2.0 + session.feature_maps.get_value("land_value", access, 0.0)
 	if session.policy.road_style in ["linear", "roadside"]:
 		score += 2.0 / maxf(1.0, session.feature_maps.get_value("entrance_distance", access, 99.0))
 	return score
@@ -77,7 +77,7 @@ func _score_production(plot: Dictionary, session) -> float:
 	var center := _area_center(plot.get("area", {}) as Dictionary)
 	var edge: float = 8.0 - session.feature_maps.get_value("edge_distance", center, 0.0)
 	var entrance: float = 10.0 / maxf(1.0, session.feature_maps.get_value("entrance_distance", center, 99.0))
-	var score := edge + entrance
+	var score: float = edge + entrance
 	if "mining" in session.policy.economy_tags:
 		score += _resource_distance_score(center, session)
 	if "farming" in session.policy.economy_tags and session.feature_maps.get_value("center_distance", center, 99.0) < 4.0:
@@ -98,12 +98,12 @@ func _score_public(plot: Dictionary, session) -> float:
 func _bid_candidate(plot: Dictionary, use: String, session) -> Dictionary:
 	var center := _area_center(plot.get("area", {}) as Dictionary)
 	var access := _cell_from_variant(plot.get("road_access_cell", {}))
-	var road_access_score := _junction_score(access, session)
-	var core_distance_score := 10.0 / maxf(1.0, session.feature_maps.get_value("center_distance", center, 99.0))
-	var public_need_score := float(session.demand_ledger.public_need) * 4.0 if use == "public" else 0.0
-	var policy_weight := session.plot_use_weight(use) * session.demand_weight(use)
+	var road_access_score: float = _junction_score(access, session)
+	var core_distance_score: float = 10.0 / maxf(1.0, session.feature_maps.get_value("center_distance", center, 99.0))
+	var public_need_score: float = float(session.demand_ledger.public_need) * 4.0 if use == "public" else 0.0
+	var policy_weight: float = session.plot_use_weight(use) * session.demand_weight(use)
 	var nearby_types := _nearby_types(plot, session)
-	var score := 0.0
+	var score: float = 0.0
 	match use:
 		"residential":
 			score = _score_residential(plot, session)

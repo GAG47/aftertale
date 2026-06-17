@@ -18,15 +18,16 @@ func propose(session) -> Array[PlanProposal]:
 	var rejected := {}
 	for plot in _plots_without_buildings(session):
 		candidates.append_array(_footprint_candidates(plot, session, rejected))
-	var best := _best_sample(candidates, session, 8)
+	var sample_count: int = session.candidate_sample_count(candidates.size(), 8)
+	var best := _best_sample(candidates, session, sample_count)
 	_record_search(session, candidates, best, rejected)
 	if best.is_empty():
 		return []
 	var area: Dictionary = best.get("area", {}) as Dictionary
 	var plot: Dictionary = best.get("plot", {}) as Dictionary
 	var use := str(plot.get("use", "residential"))
-	var building_type := session.building_type_for_use(use)
-	var gameplay_hooks := _gameplay_hooks(building_type, use, best, session)
+	var building_type: String = session.building_type_for_use(use)
+	var gameplay_hooks: Dictionary = _gameplay_hooks(building_type, use, best, session)
 	var proposal := PlanProposal.create(agent_id, "add_building_footprint", session.current_step, "footprint", "Choose a footprint inside a differentiated plot with road-facing entrance space.", 50)
 	proposal.proposal_id = session.next_proposal_id(agent_id)
 	proposal.area = area
@@ -170,7 +171,7 @@ func _record_search(session, candidates: Array[Dictionary], chosen: Dictionary, 
 		chosen_cell = { "x": entrance.x, "y": entrance.y }
 	session.trace.record_agent_search(session.current_step, agent_id, {
 		"valid_candidates_count": candidates.size(),
-		"sampled_candidates_count": min(8, candidates.size()),
+		"sampled_candidates_count": session.candidate_sample_count(candidates.size(), 8),
 		"top_score": top_score if not candidates.is_empty() else 0.0,
 		"chosen_score": float(chosen.get("score", 0.0)) if not chosen.is_empty() else 0.0,
 		"chosen_cell": chosen_cell,
@@ -192,8 +193,8 @@ func _presentation_note(use: String, area: Dictionary) -> String:
 
 
 func _gameplay_hooks(building_type: String, use: String, candidate: Dictionary, session) -> Dictionary:
-	var index := session.blueprint.buildings.size()
-	var prefix := "building_%02d" % index
+	var index: int = session.blueprint.buildings.size()
+	var prefix: String = "building_%02d" % index
 	var result := {
 		"interaction_anchor": "interaction_%s" % prefix,
 		"quest_anchor": "",

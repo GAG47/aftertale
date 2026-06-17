@@ -223,7 +223,7 @@ func _default_debug_result() -> Dictionary:
 		"world_seed": 6217,
 	})
 	var session := SettlementGenerationSession.new(policy, context)
-	session.max_blueprint_steps = 32
+	session.max_blueprint_steps = session.recommended_step_budget()
 	return session.run()
 
 
@@ -258,7 +258,7 @@ func _debug_result_for_policy(policy_id: String) -> Dictionary:
 		"world_seed": policy.seed_override if policy.seed_override >= 0 else policy.random_seed,
 	})
 	var session := SettlementGenerationSession.new(policy, context)
-	session.max_blueprint_steps = 32
+	session.max_blueprint_steps = session.recommended_step_budget()
 	return session.run()
 
 

@@ -10,7 +10,7 @@
   "required_landmarks": ["public_anchor"],
   "banned_landmarks": ["mine_gate", "harbor"],
   "agent_weight_overrides": {
-    "road": 0.85,
+    "road": 1.20,
     "plot": 0.80,
     "generic_plot_agent_core_bias": 0.55,
     "generic_plot_agent_road_bias": 0.85,
@@ -49,5 +49,5 @@
     },
     "require_shop_for_commercial": true
   },
-  "random_seed": 6402
+  "random_seed": 6217
 }

@@ -40,6 +40,10 @@ func load_resolved_location(resource_path: String, context: Dictionary = {}) -> 
 	var location_data: Dictionary = load_location(resource_path)
 	if location_data.is_empty():
 		return {}
+	var location_id := str(location_data.get("id", ""))
+	if context.is_empty() and not location_id.is_empty() and _resolved_locations_by_id.has(location_id):
+		if str(_location_data_path_by_id.get(location_id, "")) == resource_path:
+			return (_resolved_locations_by_id[location_id] as Dictionary).duplicate(true)
 
 	return materialize_location(location_data, resource_path, context)
 

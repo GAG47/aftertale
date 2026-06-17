@@ -55,10 +55,11 @@ The main game start now loads `generated_settlement.tscn` at
 `main_entrance`, so the settlement blueprint output is visible in the normal
 game scene instead of only in the debug tool scene.
 
-`generated_settlement.json` remains a compact 20x14 gameplay integration and
-smoke-test sample. `generated_settlement_v62_48x32.json` is a separate 48x32
-quality-observation sample for judging Phase 62 growth behavior without the
-pressure of the small gameplay test map.
+At the end of Phase 63, `generated_settlement.json` was still a compact
+gameplay integration sample, while `generated_settlement_v62_48x32.json` was a
+separate 48x32 quality-observation sample for judging Phase 62 growth behavior
+without the pressure of the small gameplay test map. Phase 64 later upgrades
+`generated_settlement.json` to a policy-driven 48x32 gameplay sample.
 
 ## Rendered Layers
 

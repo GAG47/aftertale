@@ -28,6 +28,8 @@ func run(_root: Node) -> bool:
 		return _fail("v64 policy plot use counts must be observably different")
 	if not _agent_weight_summaries_are_distinct(results):
 		return _fail("v64 policy agent weight summaries must differ")
+	if int(((results.get("roadside_trade_village", {}) as Dictionary).get("generation_summary", {}) as Dictionary).get("plot_count", 0)) <= 18:
+		return _fail("v64 roadside 48x32 settlement must not be capped at the old 18 plot demo size")
 	if not _policy_weight_contracts_hold():
 		return false
 	if not _generated_settlement_uses_policy_id():
@@ -45,15 +47,13 @@ func _source_for_policy(policy_id: String) -> Dictionary:
 		"generator": {
 			"type": "settlement",
 			"settlement_policy_id": policy_id,
-			"seed": 6501,
 			"size": { "width": 48, "height": 32 },
 			"context": {
 				"map_size": { "width": 48, "height": 32 },
 				"entrances": [{ "x": 0, "y": 16 }],
 				"existing_obstacles": [{ "x": 11, "y": 5 }, { "x": 12, "y": 5 }, { "x": 38, "y": 24 }],
 				"existing_water": [{ "x": 42, "y": 7 }, { "x": 43, "y": 7 }, { "x": 43, "y": 8 }],
-				"important_world_points": [{ "x": 36, "y": 20 }],
-				"world_seed": 6501
+				"important_world_points": [{ "x": 36, "y": 20 }]
 			}
 		}
 	}
@@ -82,7 +82,7 @@ func _has_playable_hooks(compiled: Dictionary) -> bool:
 		return false
 	if not _has_generated_npc_from_anchor(compiled):
 		return false
-	if not _has_shop_or_public_hook(compiled):
+	if not _optional_shop_and_public_hooks_are_valid(compiled):
 		return false
 	return true
 
@@ -98,6 +98,10 @@ func _has_enterable_generated_building(compiled: Dictionary) -> bool:
 			continue
 		if str(object.get("source_blueprint_id", "")).is_empty():
 			continue
+		if str(object.get("return_entrance_id", "")) == "main_entrance":
+			return false
+		if not _has_entrance(compiled, str(object.get("return_entrance_id", ""))):
+			return false
 		return true
 	return false
 
@@ -109,18 +113,50 @@ func _has_generated_npc_from_anchor(compiled: Dictionary) -> bool:
 			continue
 		if str(character.get("source_anchor_id", "")).is_empty():
 			continue
+		if not _schedule_has_distinct_anchor_targets(character.get("schedule", []) as Array):
+			continue
 		return true
 	return false
 
 
-func _has_shop_or_public_hook(compiled: Dictionary) -> bool:
+func _optional_shop_and_public_hooks_are_valid(compiled: Dictionary) -> bool:
+	var summary: Dictionary = compiled.get("generation_summary", {}) as Dictionary
+	var gameplay_hooks: Dictionary = summary.get("gameplay_hooks", {}) as Dictionary
+	var shop_anchor_count: int = int(gameplay_hooks.get("shop_anchor_count", 0))
+	var public_hook_count: int = int(gameplay_hooks.get("public_hook_count", 0))
+	var has_shop := false
+	var has_public := false
 	for object_value in (compiled.get("objects", []) as Array):
 		var object: Dictionary = object_value as Dictionary
 		if str(object.get("facility_type", "")) == "shop" and not str(object.get("source_anchor_id", "")).is_empty():
-			return true
+			if str(object.get("shop_id", "")) == "field_stall" or not str(object.get("shop_id", "")).begins_with("generated_shop_"):
+				return false
+			if str(object.get("vendor_character_id", "")).is_empty():
+				return false
+			has_shop = true
 		if str(object.get("source_anchor_id", "")).begins_with("notice_"):
+			has_public = true
+	return (shop_anchor_count <= 0 or has_shop) and (public_hook_count <= 0 or has_public)
+
+
+func _has_entrance(compiled: Dictionary, entrance_id: String) -> bool:
+	if entrance_id.is_empty():
+		return false
+	for entrance_value in (compiled.get("entrances", []) as Array):
+		var entrance: Dictionary = entrance_value as Dictionary
+		if str(entrance.get("id", "")) == entrance_id:
 			return true
 	return false
+
+
+func _schedule_has_distinct_anchor_targets(schedule: Array) -> bool:
+	var anchors: Dictionary = {}
+	for row_value in schedule:
+		var row: Dictionary = row_value as Dictionary
+		var anchor_id := str(row.get("anchor_id", ""))
+		if not anchor_id.is_empty():
+			anchors[anchor_id] = true
+	return anchors.size() >= 2
 
 
 func _plot_use_counts_are_distinct(results: Dictionary) -> bool:

@@ -415,16 +415,18 @@ anchors needed for debugging and feature-map pressure.
 
 ### Phase 63
 
-Support multiple settlement types through `SettlementPolicy`, agent weights,
-rule parameters, evaluator weights, and asset families. No new settlement type
-may introduce a separate generator entry point. Godot must be able to compare
-multiple policy-driven settlement outputs through debug rendering.
+Compile settlement blueprints into the normal Godot location pipeline. The
+compiler must produce visible tiles, plots, buildings, collision, road graph
+diagnostics, debug overlays, seed persistence, and reproduction metadata
+without repairing invalid planning.
 
 ### Phase 64
 
-Implement the full gameplay-ready Godot compiler, including tiles, objects,
-collision, navigation, interaction points, debug overlays, seed persistence, and
-reproduction metadata.
+Support policy-driven settlement variation and generated gameplay hooks through
+the same settlement pipeline. `SettlementPolicy` profiles may alter agent
+weights, demand pressure, plot bidding, road style, density, asset families,
+and gameplay hook rules, but no settlement type may introduce a separate
+generator entry point.
 
 ## Forbidden Patterns
 

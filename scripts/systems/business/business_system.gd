@@ -43,6 +43,11 @@ func add_currency(character_id: String, amount: int) -> void:
 
 func get_shop(shop_id: String) -> Dictionary:
 	if shop_id.is_empty() or not shop_definitions.has(shop_id):
+		if shop_id.begins_with("generated_shop_") and shop_definitions.has("field_stall"):
+			var generated_shop: Dictionary = (shop_definitions["field_stall"] as Dictionary).duplicate(true)
+			generated_shop["id"] = shop_id
+			generated_shop["display_name"] = "Generated Shop"
+			return generated_shop
 		return {}
 
 	var shop: Dictionary = shop_definitions[shop_id] as Dictionary

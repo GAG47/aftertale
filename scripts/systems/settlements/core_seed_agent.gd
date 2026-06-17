@@ -62,7 +62,7 @@ func _pick_core_candidate(session) -> Dictionary:
 			var open_space := _open_space_score(cell, session)
 			var score := open_space * 2.0 + edge_distance - entrance_distance * 0.15
 			candidates.append({ "cell": cell, "score": score })
-	var best := _best_sample(candidates, session, 10)
+	var best := _best_sample(candidates, session, session.candidate_sample_count(candidates.size(), 10))
 	_record_search(session, candidates, best)
 	return best
 
@@ -106,7 +106,7 @@ func _record_search(session, candidates: Array[Dictionary], chosen: Dictionary) 
 		chosen_cell = { "x": cell.x, "y": cell.y }
 	session.trace.record_agent_search(session.current_step, agent_id, {
 		"valid_candidates_count": candidates.size(),
-		"sampled_candidates_count": min(10, candidates.size()),
+		"sampled_candidates_count": session.candidate_sample_count(candidates.size(), 10),
 		"top_score": top_score if not candidates.is_empty() else 0.0,
 		"chosen_score": float(chosen.get("score", 0.0)) if not chosen.is_empty() else 0.0,
 		"chosen_cell": chosen_cell,

@@ -240,7 +240,7 @@ func _upsert_optional_building_hooks(building_id: String, payload: Dictionary, e
 		var anchor_id := str(payload.get(key, ""))
 		if anchor_id.is_empty():
 			continue
-		var kind := key.replace("_anchor", "")
+		var kind: String = key.replace("_anchor", "")
 		_upsert_anchor(anchor_id, kind, entrance_cell, building_id, step)
 
 
