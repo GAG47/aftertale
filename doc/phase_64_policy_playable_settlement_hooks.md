@@ -8,6 +8,9 @@ Complete.
 
 Phase 64 turns the Phase 62/63 settlement pipeline from a single generated
 settlement sample into policy-driven settlement variation with gameplay hooks.
+It does not generate settlement population. NPC creation, household planning,
+job assignment, schedules, and AI-driven residents are deferred to a later
+phase.
 
 All supported settlement types still use the same generation entry:
 
@@ -98,16 +101,22 @@ Blueprint buildings now carry the required gameplay fields:
 - `front_access_cell`
 - `facing`
 - `interior_template_id`
-- `npc_home_anchor`
-- `npc_work_anchor`
+- `home_capacity`
+- `work_slots`
+- `service_slots`
+- `activity_slots`
+- `home_slot_anchor`
+- `work_slot_anchor`
+- `service_slot_anchor`
+- `activity_slot_anchor`
+- `entrance_anchor`
 - `interaction_anchor`
-- `shop_anchor`
 - `quest_anchor`
 
 Public plots receive:
 
 - `public_anchor`
-- `npc_gather_anchor`
+- `public_activity_anchor`
 - `notice_anchor`
 - `quest_anchor`
 - `interaction_anchor`
@@ -120,19 +129,26 @@ Entrances and roads receive:
 
 The compiler maps these hooks into normal location data:
 
-- generated building doors become scene-transition objects;
+- generated building wall doors become non-blocking, non-rendered
+  scene-transition objects on the wall-door cell; the visible door is supplied
+  by the structure layer, not by a separate exterior floor object;
 - each generated building door receives its own exterior return entrance;
-- generated commercial hooks become shop-capable objects when a commercial
-  building exists;
+- generated commercial hooks keep semantic service slots, but v64 does not
+  compile generated shop objects, shop counters, shop records, or shopkeepers;
 - generated public hooks become public interaction objects;
-- generated NPCs are spawned from blueprint home, work, and public anchors
-  instead of a single handwritten coordinate;
-- NPC schedule rows move between distinct generated anchor ids;
-- player spawn remains driven by the generated entrance.
+- no generated NPCs are written to location data;
+- no shopkeeper, worker, resident, or public-gatherer records are generated;
+- player spawn remains driven by the generated entrance through the normal
+  scene runtime, not through settlement-generated character records.
 
 Phase 64 adds a small `generated_basic_interior` location so generated
 building entrances can resolve to a loadable scene while full interior
 generation remains deferred.
+
+Enterable generated buildings are now formal structures. A building with an
+interior template and scene-transition door must be at least `2x3` or `3x2`.
+Small `1x1`, `1x2`, and `2x1` structures are not treated as enterable
+buildings and must not receive interior templates or entrance interactions.
 
 ## Debug View
 
@@ -170,6 +186,8 @@ blueprint into location data.
 Generated location results are cached by resolved location id and data path.
 Returning from a generated interior to the exterior settlement reuses the
 materialized settlement instead of rerunning the full generation session.
+Interior return objects can be used from the player's current cell, so the
+player does not need to face the exit tile after stepping onto it.
 
 The compiler still does not repair invalid planning. Road graph validation
 remains strict. Entrance presentation no longer overwrites a road tile when
@@ -190,12 +208,21 @@ The smoke test verifies:
 - forest density is lower than roadside density;
 - every policy preserves v62.5 compiled road connectivity;
 - the roadside 48x32 policy sample is not capped at the old 18-plot demo size;
-- generated buildings expose interior and interaction hooks;
+- generated buildings expose interior and semantic slot hooks;
 - generated building doors return to per-building exterior entrances, not the
   main entrance;
+- generated building door interaction objects are wall-bound, non-blocking,
+  and non-rendered;
 - at least one generated building maps to an interior template;
-- generated NPC schedules contain distinct semantic anchor targets;
-- generated shop objects use generated shop ids and blueprint-bound vendors;
+- generated settlement compiler produces zero character records;
+- generated NPC count remains zero;
+- generated settlement compiler produces zero generated shop records and zero
+  generated shop counter objects;
+- the default roadside generated settlement is not dominated by commercial
+  plots;
+- enterable generated buildings are at least `2x3` or `3x2`;
+- small structures do not receive interior templates or scene-transition
+  interactions;
 - `generated_settlement.json` is driven by `settlement_policy_id`.
 
 ## Verification

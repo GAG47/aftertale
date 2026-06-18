@@ -20,7 +20,7 @@ pipeline.
 | v61 | Complete | `doc/phase_61_decentralized_planning_core.md` | Implement decentralized iterative planning and expose the active blueprint, proposals, evaluator reports, and trace through a Godot-visible debug view. |
 | v62 | Complete | `doc/phase_62_general_settlement_generation.md` | Implement step-based road growth, generic plot growth, plot differentiation, and building footprint generation through the shared blueprint pipeline. |
 | v63 | Complete | `doc/phase_63_settlement_scene_compiler.md` | Compile settlement blueprints into normal Godot location data with visible roads, plots, buildings, collision, debug metadata, and seed reproduction. |
-| v64 | Complete | `doc/phase_64_policy_playable_settlement_hooks.md` | Drive settlement variation through `SettlementPolicy` profiles, scale growth from map capacity and policy pressure, and compile generated buildings, per-door return entrances, NPC schedules, shops, and interior hooks into the normal game location pipeline. |
+| v64 | Complete | `doc/phase_64_policy_playable_settlement_hooks.md` | Drive settlement variation through `SettlementPolicy` profiles, scale growth from map capacity and policy pressure, and compile generated buildings, per-door return entrances, semantic slots, and interior hooks into the normal game location pipeline without generated NPCs or shop counters. |
 
 ## Dependency Order
 

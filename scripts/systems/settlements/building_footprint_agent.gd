@@ -37,6 +37,7 @@ func propose(session) -> Array[PlanProposal]:
 		"plot_id": str(plot.get("id", "")),
 		"building_type": building_type,
 		"use_type": use,
+		"enterable": true,
 		"entrance_cell": best.get("entrance_cell", Vector2i.ZERO),
 		"front_access_cell": best.get("front_access_cell", Vector2i.ZERO),
 		"footprint_size": { "width": int(area.get("width", 0)), "height": int(area.get("height", 0)) },
@@ -44,10 +45,16 @@ func propose(session) -> Array[PlanProposal]:
 		"presentation_note": _presentation_note(use, area),
 		"asset_family": session.asset_family_for_use(use),
 		"interior_template_id": session.interior_template_for_building(building_type, use),
-		"npc_home_anchor": str(gameplay_hooks.get("npc_home_anchor", "")),
-		"npc_work_anchor": str(gameplay_hooks.get("npc_work_anchor", "")),
+		"home_capacity": int(gameplay_hooks.get("home_capacity", 0)),
+		"work_slots": int(gameplay_hooks.get("work_slots", 0)),
+		"service_slots": int(gameplay_hooks.get("service_slots", 0)),
+		"activity_slots": int(gameplay_hooks.get("activity_slots", 0)),
+		"home_slot_anchor": str(gameplay_hooks.get("home_slot_anchor", "")),
+		"work_slot_anchor": str(gameplay_hooks.get("work_slot_anchor", "")),
+		"service_slot_anchor": str(gameplay_hooks.get("service_slot_anchor", "")),
+		"activity_slot_anchor": str(gameplay_hooks.get("activity_slot_anchor", "")),
+		"entrance_anchor": str(gameplay_hooks.get("entrance_anchor", "")),
 		"interaction_anchor": str(gameplay_hooks.get("interaction_anchor", "")),
-		"shop_anchor": str(gameplay_hooks.get("shop_anchor", "")),
 		"quest_anchor": str(gameplay_hooks.get("quest_anchor", "")),
 	}
 	var tags: Array[String] = ["building_footprint", use]
@@ -83,10 +90,11 @@ func _footprint_candidates(plot: Dictionary, session, rejected: Dictionary) -> A
 	var plot_area: Dictionary = plot.get("area", {}) as Dictionary
 	var road_cell := _cell_from_variant(plot.get("road_access_cell", {}))
 	var facing := str(plot.get("facing", "down"))
-	for size in [Vector2i(1, 1), Vector2i(1, 2), Vector2i(2, 1), Vector2i(2, 2)]:
+	var sizes := _formal_building_sizes(str(plot.get("use", "residential")))
+	for size in sizes:
 		var area := _setback_area(plot_area, facing, size)
 		if area.is_empty():
-			_count_reject(rejected, "invalid_setback")
+			_count_reject(rejected, "footprint_too_small")
 			continue
 		var entrance := _entrance_for(area, facing)
 		if not _plot_contains(plot_area, entrance):
@@ -187,8 +195,8 @@ func _count_reject(rejected: Dictionary, reason: String) -> void:
 func _presentation_note(use: String, area: Dictionary) -> String:
 	var width := int(area.get("width", 0))
 	var height := int(area.get("height", 0))
-	if use in ["residential", "commercial", "production"] and (width < 2 or height < 2):
-		return "future_visual_issue:formal_building_min_2x2"
+	if use in ["residential", "commercial", "production"] and not _is_formal_building_size(Vector2i(width, height)):
+		return "rejected_enterable_reason:footprint_too_small"
 	return ""
 
 
@@ -197,26 +205,51 @@ func _gameplay_hooks(building_type: String, use: String, candidate: Dictionary, 
 	var prefix: String = "building_%02d" % index
 	var result := {
 		"interaction_anchor": "interaction_%s" % prefix,
+		"entrance_anchor": "entrance_%s" % prefix,
 		"quest_anchor": "",
-		"shop_anchor": "",
-		"npc_home_anchor": "",
-		"npc_work_anchor": "",
+		"home_slot_anchor": "",
+		"work_slot_anchor": "",
+		"service_slot_anchor": "",
+		"activity_slot_anchor": "",
+		"home_capacity": 0,
+		"work_slots": 0,
+		"service_slots": 0,
+		"activity_slots": 1,
 	}
 	match use:
 		"residential":
-			result["npc_home_anchor"] = "home_%s" % prefix
+			result["home_slot_anchor"] = "home_slot_%s" % prefix
+			result["home_capacity"] = 2
 		"commercial":
-			result["npc_work_anchor"] = "work_%s" % prefix
-			result["shop_anchor"] = "shop_%s" % prefix
+			result["work_slot_anchor"] = "work_slot_%s" % prefix
+			result["service_slot_anchor"] = "service_slot_%s" % prefix
 			result["quest_anchor"] = "quest_%s" % prefix
+			result["work_slots"] = 1
+			result["service_slots"] = 1
 		"production":
-			result["npc_work_anchor"] = "work_%s" % prefix
+			result["work_slot_anchor"] = "work_slot_%s" % prefix
+			result["work_slots"] = 2
 		_:
 			pass
 	var required_shop := bool(session.hook_rule("require_shop_for_commercial", true))
 	if use == "commercial" and not required_shop:
-		result["shop_anchor"] = ""
+		result["service_slot_anchor"] = ""
+		result["service_slots"] = 0
 	return result
+
+
+func _formal_building_sizes(use: String) -> Array[Vector2i]:
+	match use:
+		"commercial":
+			return [Vector2i(3, 3), Vector2i(3, 4), Vector2i(4, 3)]
+		"production":
+			return [Vector2i(3, 3), Vector2i(4, 3), Vector2i(3, 4), Vector2i(4, 4)]
+		_:
+			return [Vector2i(2, 3), Vector2i(3, 2), Vector2i(3, 3), Vector2i(2, 4), Vector2i(4, 2)]
+
+
+func _is_formal_building_size(size: Vector2i) -> bool:
+	return (size.x >= 2 and size.y >= 3) or (size.x >= 3 and size.y >= 2)
 
 
 func _plot_contains(area: Dictionary, cell: Vector2i) -> bool:

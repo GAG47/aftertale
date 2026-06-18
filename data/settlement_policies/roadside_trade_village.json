@@ -4,7 +4,7 @@
   "scale": "village",
   "economy_tags": ["trade", "inn", "shop"],
   "road_style": "roadside",
-  "density": 0.60,
+  "density": 0.80,
   "wealth_level": 2,
   "defense_level": 0,
   "required_landmarks": ["public_anchor", "notice_board"],
@@ -19,14 +19,14 @@
     "footprint": 1.20
   },
   "demand_weight_overrides": {
-    "residential": 1.10,
-    "commercial": 2.10,
+    "residential": 1.35,
+    "commercial": 0.75,
     "production": 0.55,
     "public": 1.15
   },
   "plot_use_weight_overrides": {
-    "residential": 1.05,
-    "commercial": 2.45,
+    "residential": 1.30,
+    "commercial": 0.90,
     "production": 0.45,
     "public": 1.10
   },
@@ -47,7 +47,7 @@
       "commercial": "market",
       "production": "storage"
     },
-    "require_shop_for_commercial": true
+    "require_shop_for_commercial": false
   },
   "random_seed": 6403
 }

@@ -77,11 +77,18 @@ func apply_committed_proposal(proposal: PlanProposal, commit_token: String) -> b
 				"footprint_size": (proposal.payload.get("footprint_size", {}) as Dictionary).duplicate(true),
 				"facing": str(proposal.payload.get("facing", "")),
 				"asset_family": str(proposal.payload.get("asset_family", "")),
+				"enterable": bool(proposal.payload.get("enterable", false)),
 				"interior_template_id": str(proposal.payload.get("interior_template_id", "")),
-				"npc_home_anchor": str(proposal.payload.get("npc_home_anchor", "")),
-				"npc_work_anchor": str(proposal.payload.get("npc_work_anchor", "")),
+				"home_capacity": int(proposal.payload.get("home_capacity", 0)),
+				"work_slots": int(proposal.payload.get("work_slots", 0)),
+				"service_slots": int(proposal.payload.get("service_slots", 0)),
+				"activity_slots": int(proposal.payload.get("activity_slots", 0)),
+				"home_slot_anchor": str(proposal.payload.get("home_slot_anchor", "")),
+				"work_slot_anchor": str(proposal.payload.get("work_slot_anchor", "")),
+				"service_slot_anchor": str(proposal.payload.get("service_slot_anchor", "")),
+				"activity_slot_anchor": str(proposal.payload.get("activity_slot_anchor", "")),
+				"entrance_anchor": str(proposal.payload.get("entrance_anchor", "")),
 				"interaction_anchor": str(proposal.payload.get("interaction_anchor", "")),
-				"shop_anchor": str(proposal.payload.get("shop_anchor", "")),
 				"quest_anchor": str(proposal.payload.get("quest_anchor", "")),
 				"presentation_note": str(proposal.payload.get("presentation_note", "")),
 				"tags": proposal.tags.duplicate(),
@@ -180,13 +187,13 @@ func _differentiate_plot(proposal: PlanProposal) -> bool:
 		if selected_use == "public":
 			var center := _area_center(plot.get("area", {}) as Dictionary)
 			plot["public_anchor"] = "public_anchor_%s" % plot_id
-			plot["npc_gather_anchor"] = "npc_gather_%s" % plot_id
+			plot["public_activity_anchor"] = "public_activity_%s" % plot_id
 			plot["notice_anchor"] = "notice_%s" % plot_id
 			plot["quest_anchor"] = "quest_%s" % plot_id
 			plot["interaction_anchor"] = "public_interaction_%s" % plot_id
 			plots[index] = plot
 			_upsert_anchor(str(plot.get("public_anchor", "")), "public", center, plot_id, proposal.step)
-			_upsert_anchor(str(plot.get("npc_gather_anchor", "")), "npc_gather", center, plot_id, proposal.step)
+			_upsert_anchor(str(plot.get("public_activity_anchor", "")), "public_activity", center, plot_id, proposal.step)
 			_upsert_anchor(str(plot.get("notice_anchor", "")), "notice", center, plot_id, proposal.step)
 			_upsert_anchor(str(plot.get("quest_anchor", "")), "quest", center, plot_id, proposal.step)
 			_upsert_anchor(str(plot.get("interaction_anchor", "")), "public_interaction", center, plot_id, proposal.step)
@@ -236,7 +243,7 @@ func _sync_road_anchors(step: int) -> void:
 
 
 func _upsert_optional_building_hooks(building_id: String, payload: Dictionary, entrance_cell: Vector2i, step: int) -> void:
-	for key in ["npc_home_anchor", "npc_work_anchor", "interaction_anchor", "shop_anchor", "quest_anchor"]:
+	for key in ["home_slot_anchor", "work_slot_anchor", "service_slot_anchor", "activity_slot_anchor", "entrance_anchor", "interaction_anchor", "quest_anchor"]:
 		var anchor_id := str(payload.get(key, ""))
 		if anchor_id.is_empty():
 			continue

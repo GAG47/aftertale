@@ -63,14 +63,18 @@ func _compiled_location_is_valid(location_data: Dictionary, expected_id: String,
 	if not _summary_has_connectivity_contract(summary):
 		return _fail("v63 generation summary must preserve road connectivity diagnostics")
 
-	if (location_data.get("roofs", []) as Array).is_empty():
-		return _fail("v63 compiler must create visible building roofs")
+	if not (location_data.get("roofs", []) as Array).is_empty():
+		return _fail("v63 generated settlement must not compile ordinary buildings into roof layer")
+	if not _has_generated_building_wall_structures(location_data):
+		return _fail("v63 compiler must render generated buildings as structure-layer walls")
+	if not _has_generated_building_door_structures(location_data):
+		return _fail("v63 compiler must render generated doors as non-blocking wall visuals")
 	if (location_data.get("collision_overrides", []) as Array).is_empty():
 		return _fail("v63 compiler must create building collision")
 	if not _has_debug_source_overlay(location_data):
 		return _fail("v63 compiler must create debug overlays with blueprint source ids")
-	if not _has_player_spawn(location_data):
-		return _fail("v63 compiled scene must include player spawn data")
+	if not _has_player_spawn_anchor(location_data):
+		return _fail("v63 compiled scene must include player spawn anchor")
 	return true
 
 
@@ -114,11 +118,41 @@ func _has_debug_source_overlay(location_data: Dictionary) -> bool:
 	return false
 
 
-func _has_player_spawn(location_data: Dictionary) -> bool:
-	for character_value in (location_data.get("characters", []) as Array):
-		var character: Dictionary = character_value as Dictionary
-		if str(character.get("id", "")) == "debug_player" and bool(character.get("spawn_at_entrance", false)):
+func _has_player_spawn_anchor(location_data: Dictionary) -> bool:
+	for anchor_value in (location_data.get("anchors", []) as Array):
+		var anchor: Dictionary = anchor_value as Dictionary
+		if str(anchor.get("kind", "")) == "player_spawn":
 			return true
+	return false
+
+
+func _has_generated_building_wall_structures(location_data: Dictionary) -> bool:
+	for structure_value in (location_data.get("structures", []) as Array):
+		var structure: Dictionary = structure_value as Dictionary
+		if str(structure.get("type", "")) != "wall_ring":
+			continue
+		if not str(structure.get("source_blueprint_id", "")).begins_with("building_"):
+			continue
+		if bool(structure.get("blocks_movement", true)):
+			return false
+		if bool(structure.get("blocks_sight", true)):
+			return false
+		return true
+	return false
+
+
+func _has_generated_building_door_structures(location_data: Dictionary) -> bool:
+	for structure_value in (location_data.get("structures", []) as Array):
+		var structure: Dictionary = structure_value as Dictionary
+		if str(structure.get("type", "")) != "door":
+			continue
+		if not str(structure.get("source_blueprint_id", "")).begins_with("building_"):
+			continue
+		if bool(structure.get("blocks_movement", true)):
+			return false
+		if bool(structure.get("blocks_sight", true)):
+			return false
+		return true
 	return false
 
 

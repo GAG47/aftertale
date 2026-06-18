@@ -69,8 +69,8 @@ data:
 - roads become path tiles;
 - plots become plot tiles and zones;
 - cores become plaza tiles and anchors;
-- buildings become building floor tiles, foundations, roofs, and collision
-  overrides;
+- buildings become building floor tiles, foundations, structure-layer wall
+  rings, non-blocking visual door cells, and collision overrides;
 - optional landmarks become visible structures when present in the blueprint;
 - debug overlays retain blueprint source ids and proposal-derived metadata;
 - seed, proposal counts, rejected counts, and committed counts are stored in
@@ -82,6 +82,11 @@ data:
 
 Building footprints generate `collision_overrides` so `LocationGrid` treats
 them as movement and sight blockers.
+
+Generated settlement buildings do not compile ordinary exterior presentation
+into `roofs`. Since generated interiors are separate scenes, the normal
+generated settlement view leaves the roof layer empty for ordinary buildings
+and presents building fronts through `structures`.
 
 Roads, plots, entrance cells, and core tiles remain walkable. The player is
 spawned through the normal entrance system.
@@ -107,7 +112,9 @@ The smoke test verifies:
 - deterministic compiled output for a fixed seed;
 - valid `LocationGrid` output;
 - preserved road, plot, and building counts;
-- visible building roofs;
+- no ordinary generated buildings in the roof layer;
+- visible generated building wall structures;
+- visual generated building door cells on the structure layer;
 - building collision overrides;
 - debug overlays with blueprint source ids;
 - player spawn data;

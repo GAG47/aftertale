@@ -5,9 +5,10 @@ const RoadGraphScript := preload("res://scripts/systems/settlements/settlement_r
 
 const POLICY_IDS := ["farming_village", "forest_village", "roadside_trade_village", "mining_camp"]
 const GAME_SETTLEMENT_PATH := "res://data/locations/generated_settlement.json"
+const GENERATED_INTERIOR_SCENE := "res://scenes/locations/generated_basic_interior.tscn"
 
 
-func run(_root: Node) -> bool:
+func run(root: Node) -> bool:
 	var results: Dictionary = {}
 	for policy_id in POLICY_IDS:
 		var source := _source_for_policy(policy_id)
@@ -22,6 +23,10 @@ func run(_root: Node) -> bool:
 			return _fail("v64 policy must preserve v62.5 road connectivity: %s" % policy_id)
 		if not _has_playable_hooks(compiled):
 			return _fail("v64 generated settlement must expose playable hooks: %s" % policy_id)
+		if not _has_no_generated_shop_hooks(compiled):
+			return _fail("v64 generated settlement must not compile shop counters: %s" % policy_id)
+		if not _has_no_external_blocking_door_objects(compiled):
+			return _fail("v64 generated settlement must not compile external blocking door objects: %s" % policy_id)
 		results[policy_id] = compiled
 
 	if not _plot_use_counts_are_distinct(results):
@@ -33,6 +38,8 @@ func run(_root: Node) -> bool:
 	if not _policy_weight_contracts_hold():
 		return false
 	if not _generated_settlement_uses_policy_id():
+		return false
+	if not _interior_exit_current_cell_prompt_works(root):
 		return false
 
 	print("v64 policy playable settlement smoke test passed")
@@ -76,13 +83,21 @@ func _compiled_connectivity_is_valid(compiled: Dictionary) -> bool:
 func _has_playable_hooks(compiled: Dictionary) -> bool:
 	var summary: Dictionary = compiled.get("generation_summary", {}) as Dictionary
 	var gameplay_hooks: Dictionary = summary.get("gameplay_hooks", {}) as Dictionary
-	if int(gameplay_hooks.get("buildings_with_interior", 0)) <= 0:
+	if int(gameplay_hooks.get("generated_npc_count", -1)) != 0:
+		return false
+	if int(gameplay_hooks.get("character_records", -1)) != 0:
+		return false
+	if not (compiled.get("characters", []) as Array).is_empty():
+		return false
+	if int(gameplay_hooks.get("enterable_building_count", 0)) <= 0:
 		return false
 	if not _has_enterable_generated_building(compiled):
 		return false
-	if not _has_generated_npc_from_anchor(compiled):
+	if not _has_no_generated_npcs(compiled):
 		return false
-	if not _optional_shop_and_public_hooks_are_valid(compiled):
+	if not _small_structures_are_not_enterable(compiled):
+		return false
+	if not _public_hooks_are_valid(compiled):
 		return false
 	return true
 
@@ -98,6 +113,8 @@ func _has_enterable_generated_building(compiled: Dictionary) -> bool:
 			continue
 		if str(object.get("source_blueprint_id", "")).is_empty():
 			continue
+		if not _is_enterable_footprint_size(object.get("footprint_size", {}) as Dictionary):
+			return false
 		if str(object.get("return_entrance_id", "")) == "main_entrance":
 			return false
 		if not _has_entrance(compiled, str(object.get("return_entrance_id", ""))):
@@ -106,37 +123,69 @@ func _has_enterable_generated_building(compiled: Dictionary) -> bool:
 	return false
 
 
-func _has_generated_npc_from_anchor(compiled: Dictionary) -> bool:
+func _has_no_generated_npcs(compiled: Dictionary) -> bool:
 	for character_value in (compiled.get("characters", []) as Array):
 		var character: Dictionary = character_value as Dictionary
-		if not bool(character.get("generated_from_blueprint", false)):
-			continue
-		if str(character.get("source_anchor_id", "")).is_empty():
-			continue
-		if not _schedule_has_distinct_anchor_targets(character.get("schedule", []) as Array):
-			continue
-		return true
-	return false
+		if bool(character.get("generated_from_blueprint", false)):
+			return false
+		if str(character.get("display_name", "")) == "Generated Settler":
+			return false
+		if str(character.get("id", "")).begins_with("generated_settlement_npc_"):
+			return false
+	return true
 
 
-func _optional_shop_and_public_hooks_are_valid(compiled: Dictionary) -> bool:
+func _small_structures_are_not_enterable(compiled: Dictionary) -> bool:
+	for object_value in (compiled.get("objects", []) as Array):
+		var object: Dictionary = object_value as Dictionary
+		if str(object.get("facility_type", "")) != "scene_transition":
+			continue
+		if _is_enterable_footprint_size(object.get("footprint_size", {}) as Dictionary):
+			continue
+		if not str(object.get("interior_template_id", "")).is_empty():
+			return false
+	return true
+
+
+func _public_hooks_are_valid(compiled: Dictionary) -> bool:
 	var summary: Dictionary = compiled.get("generation_summary", {}) as Dictionary
 	var gameplay_hooks: Dictionary = summary.get("gameplay_hooks", {}) as Dictionary
-	var shop_anchor_count: int = int(gameplay_hooks.get("shop_anchor_count", 0))
 	var public_hook_count: int = int(gameplay_hooks.get("public_hook_count", 0))
-	var has_shop := false
 	var has_public := false
 	for object_value in (compiled.get("objects", []) as Array):
 		var object: Dictionary = object_value as Dictionary
-		if str(object.get("facility_type", "")) == "shop" and not str(object.get("source_anchor_id", "")).is_empty():
-			if str(object.get("shop_id", "")) == "field_stall" or not str(object.get("shop_id", "")).begins_with("generated_shop_"):
-				return false
-			if str(object.get("vendor_character_id", "")).is_empty():
-				return false
-			has_shop = true
 		if str(object.get("source_anchor_id", "")).begins_with("notice_"):
 			has_public = true
-	return (shop_anchor_count <= 0 or has_shop) and (public_hook_count <= 0 or has_public)
+	return public_hook_count <= 0 or has_public
+
+
+func _has_no_generated_shop_hooks(compiled: Dictionary) -> bool:
+	if not (compiled.get("shops", []) as Array).is_empty():
+		return false
+	for object_value in (compiled.get("objects", []) as Array):
+		var object: Dictionary = object_value as Dictionary
+		if str(object.get("facility_type", "")) == "shop":
+			return false
+		if str(object.get("display_name", "")) == "Generated Shop Counter":
+			return false
+		if str(object.get("shop_id", "")).begins_with("generated_shop_"):
+			return false
+	return true
+
+
+func _has_no_external_blocking_door_objects(compiled: Dictionary) -> bool:
+	for object_value in (compiled.get("objects", []) as Array):
+		var object: Dictionary = object_value as Dictionary
+		if str(object.get("id", "")).begins_with("door_"):
+			return false
+		if str(object.get("kind", "")) == "door" and bool(object.get("blocks_movement", false)):
+			return false
+		if str(object.get("kind", "")) == "wall_door":
+			if bool(object.get("blocks_movement", true)):
+				return false
+			if bool(object.get("draw_visual", true)):
+				return false
+	return true
 
 
 func _has_entrance(compiled: Dictionary, entrance_id: String) -> bool:
@@ -149,14 +198,10 @@ func _has_entrance(compiled: Dictionary, entrance_id: String) -> bool:
 	return false
 
 
-func _schedule_has_distinct_anchor_targets(schedule: Array) -> bool:
-	var anchors: Dictionary = {}
-	for row_value in schedule:
-		var row: Dictionary = row_value as Dictionary
-		var anchor_id := str(row.get("anchor_id", ""))
-		if not anchor_id.is_empty():
-			anchors[anchor_id] = true
-	return anchors.size() >= 2
+func _is_enterable_footprint_size(footprint_size: Dictionary) -> bool:
+	var width := int(footprint_size.get("width", 0))
+	var height := int(footprint_size.get("height", 0))
+	return (width >= 2 and height >= 3) or (width >= 3 and height >= 2)
 
 
 func _plot_use_counts_are_distinct(results: Dictionary) -> bool:
@@ -205,7 +250,46 @@ func _generated_settlement_uses_policy_id() -> bool:
 		return _fail("v64 generated_settlement.json must be driven by settlement_policy_id")
 	if not _has_playable_hooks(location):
 		return _fail("v64 generated_settlement.json compiled output must expose gameplay hooks")
+	if not _has_no_generated_shop_hooks(location):
+		return _fail("v64 generated_settlement.json must not compile generated shop counters")
+	if not _roadside_default_is_residential_first(location):
+		return _fail("v64 generated_settlement.json should not be dominated by commercial plots")
 	return true
+
+
+func _roadside_default_is_residential_first(location: Dictionary) -> bool:
+	var counts: Dictionary = (location.get("generation_summary", {}) as Dictionary).get("plot_use_counts", {}) as Dictionary
+	return int(counts.get("residential", 0)) > int(counts.get("commercial", 0))
+
+
+func _interior_exit_current_cell_prompt_works(root: Node) -> bool:
+	var scene := load(GENERATED_INTERIOR_SCENE) as PackedScene
+	if scene == null:
+		return _fail("v64 generated basic interior scene must load")
+	var instance := scene.instantiate()
+	root.add_child(instance)
+	var grid: LocationGrid = instance.get_location_grid() if instance.has_method("get_location_grid") else null
+	if grid == null:
+		_cleanup_instance(instance)
+		return _fail("v64 generated basic interior must expose a grid")
+	var player: CharacterEntity = grid.characters_by_id.get("debug_player", null) as CharacterEntity
+	if player == null:
+		_cleanup_instance(instance)
+		return _fail("v64 generated basic interior must spawn debug player")
+	player.set_grid_position(Vector2i(3, 5))
+	var prompt := str(instance.get_interaction_prompt()) if instance.has_method("get_interaction_prompt") else ""
+	_cleanup_instance(instance)
+	if prompt.find("Leave") < 0:
+		return _fail("v64 interior exit must be interactable from the current cell")
+	return true
+
+
+func _cleanup_instance(instance: Node) -> void:
+	if instance == null:
+		return
+	if instance.get_parent() != null:
+		instance.get_parent().remove_child(instance)
+	instance.queue_free()
 
 
 func _fail(message: String) -> bool:

@@ -25,6 +25,7 @@ extends Node2D
 @export var target_scene_path: String = ""
 @export var target_entrance_id: String = ""
 @export var return_entrance_id: String = ""
+@export var draw_visual: bool = true
 
 var location_root: Node
 var item_definition: Dictionary = {}
@@ -67,6 +68,7 @@ func configure(data: Dictionary, parent_location: Node) -> void:
 	target_scene_path = str(data.get("target_scene_path", ""))
 	target_entrance_id = str(data.get("target_entrance_id", ""))
 	return_entrance_id = str(data.get("return_entrance_id", ""))
+	draw_visual = bool(data.get("draw_visual", draw_visual))
 	transition_context = (data.get("transition_context", {}) as Dictionary).duplicate(true)
 	recipe_ids.clear()
 	var recipe_rows: Array = data.get("recipe_ids", []) as Array
@@ -93,6 +95,8 @@ func configure(data: Dictionary, parent_location: Node) -> void:
 
 
 func _draw() -> void:
+	if not draw_visual:
+		return
 	if kind == "door" or facility_type == "scene_transition":
 		_draw_interaction_badge()
 		return

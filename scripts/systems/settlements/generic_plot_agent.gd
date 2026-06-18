@@ -45,9 +45,17 @@ func propose(session) -> Array[PlanProposal]:
 func _plot_candidates(session, rejected: Dictionary) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	var road_cells: Array[Vector2i] = session.feature_maps.cells_for_map_value("road", 0.0)
+	var plot_sizes := [
+		Vector2i(3, 4),
+		Vector2i(4, 3),
+		Vector2i(4, 4),
+		Vector2i(4, 5),
+		Vector2i(5, 4),
+		Vector2i(5, 5),
+	]
 	for road_cell in road_cells:
 		for direction in [Vector2i.UP, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT]:
-			for size in [Vector2i(2, 2), Vector2i(2, 3), Vector2i(3, 2), Vector2i(3, 3)]:
+			for size in plot_sizes:
 				var area := _area_from_road(road_cell, direction, size)
 				var check := _area_check(area, session)
 				if not bool(check.get("valid", false)):

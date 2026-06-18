@@ -282,6 +282,10 @@ func get_interaction_prompt() -> String:
 	if not crop_prompt.is_empty():
 		return crop_prompt
 
+	var current_transition_prompt := _get_current_cell_transition_prompt(controlled_character.grid_position)
+	if not current_transition_prompt.is_empty():
+		return current_transition_prompt
+
 	var target_cell: Vector2i = controlled_character.get_facing_cell()
 	var target_character: CharacterEntity = grid.get_character_at(target_cell)
 	if target_character != null:
@@ -797,6 +801,25 @@ func _spawn_characters_from_data() -> void:
 			_apply_offscreen_state_to_spawn_data(resolved_spawn_data, offscreen_state)
 
 		_spawn_character(definition, resolved_spawn_data)
+
+	if not _has_controlled_character():
+		_spawn_default_player_from_entrance()
+
+
+func _spawn_default_player_from_entrance() -> void:
+	var definition := _read_json_resource("res://data/characters/debug_player.json")
+	if definition.is_empty():
+		return
+	var spawn_data := {
+		"id": "debug_player",
+		"source": "res://data/characters/debug_player.json",
+		"spawn_at_entrance": true,
+		"facing": "right",
+	}
+	var resolved_spawn_data := _build_spawn_data(spawn_data, definition)
+	_character_spawn_data_by_id["debug_player"] = spawn_data.duplicate(true)
+	_character_definition_by_id["debug_player"] = definition.duplicate(true)
+	_spawn_character(definition, resolved_spawn_data)
 
 
 func _apply_entrance_to_spawn_data(spawn_data: Dictionary) -> void:
@@ -1658,6 +1681,9 @@ func _on_primary_action_requested() -> void:
 	if _try_submit_crop_interaction(controlled_character.grid_position):
 		return
 
+	if _try_submit_current_cell_transition(controlled_character.grid_position):
+		return
+
 	var target_object: LocationObject = grid.get_primary_object_at(target_cell)
 	if target_object == null:
 		_submit_inspect_empty(target_cell)
@@ -1723,6 +1749,32 @@ func _get_crop_interaction_prompt(cell: Vector2i) -> String:
 		return "E/Enter 种植种子"
 
 	return ""
+
+
+func _get_current_cell_transition_prompt(cell: Vector2i) -> String:
+	if grid == null:
+		return ""
+	var current_object: LocationObject = grid.get_primary_object_at(cell)
+	if current_object != null and current_object.is_scene_transition():
+		return "E/Enter Leave: %s" % current_object.display_name
+	var exit_data: Dictionary = grid.get_exit_at(cell)
+	if not exit_data.is_empty():
+		return "E/Enter Leave: %s" % str(exit_data.get("target_entrance_id", "next location"))
+	return ""
+
+
+func _try_submit_current_cell_transition(cell: Vector2i) -> bool:
+	if grid == null:
+		return false
+	var current_object: LocationObject = grid.get_primary_object_at(cell)
+	if current_object != null and current_object.is_scene_transition():
+		_submit_scene_transition_object(current_object)
+		return true
+	var exit_data: Dictionary = grid.get_exit_at(cell)
+	if not exit_data.is_empty():
+		request_exit_transition(exit_data)
+		return true
+	return false
 
 
 func _submit_crop_action(action_type: String, cell: Vector2i) -> void:
@@ -2230,6 +2282,10 @@ func _refresh_interaction_overlay() -> void:
 	var crop_kind: String = _get_crop_interaction_kind(current_cell)
 	if not crop_kind.is_empty():
 		interaction_overlay.set_target(current_cell, crop_kind)
+		return
+
+	if not _get_current_cell_transition_prompt(current_cell).is_empty():
+		interaction_overlay.set_target(current_cell, "exit")
 		return
 
 	var target_cell: Vector2i = controlled_character.get_facing_cell()

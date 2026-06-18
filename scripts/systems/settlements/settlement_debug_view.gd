@@ -85,11 +85,13 @@ func _render() -> void:
 		(blueprint.get("roads", []) as Array).size(),
 		(blueprint.get("interaction_anchors", []) as Array).size(),
 	], Vector2(170, 108))
-	_add_text_panel(summary_row, "LayerPanel", "Layers\nplots: %d\nbuildings: %d\npublic: %d" % [
+	_add_text_panel(summary_row, "LayerPanel", "Layers\nplots: %d\nbuildings: %d\npublic: %d\nenterable: %d\nsmall: %d\nnpc: 0" % [
 		(blueprint.get("plots", []) as Array).size(),
 		(blueprint.get("buildings", []) as Array).size(),
 		_public_plot_count(blueprint),
-	], Vector2(170, 108))
+		_enterable_building_count(blueprint),
+		_small_structure_count(blueprint),
+	], Vector2(170, 168))
 	_add_text_panel(summary_row, "ProposalPanel", "Proposals\naccepted: %d\nrejected: %d\ncommitted: %d" % [
 		int(trace_summary.get("accepted_count", 0)),
 		int(trace_summary.get("rejected_count", 0)),
@@ -714,7 +716,7 @@ func _footprint_detail_text(blueprint: Dictionary) -> String:
 		var building: Dictionary = buildings[index] as Dictionary
 		var footprint_size: Dictionary = building.get("footprint_size", {}) as Dictionary
 		var note := _footprint_note(building)
-		text += "\n%s plot=%s use=%s face=%s in=%s front=%s %dx%d%s" % [
+		text += "\n%s plot=%s use=%s face=%s in=%s front=%s %dx%d enter=%s%s" % [
 			_short_token(str(building.get("id", ""))),
 			_short_token(str(building.get("plot_id", ""))),
 			str(building.get("use_type", building.get("kind", ""))),
@@ -723,6 +725,7 @@ func _footprint_detail_text(blueprint: Dictionary) -> String:
 			_cell_text(building.get("front_access_cell", {})),
 			int(footprint_size.get("width", 0)),
 			int(footprint_size.get("height", 0)),
+			"yes" if bool(building.get("enterable", false)) else "no",
 			note,
 		]
 	return text
@@ -733,6 +736,30 @@ func _footprint_note(building: Dictionary) -> String:
 	if note.is_empty():
 		return ""
 	return " note=%s" % _short_token(note)
+
+
+func _enterable_building_count(blueprint: Dictionary) -> int:
+	var count := 0
+	for building_value in (blueprint.get("buildings", []) as Array):
+		var building: Dictionary = building_value as Dictionary
+		if bool(building.get("enterable", false)) and _is_enterable_footprint_size(building.get("footprint_size", {}) as Dictionary):
+			count += 1
+	return count
+
+
+func _small_structure_count(blueprint: Dictionary) -> int:
+	var count := 0
+	for building_value in (blueprint.get("buildings", []) as Array):
+		var building: Dictionary = building_value as Dictionary
+		if not _is_enterable_footprint_size(building.get("footprint_size", {}) as Dictionary):
+			count += 1
+	return count
+
+
+func _is_enterable_footprint_size(footprint_size: Dictionary) -> bool:
+	var width := int(footprint_size.get("width", 0))
+	var height := int(footprint_size.get("height", 0))
+	return (width >= 2 and height >= 3) or (width >= 3 and height >= 2)
 
 
 func _proposal_label(proposal: Dictionary) -> String:
