@@ -4,6 +4,17 @@
 
 Complete.
 
+## v65 Cleanup
+
+The cleanup pass removes the unreachable split interaction code that remained
+after `get_interaction_prompt()` started using the unified resolver. Prompt
+generation now only resolves an `InteractionCandidate` and returns its
+`prompt_text`.
+
+Primary interaction execution also resolves an `InteractionCandidate` and
+dispatches by `action_type`. It no longer re-implements separate current-cell
+pickup, facing-door, facing-facility, crop, or NPC branches.
+
 ## Goal
 
 Phase 65 replaces the split map-interaction flow with a single resolver based
@@ -40,7 +51,10 @@ NPC talk all enter the same candidate collection and sorting path.
 
 `get_interaction_prompt()` and primary action execution both call the same
 resolver. The last resolved candidate is cached only while the actor cell and
-facing cell stay unchanged, so prompt and execution point at the same target.
+facing cell stay unchanged, the location id matches, the nearby object-list
+signature is unchanged, and the cache is still within its short frame window.
+This keeps prompt and execution pointed at the same target without allowing
+stale candidates after movement, turning, scene changes, or object removal.
 
 ## Object Action Contract
 
@@ -80,8 +94,14 @@ The first stable priority pass is:
 7. facing-cell crop or terrain actions;
 8. fallback inspect.
 
-Within the same group, candidates sort by action priority, then target id, then
-action id. This keeps same-cell multi-object resolution deterministic.
+Within the same group, candidates sort by relation priority, action priority,
+target id, then action id. This keeps same-cell multi-object resolution
+deterministic.
+
+The resolver must collect all interactable objects on the current and facing
+cells. `get_primary_object_at(cell)` may remain for legacy callers, but it is
+not the resolver's only object source; the resolver uses `get_objects_at(cell)`
+and builds a candidate for each object action.
 
 ## Execution
 
@@ -136,6 +156,20 @@ The smoke test verifies:
 - v64 generated-interior contract smoke still passes;
 - v64 policy playable settlement smoke still passes;
 - v63 settlement scene compiler smoke still passes.
+
+The cleanup smoke also verifies:
+
+- same-cell multiple objects are collected as multiple candidates;
+- stable sorting uses object id / target id as the final tie breaker;
+- prompt and execute candidate fields match for target id, action type, target
+  cell, and relation;
+- generated wall doors and return points keep concrete target/source location
+  ids;
+- generated bed, counter, workbench, and training facility objects are
+  collectable from concrete generated interiors;
+- `generated_basic_interior` is never used as an interaction candidate
+  `source_location_id` or `target_location_id`; it remains only the scene shell
+  path.
 
 ## Verification
 

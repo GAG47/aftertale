@@ -256,6 +256,7 @@ func build_interaction_candidates(context: Dictionary) -> Array[Dictionary]:
 			"source_cell": source_cell,
 			"target_cell": target_cell,
 			"relation": str(context.get("relation", "facing")),
+			"relation_priority": int(context.get("relation_priority", 9)),
 			"target_kind": "object",
 			"target_id": object_id,
 			"target_ref": self,

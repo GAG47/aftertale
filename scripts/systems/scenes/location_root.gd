@@ -15,6 +15,7 @@ const CAMERA_DEAD_ZONE_RATIO := Vector2(0.42, 0.42)
 const CAMERA_MANUAL_PAN_SPEED := 520.0
 const CAMERA_SMOOTH_SPEED := 8.0
 const CAMERA_SNAP_DISTANCE := 0.35
+const INTERACTION_CANDIDATE_CACHE_MAX_FRAMES := 1
 
 @export_file("*.json") var location_data_path: String = ""
 @export var entrance_id: String = ""
@@ -51,6 +52,8 @@ var _last_executed_interaction_candidate: Dictionary = {}
 var _last_interaction_candidate_frame: int = -1
 var _last_interaction_candidate_actor_cell: Vector2i = Vector2i(-9999, -9999)
 var _last_interaction_candidate_facing_cell: Vector2i = Vector2i(-9999, -9999)
+var _last_interaction_candidate_location_id: String = ""
+var _last_interaction_candidate_object_signature: String = ""
 
 
 func _ready() -> void:
@@ -281,55 +284,6 @@ func get_interaction_prompt() -> String:
 
 	var candidate := _resolve_interaction_candidate()
 	return str(candidate.get("prompt_text", ""))
-
-	var current_object: LocationObject = grid.get_primary_object_at(controlled_character.grid_position)
-	if current_object != null and current_object.is_pickable:
-		return "E/Enter 拾取：%s" % current_object.display_name
-
-	var crop_prompt: String = _get_crop_interaction_prompt(controlled_character.grid_position)
-	if not crop_prompt.is_empty():
-		return crop_prompt
-
-	var current_transition_prompt := _get_current_cell_transition_prompt(controlled_character.grid_position)
-	if not current_transition_prompt.is_empty():
-		return current_transition_prompt
-
-	var target_cell: Vector2i = controlled_character.get_facing_cell()
-	var target_character: CharacterEntity = grid.get_character_at(target_cell)
-	if target_character != null:
-		if PartySystem.is_member(target_character.character_id):
-			return "E/Enter 调查前方  B 背包  J 任务  C 角色  滚轮/+/- 缩放"
-		if target_character.is_combatable:
-			return "E/Enter 攻击：%s" % target_character.display_name
-		if target_character.is_interactable:
-			return "E/Enter 交谈：%s" % target_character.display_name
-
-	var target_object: LocationObject = grid.get_primary_object_at(target_cell)
-	if target_object != null:
-		if target_object.is_pickable:
-			return "E/Enter 拾取：%s" % target_object.display_name
-		if target_object.is_scene_transition():
-			return "E/Enter 进入：%s" % target_object.display_name
-		if target_object.is_facility():
-			if target_object.facility_type == "crafting":
-				return "E/Enter 制作：%s" % target_object.display_name
-			if target_object.facility_type == "shop":
-				return "E/Enter 交易：%s" % target_object.display_name
-			if target_object.facility_type == "rest":
-				return _get_rest_facility_prompt(target_object)
-			if target_object.facility_type == "save":
-				return "E/Enter 存档：%s" % target_object.display_name
-		if target_object.is_usable:
-			return "E/Enter 使用：%s" % target_object.display_name
-		if target_object.is_inspectable:
-			return "E/Enter 调查：%s" % target_object.display_name
-
-	var exit_data: Dictionary = grid.get_exit_at(target_cell)
-	if not exit_data.is_empty():
-		return "向前移动：前往 %s" % str(exit_data.get("target_entrance_id", "下一个地点"))
-
-	return "E/Enter 调查前方  B 背包  J 任务  C 角色  滚轮/+/- 缩放"
-
 
 func _load_location_data() -> void:
 	_location_data_cache = _read_location_data()
@@ -1441,6 +1395,7 @@ func _on_move_requested(direction: Vector2i) -> void:
 	if grid == null or not _has_controlled_character():
 		return
 
+	_clear_interaction_candidate_cache()
 	if _try_swap_with_party_follower(direction):
 		_recenter_camera_to_focus(false)
 		_refresh_interaction_overlay()
@@ -1474,6 +1429,8 @@ func remove_location_object(object_id: String) -> bool:
 	grid.unregister_object(object_id)
 	GameState.mark_location_object_removed(grid.location_id, object_id)
 	object.queue_free()
+	_clear_interaction_candidate_cache()
+	_refresh_interaction_overlay()
 	return true
 
 
@@ -1664,6 +1621,14 @@ func get_last_executed_interaction_candidate() -> Dictionary:
 	return _last_executed_interaction_candidate.duplicate(true)
 
 
+func get_interaction_candidates() -> Array[Dictionary]:
+	if grid == null or not _has_controlled_character():
+		return []
+	var candidates := _collect_interaction_candidates()
+	candidates.sort_custom(Callable(self, "_compare_interaction_candidates"))
+	return candidates
+
+
 func _resolve_interaction_candidate() -> Dictionary:
 	if grid == null or not _has_controlled_character():
 		return {}
@@ -1743,6 +1708,7 @@ func _object_interaction_context(target_cell: Vector2i, relation: String, priori
 		"source_cell": controlled_character.grid_position,
 		"target_cell": target_cell,
 		"relation": relation,
+		"relation_priority": _interaction_relation_priority(relation),
 		"priority": priority,
 	}
 
@@ -1839,6 +1805,7 @@ func _base_interaction_candidate(
 		"source_cell": controlled_character.grid_position,
 		"target_cell": target_cell,
 		"relation": relation,
+		"relation_priority": _interaction_relation_priority(relation),
 		"target_kind": target_kind,
 		"target_id": target_id,
 		"target_ref": target_ref,
@@ -1861,6 +1828,10 @@ func _compare_interaction_candidates(left: Dictionary, right: Dictionary) -> boo
 	var right_priority := int(right.get("priority", 1000))
 	if left_priority != right_priority:
 		return left_priority < right_priority
+	var left_relation_priority := int(left.get("relation_priority", _interaction_relation_priority(str(left.get("relation", "")))))
+	var right_relation_priority := int(right.get("relation_priority", _interaction_relation_priority(str(right.get("relation", "")))))
+	if left_relation_priority != right_relation_priority:
+		return left_relation_priority < right_relation_priority
 	var left_action_priority := int(left.get("action_priority", _interaction_action_priority(str(left.get("action_type", "")))))
 	var right_action_priority := int(right.get("action_priority", _interaction_action_priority(str(right.get("action_type", "")))))
 	if left_action_priority != right_action_priority:
@@ -1870,6 +1841,16 @@ func _compare_interaction_candidates(left: Dictionary, right: Dictionary) -> boo
 	if left_target_id != right_target_id:
 		return left_target_id < right_target_id
 	return str(left.get("action_id", "")) < str(right.get("action_id", ""))
+
+
+func _interaction_relation_priority(relation: String) -> int:
+	match relation:
+		"current":
+			return 0
+		"facing":
+			return 1
+		_:
+			return 9
 
 
 func _interaction_action_priority(action_type: String) -> int:
@@ -1901,9 +1882,15 @@ func _interaction_action_priority(action_type: String) -> int:
 func _interaction_candidate_cache_is_valid() -> bool:
 	if _last_interaction_candidate.is_empty():
 		return false
+	if grid.location_id != _last_interaction_candidate_location_id:
+		return false
+	if Engine.get_process_frames() - _last_interaction_candidate_frame > INTERACTION_CANDIDATE_CACHE_MAX_FRAMES:
+		return false
 	if controlled_character.grid_position != _last_interaction_candidate_actor_cell:
 		return false
 	if controlled_character.get_facing_cell() != _last_interaction_candidate_facing_cell:
+		return false
+	if _interaction_object_signature() != _last_interaction_candidate_object_signature:
 		return false
 	return _candidate_target_ref_is_valid(_last_interaction_candidate)
 
@@ -1922,6 +1909,8 @@ func _cache_interaction_candidate(candidate: Dictionary) -> void:
 	_last_interaction_candidate_frame = Engine.get_process_frames()
 	_last_interaction_candidate_actor_cell = controlled_character.grid_position
 	_last_interaction_candidate_facing_cell = controlled_character.get_facing_cell()
+	_last_interaction_candidate_location_id = grid.location_id
+	_last_interaction_candidate_object_signature = _interaction_object_signature()
 
 
 func _clear_interaction_candidate_cache() -> void:
@@ -1929,6 +1918,27 @@ func _clear_interaction_candidate_cache() -> void:
 	_last_interaction_candidate_frame = -1
 	_last_interaction_candidate_actor_cell = Vector2i(-9999, -9999)
 	_last_interaction_candidate_facing_cell = Vector2i(-9999, -9999)
+	_last_interaction_candidate_location_id = ""
+	_last_interaction_candidate_object_signature = ""
+
+
+func _interaction_object_signature() -> String:
+	if grid == null or not _has_controlled_character():
+		return ""
+	var cells: Array[Vector2i] = [
+		controlled_character.grid_position,
+		controlled_character.get_facing_cell(),
+	]
+	var parts: Array[String] = []
+	for cell in cells:
+		var object_ids: Array[String] = []
+		for object_value in grid.get_objects_at(cell):
+			var object: LocationObject = object_value as LocationObject
+			if object != null:
+				object_ids.append(object.object_id)
+		object_ids.sort()
+		parts.append("%s:%s" % [grid.cell_key(cell), ",".join(object_ids)])
+	return "|".join(parts)
 
 
 func _execute_interaction_candidate(candidate: Dictionary) -> void:
@@ -2034,38 +2044,6 @@ func _on_primary_action_requested() -> void:
 
 	var candidate := _resolve_interaction_candidate()
 	_execute_interaction_candidate(candidate)
-	return
-
-	var target_cell: Vector2i = controlled_character.get_facing_cell()
-	var target_character: CharacterEntity = grid.get_character_at(target_cell)
-	if target_character != null and PartySystem.is_member(target_character.character_id):
-		target_character = null
-	if target_character != null and target_character.is_combatable:
-		_submit_battle_start(target_character)
-		return
-
-	if target_character != null and target_character.is_interactable:
-		_submit_talk_interaction(target_character)
-		return
-
-	var current_object: LocationObject = grid.get_primary_object_at(controlled_character.grid_position)
-	if current_object != null and current_object.is_pickable:
-		_submit_object_interaction(current_object, controlled_character.grid_position)
-		return
-
-	if _try_submit_crop_interaction(controlled_character.grid_position):
-		return
-
-	if _try_submit_current_cell_transition(controlled_character.grid_position):
-		return
-
-	var target_object: LocationObject = grid.get_primary_object_at(target_cell)
-	if target_object == null:
-		_submit_inspect_empty(target_cell)
-		return
-
-	_submit_object_interaction(target_object, target_cell)
-
 
 func _on_rest_requested() -> void:
 	if GameState.current_mode == GameState.GameMode.COMBAT:
@@ -2085,71 +2063,6 @@ func _on_rest_requested() -> void:
 	var action: GameAction = ActionSystem.create_action("RestAction", controlled_character, target, context) as GameAction
 	ActionSystem.submit(action)
 	_refresh_interaction_overlay()
-
-
-func _try_submit_crop_interaction(cell: Vector2i) -> bool:
-	if grid == null or not _has_controlled_character():
-		return false
-
-	var crop_state: Dictionary = CropSystem.get_crop_at(grid.location_id, cell)
-	if not crop_state.is_empty():
-		if bool(crop_state.get("mature", false)):
-			_submit_crop_action("HarvestAction", cell)
-			return true
-		if not bool(crop_state.get("watered", false)):
-			_submit_crop_action("WaterAction", cell)
-			return true
-
-		ActionSystem.publish_result(ActionResult.failed("InspectCrop", controlled_character.character_id, "%s is still growing." % str(crop_state.get("display_name", "The crop"))))
-		_refresh_interaction_overlay()
-		return true
-
-	if is_cell_plantable(cell) and not CropSystem.get_seed_item_id(controlled_character).is_empty():
-		_submit_crop_action("PlantAction", cell)
-		return true
-
-	return false
-
-
-func _get_crop_interaction_prompt(cell: Vector2i) -> String:
-	var crop_state: Dictionary = CropSystem.get_crop_at(grid.location_id, cell)
-	if not crop_state.is_empty():
-		if bool(crop_state.get("mature", false)):
-			return "E/Enter 收获：%s" % str(crop_state.get("display_name", "作物"))
-		if not bool(crop_state.get("watered", false)):
-			return "E/Enter 浇水：%s" % str(crop_state.get("display_name", "作物"))
-		return "作物正在生长：%s" % str(crop_state.get("display_name", "作物"))
-
-	if is_cell_plantable(cell) and not CropSystem.get_seed_item_id(controlled_character).is_empty():
-		return "E/Enter 种植种子"
-
-	return ""
-
-
-func _get_current_cell_transition_prompt(cell: Vector2i) -> String:
-	if grid == null:
-		return ""
-	var current_object: LocationObject = grid.get_primary_object_at(cell)
-	if current_object != null and current_object.is_scene_transition():
-		return "E/Enter Leave: %s" % current_object.display_name
-	var exit_data: Dictionary = grid.get_exit_at(cell)
-	if not exit_data.is_empty():
-		return "E/Enter Leave: %s" % str(exit_data.get("target_entrance_id", "next location"))
-	return ""
-
-
-func _try_submit_current_cell_transition(cell: Vector2i) -> bool:
-	if grid == null:
-		return false
-	var current_object: LocationObject = grid.get_primary_object_at(cell)
-	if current_object != null and current_object.is_scene_transition():
-		_submit_scene_transition_object(current_object)
-		return true
-	var exit_data: Dictionary = grid.get_exit_at(cell)
-	if not exit_data.is_empty():
-		request_exit_transition(exit_data)
-		return true
-	return false
 
 
 func _submit_crop_action(action_type: String, cell: Vector2i) -> void:
@@ -2296,35 +2209,6 @@ func _cell_array_has(cells: Array, target_cell: Vector2i) -> bool:
 	return false
 
 
-func _submit_object_interaction(target_object: LocationObject, target_cell: Vector2i) -> void:
-	if target_object.is_scene_transition():
-		_submit_scene_transition_object(target_object)
-		return
-
-	if target_object.is_facility():
-		match target_object.facility_type:
-			"crafting", "shop":
-				facility_requested.emit(target_object.get_facility_data())
-			"rest":
-				_submit_rest_facility(target_object)
-			"save":
-				_submit_save_facility(target_object)
-			_:
-				facility_requested.emit(target_object.get_facility_data())
-		_refresh_interaction_overlay()
-		return
-
-	var target: Dictionary = {
-		"object": target_object,
-		"target_cell": target_cell,
-	}
-	var context: Dictionary = { "location_root": self }
-	var action_type: String = _choose_interaction_action(target_object)
-	var action: GameAction = ActionSystem.create_action(action_type, controlled_character, target, context) as GameAction
-	ActionSystem.submit(action)
-	_refresh_interaction_overlay()
-
-
 func _submit_scene_transition_object(target_object: LocationObject) -> void:
 	var transition_data: Dictionary = target_object.get_transition_data()
 	var target_scene_path := str(transition_data.get("target_scene_path", ""))
@@ -2384,36 +2268,12 @@ func _submit_inspect_empty(target_cell: Vector2i) -> void:
 	_refresh_interaction_overlay()
 
 
-func _choose_interaction_action(target_object: LocationObject) -> String:
-	if target_object.is_pickable:
-		return "PickUpAction"
-	if target_object.is_usable:
-		return "UseItemAction"
-	return "InspectAction"
-
-
-func _get_rest_facility_prompt(target_object: LocationObject) -> String:
-	match target_object.rest_type:
-		"bed":
-			return "E/Enter 休息到明早：%s" % target_object.display_name
-		"campfire":
-			return "E/Enter 烤火休息：%s" % target_object.display_name
-		"inn":
-			return "E/Enter 入住：%s（%d 金币）" % [target_object.display_name, target_object.cost]
-		_:
-			return "E/Enter 休息：%s" % target_object.display_name
-
-
 func _submit_rest_facility(target_object: LocationObject) -> void:
 	var target: Dictionary = target_object.get_facility_data()
 	target["target_scope"] = "party"
 	var context: Dictionary = { "location_root": self }
 	var action: GameAction = ActionSystem.create_action("RestAction", controlled_character, target, context) as GameAction
 	ActionSystem.submit(action)
-
-
-func _submit_save_facility(_target_object: LocationObject) -> void:
-	SaveManager.save_game()
 
 
 func _read_location_data() -> Dictionary:
@@ -2428,6 +2288,7 @@ func _on_crop_changed(location_id: String, _cell: Vector2i, _crop_state: Diction
 	if grid == null or location_id != grid.location_id:
 		return
 
+	_clear_interaction_candidate_cache()
 	refresh_crop_markers()
 	_refresh_interaction_overlay()
 
@@ -2436,6 +2297,7 @@ func _on_party_changed() -> void:
 	if GameState.current_mode == GameState.GameMode.COMBAT:
 		return
 	_sync_party_followers(false)
+	_clear_interaction_candidate_cache()
 	_refresh_interaction_overlay()
 
 
@@ -2450,7 +2312,7 @@ func _on_action_result_for_presentation(_action_type: String, _actor_id: String,
 		return
 
 	if GameState.current_mode == GameState.GameMode.COMBAT and _has_controlled_character():
-		_spawn_battle_feedback(controlled_character.character_id, "无效", Color(0.92, 0.92, 0.92, 0.95))
+		_spawn_battle_feedback(controlled_character.character_id, "鏃犳晥", Color(0.92, 0.92, 0.92, 0.95))
 
 
 func _focus_camera_from_action_result(result: ActionResult) -> void:
@@ -2624,7 +2486,7 @@ func _spawn_battle_feedback_from_result(result: ActionResult) -> void:
 			"battle_unit_defeated":
 				_spawn_battle_feedback(
 					str(change.get("character_id", "")),
-					"击败",
+					"鍑昏触",
 					Color(1.0, 0.88, 0.30, 0.98)
 				)
 
@@ -2671,70 +2533,6 @@ func _refresh_interaction_overlay() -> void:
 		interaction_overlay.set_target(candidate_target_cell, overlay_kind)
 	else:
 		interaction_overlay.set_target(candidate_target_cell, overlay_kind, controlled_character.grid_position)
-	return
-
-	var current_cell: Vector2i = controlled_character.grid_position
-	var current_object: LocationObject = grid.get_primary_object_at(current_cell)
-	if current_object != null and current_object.is_pickable:
-		interaction_overlay.set_target(current_cell, "pickup")
-		return
-
-	var crop_kind: String = _get_crop_interaction_kind(current_cell)
-	if not crop_kind.is_empty():
-		interaction_overlay.set_target(current_cell, crop_kind)
-		return
-
-	if not _get_current_cell_transition_prompt(current_cell).is_empty():
-		interaction_overlay.set_target(current_cell, "exit")
-		return
-
-	var target_cell: Vector2i = controlled_character.get_facing_cell()
-	if not grid.in_bounds(target_cell):
-		interaction_overlay.clear_target()
-		return
-
-	var target_character: CharacterEntity = grid.get_character_at(target_cell)
-	if target_character != null:
-		if target_character.is_combatable:
-			interaction_overlay.set_target(target_cell, "attack", current_cell)
-			return
-		if target_character.is_interactable:
-			interaction_overlay.set_target(target_cell, "talk", current_cell)
-			return
-
-	var target_object: LocationObject = grid.get_primary_object_at(target_cell)
-	if target_object != null:
-		if target_object.is_pickable:
-			interaction_overlay.set_target(target_cell, "pickup", current_cell)
-			return
-		if target_object.is_facility():
-			interaction_overlay.set_target(target_cell, "use", current_cell)
-			return
-		if target_object.is_usable:
-			interaction_overlay.set_target(target_cell, "use", current_cell)
-			return
-		if target_object.is_inspectable:
-			interaction_overlay.set_target(target_cell, "inspect", current_cell)
-			return
-
-	var exit_data: Dictionary = grid.get_exit_at(target_cell)
-	if not exit_data.is_empty():
-		interaction_overlay.set_target(target_cell, "exit", current_cell)
-		return
-
-	interaction_overlay.set_target(target_cell, "inspect", current_cell)
-
-
-func _get_crop_interaction_kind(cell: Vector2i) -> String:
-	var crop_state: Dictionary = CropSystem.get_crop_at(grid.location_id, cell)
-	if not crop_state.is_empty():
-		return "crop"
-
-	if is_cell_plantable(cell) and not CropSystem.get_seed_item_id(controlled_character).is_empty():
-		return "crop"
-
-	return ""
-
 
 func _overlay_kind_for_candidate(candidate: Dictionary) -> String:
 	match str(candidate.get("action_type", "")):
@@ -2756,12 +2554,14 @@ func _overlay_kind_for_candidate(candidate: Dictionary) -> String:
 
 func _on_controlled_character_grid_position_changed(_character_id: String, _previous_cell: Vector2i, new_cell: Vector2i) -> void:
 	current_grid_position = new_cell
+	_clear_interaction_candidate_cache()
 	_update_building_renderer_focus()
 	grid_position_changed.emit(current_grid_position)
 	_refresh_interaction_overlay()
 
 
 func _on_controlled_character_facing_changed(_character_id: String, _facing: String) -> void:
+	_clear_interaction_candidate_cache()
 	_refresh_interaction_overlay()
 
 
