@@ -23,15 +23,44 @@ extends Node2D
 @export var full_restore: bool = false
 @export var cost: int = 0
 @export var target_scene_path: String = ""
+@export var target_location_id: String = ""
 @export var target_entrance_id: String = ""
 @export var return_entrance_id: String = ""
 @export var draw_visual: bool = true
+@export var source_building_id: String = ""
+@export var anchor_id: String = ""
+@export var facility_role: String = ""
+@export var interaction_kind: String = ""
 
 var location_root: Node
 var item_definition: Dictionary = {}
 var item_quantity: int = 0
 var recipe_ids: Array[String] = []
 var transition_context: Dictionary = {}
+
+
+static func interaction_action_priority(action_type: String) -> int:
+	match action_type:
+		"scene_transition":
+			return 10
+		"pickup":
+			return 20
+		"rest":
+			return 30
+		"shop", "service":
+			return 40
+		"craft":
+			return 50
+		"train":
+			return 60
+		"harvest":
+			return 70
+		"inspect":
+			return 80
+		"open_container":
+			return 90
+		_:
+			return 100
 
 
 func configure(data: Dictionary, parent_location: Node) -> void:
@@ -66,9 +95,14 @@ func configure(data: Dictionary, parent_location: Node) -> void:
 	full_restore = bool(data.get("full_restore", rest_type == "bed" or rest_type == "inn"))
 	cost = max(0, int(data.get("cost", cost)))
 	target_scene_path = str(data.get("target_scene_path", ""))
+	target_location_id = str(data.get("target_location_id", ""))
 	target_entrance_id = str(data.get("target_entrance_id", ""))
 	return_entrance_id = str(data.get("return_entrance_id", ""))
 	draw_visual = bool(data.get("draw_visual", draw_visual))
+	source_building_id = str(data.get("source_building_id", data.get("source_blueprint_id", "")))
+	anchor_id = str(data.get("anchor_id", data.get("source_anchor_id", "")))
+	facility_role = str(data.get("facility_role", ""))
+	interaction_kind = str(data.get("interaction_kind", ""))
 	transition_context = (data.get("transition_context", {}) as Dictionary).duplicate(true)
 	recipe_ids.clear()
 	var recipe_rows: Array = data.get("recipe_ids", []) as Array
@@ -153,8 +187,13 @@ func get_summary() -> Dictionary:
 		"full_restore": full_restore,
 		"cost": cost,
 		"target_scene_path": target_scene_path,
+		"target_location_id": target_location_id,
 		"target_entrance_id": target_entrance_id,
 		"return_entrance_id": return_entrance_id,
+		"source_building_id": source_building_id,
+		"anchor_id": anchor_id,
+		"facility_role": facility_role,
+		"interaction_kind": interaction_kind,
 	}
 
 
@@ -163,7 +202,81 @@ func is_facility() -> bool:
 
 
 func is_scene_transition() -> bool:
-	return facility_type == "scene_transition" or not target_scene_path.is_empty()
+	return facility_type == "scene_transition" or not target_scene_path.is_empty() or not target_location_id.is_empty()
+
+
+func is_interactable() -> bool:
+	return is_scene_transition() or is_pickable or is_facility() or is_usable or is_inspectable or _is_training_object() or _is_container_object()
+
+
+func get_interaction_actions(_context: Dictionary = {}) -> Array[Dictionary]:
+	var actions: Array[Dictionary] = []
+	if is_scene_transition():
+		_append_interaction_action(actions, "scene_transition", _scene_transition_prompt())
+	if is_pickable:
+		_append_interaction_action(actions, "pickup", "E/Enter pickup: %s" % display_name)
+	match facility_type:
+		"rest":
+			_append_interaction_action(actions, "rest", _rest_prompt())
+		"shop":
+			_append_interaction_action(actions, "shop", "E/Enter trade: %s" % display_name)
+		"crafting":
+			_append_interaction_action(actions, "craft", "E/Enter craft: %s" % display_name)
+		"save":
+			_append_interaction_action(actions, "service", "E/Enter save: %s" % display_name)
+		_:
+			if is_facility():
+				_append_interaction_action(actions, "service", "E/Enter use: %s" % display_name)
+	if _is_training_object():
+		_append_interaction_action(actions, "train", "E/Enter train: %s" % display_name)
+	if _is_container_object():
+		_append_interaction_action(actions, "open_container", "E/Enter open: %s" % display_name)
+	elif is_usable and actions.is_empty():
+		_append_interaction_action(actions, "inspect", "E/Enter use: %s" % display_name)
+	if is_inspectable:
+		_append_interaction_action(actions, "inspect", "E/Enter inspect: %s" % display_name)
+	actions.sort_custom(Callable(self, "_compare_interaction_actions"))
+	return actions
+
+
+func build_interaction_candidates(context: Dictionary) -> Array[Dictionary]:
+	var candidates: Array[Dictionary] = []
+	if not is_interactable():
+		return candidates
+	var source_cell: Vector2i = context.get("source_cell", Vector2i.ZERO) as Vector2i
+	var target_cell: Vector2i = context.get("target_cell", grid_position) as Vector2i
+	var source_location_id := str(context.get("source_location_id", ""))
+	for action_value in get_interaction_actions(context):
+		var action: Dictionary = action_value as Dictionary
+		var action_type := str(action.get("action_type", "inspect"))
+		candidates.append({
+			"actor": context.get("actor", null),
+			"actor_id": str(context.get("actor_id", "")),
+			"source_location_id": source_location_id,
+			"source_cell": source_cell,
+			"target_cell": target_cell,
+			"relation": str(context.get("relation", "facing")),
+			"target_kind": "object",
+			"target_id": object_id,
+			"target_ref": self,
+			"action_id": str(action.get("action_id", "%s.%s" % [object_id, action_type])),
+			"action_type": action_type,
+			"action_priority": int(action.get("action_priority", interaction_action_priority(action_type))),
+			"priority": int(context.get("priority", 50)),
+			"prompt_text": str(action.get("prompt_text", "")),
+			"source_building_id": source_building_id,
+			"interior_location_id": target_location_id if action_type == "scene_transition" else source_location_id,
+			"anchor_id": anchor_id,
+			"facility_role": facility_role,
+			"transition_context": transition_context.duplicate(true),
+			"metadata": {
+				"facility_data": get_facility_data(),
+				"transition_data": get_transition_data() if action_type == "scene_transition" else {},
+				"blocks_movement": blocks_movement,
+				"object_kind": kind,
+			},
+		})
+	return candidates
 
 
 func get_transition_data() -> Dictionary:
@@ -171,8 +284,13 @@ func get_transition_data() -> Dictionary:
 		"id": object_id,
 		"display_name": display_name,
 		"target_scene_path": target_scene_path,
+		"target_location_id": target_location_id,
 		"target_entrance_id": target_entrance_id,
 		"return_entrance_id": return_entrance_id,
+		"source_building_id": source_building_id,
+		"anchor_id": anchor_id,
+		"facility_role": facility_role,
+		"interaction_kind": interaction_kind,
 		"context": transition_context.duplicate(true),
 	}
 
@@ -184,6 +302,10 @@ func get_facility_data() -> Dictionary:
 		"facility_type": facility_type,
 		"shop_id": shop_id,
 		"vendor_character_id": vendor_character_id,
+		"source_building_id": source_building_id,
+		"anchor_id": anchor_id,
+		"facility_role": facility_role,
+		"interaction_kind": interaction_kind,
 		"recipe_ids": recipe_ids.duplicate(),
 		"rest_type": rest_type,
 		"minutes": rest_minutes,
@@ -194,6 +316,53 @@ func get_facility_data() -> Dictionary:
 		"full_restore": full_restore,
 		"cost": cost,
 	}
+
+
+func _append_interaction_action(actions: Array[Dictionary], action_type: String, prompt_text: String) -> void:
+	for existing_value in actions:
+		var existing: Dictionary = existing_value
+		if str(existing.get("action_type", "")) == action_type:
+			return
+	actions.append({
+		"action_id": "%s.%s" % [object_id, action_type],
+		"action_type": action_type,
+		"action_priority": interaction_action_priority(action_type),
+		"prompt_text": prompt_text,
+	})
+
+
+func _compare_interaction_actions(left: Dictionary, right: Dictionary) -> bool:
+	var left_priority := int(left.get("action_priority", 100))
+	var right_priority := int(right.get("action_priority", 100))
+	if left_priority != right_priority:
+		return left_priority < right_priority
+	return str(left.get("action_id", "")) < str(right.get("action_id", ""))
+
+
+func _scene_transition_prompt() -> String:
+	if target_scene_path == "__return__" or interaction_kind == "return_to_exterior" or facility_role == "return_door":
+		return "E/Enter Leave: %s" % display_name
+	return "E/Enter Enter: %s" % display_name
+
+
+func _rest_prompt() -> String:
+	match rest_type:
+		"bed":
+			return "E/Enter rest until morning: %s" % display_name
+		"campfire":
+			return "E/Enter rest: %s" % display_name
+		"inn":
+			return "E/Enter stay: %s (%d gold)" % [display_name, cost]
+		_:
+			return "E/Enter rest: %s" % display_name
+
+
+func _is_training_object() -> bool:
+	return interaction_kind == "train" or facility_role == "training" or kind == "training_dummy"
+
+
+func _is_container_object() -> bool:
+	return kind == "container" or kind == "chest" or object_id.find("container") >= 0 or object_id.find("chest") >= 0
 
 
 func _read_item_definition(resource_path: String) -> Dictionary:

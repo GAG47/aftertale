@@ -6,6 +6,7 @@ const RoadGraphScript := preload("res://scripts/systems/settlements/settlement_r
 const POLICY_IDS := ["farming_village", "forest_village", "roadside_trade_village", "mining_camp"]
 const GAME_SETTLEMENT_PATH := "res://data/locations/generated_settlement.json"
 const GENERATED_INTERIOR_SCENE := "res://scenes/locations/generated_basic_interior.tscn"
+const BASIC_INTERIOR_ID := "generated_basic_interior"
 
 
 func run(root: Node) -> bool:
@@ -91,6 +92,12 @@ func _has_playable_hooks(compiled: Dictionary) -> bool:
 		return false
 	if int(gameplay_hooks.get("enterable_building_count", 0)) <= 0:
 		return false
+	if int(gameplay_hooks.get("generated_interior_count", 0)) <= 0:
+		return false
+	if int(gameplay_hooks.get("building_contract_count", 0)) != int(gameplay_hooks.get("generated_interior_count", -1)):
+		return false
+	if int(gameplay_hooks.get("schedule_target_count", 0)) <= 0:
+		return false
 	if not _has_enterable_generated_building(compiled):
 		return false
 	if not _has_no_generated_npcs(compiled):
@@ -109,6 +116,14 @@ func _has_enterable_generated_building(compiled: Dictionary) -> bool:
 			continue
 		if str(object.get("target_scene_path", "")).is_empty():
 			continue
+		if str(object.get("target_scene_path", "")) != GENERATED_INTERIOR_SCENE:
+			return false
+		if str(object.get("target_location_id", "")).is_empty():
+			return false
+		if str(object.get("target_location_id", "")) == BASIC_INTERIOR_ID:
+			return false
+		if str(object.get("interior_location_id", "")) != str(object.get("target_location_id", "")):
+			return false
 		if str(object.get("interior_template_id", "")).is_empty():
 			continue
 		if str(object.get("source_blueprint_id", "")).is_empty():

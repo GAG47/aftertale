@@ -51,6 +51,15 @@ func load_location(scene_path: String, entrance_id: String = "") -> Error:
 	return load_scene(scene_path)
 
 
+func load_location_id(location_id: String, scene_path: String, entrance_id: String = "", context: Dictionary = {}) -> Error:
+	var next_context := context.duplicate(true)
+	if not location_id.is_empty():
+		next_context["target_location_id"] = location_id
+	if not next_context.is_empty():
+		set_pending_location_context(next_context)
+	return load_location(scene_path, entrance_id)
+
+
 func set_pending_location_context(context: Dictionary) -> void:
 	pending_location_context = context.duplicate(true)
 
@@ -61,20 +70,24 @@ func consume_pending_location_context() -> Dictionary:
 	return context
 
 
-func set_pending_return_location(scene_path: String, entrance_id: String) -> void:
+func set_pending_return_location(scene_path: String, entrance_id: String, context: Dictionary = {}) -> void:
 	pending_return_location = {
 		"scene_path": scene_path,
 		"entrance_id": entrance_id,
+		"context": context.duplicate(true),
 	}
 
 
 func load_pending_return_location() -> Error:
 	var scene_path := str(pending_return_location.get("scene_path", ""))
 	var entrance_id := str(pending_return_location.get("entrance_id", ""))
+	var context: Dictionary = pending_return_location.get("context", {}) as Dictionary
 	pending_return_location.clear()
 	if scene_path.is_empty():
 		push_error("SceneLoader has no pending return location.")
 		return ERR_UNAVAILABLE
+	if not context.is_empty():
+		set_pending_location_context(context)
 	return load_location(scene_path, entrance_id)
 
 

@@ -46,6 +46,11 @@ var _camera_default_zoom: Vector2 = Vector2.ONE
 var _camera_detached: bool = false
 var _camera_target_position: Vector2 = Vector2.ZERO
 var _last_camera_viewport_size: Vector2 = Vector2.ZERO
+var _last_interaction_candidate: Dictionary = {}
+var _last_executed_interaction_candidate: Dictionary = {}
+var _last_interaction_candidate_frame: int = -1
+var _last_interaction_candidate_actor_cell: Vector2i = Vector2i(-9999, -9999)
+var _last_interaction_candidate_facing_cell: Vector2i = Vector2i(-9999, -9999)
 
 
 func _ready() -> void:
@@ -273,6 +278,9 @@ func get_location_summary() -> Dictionary:
 func get_interaction_prompt() -> String:
 	if grid == null or not _has_controlled_character():
 		return ""
+
+	var candidate := _resolve_interaction_candidate()
+	return str(candidate.get("prompt_text", ""))
 
 	var current_object: LocationObject = grid.get_primary_object_at(controlled_character.grid_position)
 	if current_object != null and current_object.is_pickable:
@@ -1648,6 +1656,369 @@ func _can_party_follower_enter_cell(target_cell: Vector2i, follower: CharacterEn
 	return PartySystem.is_member(occupant.character_id)
 
 
+func get_resolved_interaction_candidate() -> Dictionary:
+	return _resolve_interaction_candidate()
+
+
+func get_last_executed_interaction_candidate() -> Dictionary:
+	return _last_executed_interaction_candidate.duplicate(true)
+
+
+func _resolve_interaction_candidate() -> Dictionary:
+	if grid == null or not _has_controlled_character():
+		return {}
+	if _interaction_candidate_cache_is_valid():
+		return _last_interaction_candidate.duplicate(true)
+
+	var candidates := _collect_interaction_candidates()
+	if candidates.is_empty():
+		_clear_interaction_candidate_cache()
+		return {}
+	candidates.sort_custom(Callable(self, "_compare_interaction_candidates"))
+	var resolved: Dictionary = candidates[0] as Dictionary
+	_cache_interaction_candidate(resolved)
+	return resolved.duplicate(true)
+
+
+func _collect_interaction_candidates() -> Array[Dictionary]:
+	var candidates: Array[Dictionary] = []
+	var current_cell: Vector2i = controlled_character.grid_position
+	var facing_cell: Vector2i = controlled_character.get_facing_cell()
+	candidates.append_array(_build_character_interaction_candidates(facing_cell))
+	candidates.append_array(_build_object_interaction_candidates(current_cell, "current", 20))
+	candidates.append_array(_build_object_interaction_candidates(facing_cell, "facing", 30))
+	candidates.append_array(_build_exit_interaction_candidates(current_cell, "current", 40))
+	candidates.append_array(_build_exit_interaction_candidates(facing_cell, "facing", 50))
+	candidates.append_array(_build_crop_or_terrain_candidates(current_cell, "current", 60))
+	candidates.append_array(_build_crop_or_terrain_candidates(facing_cell, "facing", 70))
+	if grid.in_bounds(facing_cell):
+		candidates.append(_build_fallback_inspect_candidate(facing_cell))
+	return candidates
+
+
+func _build_character_interaction_candidates(cell: Vector2i) -> Array[Dictionary]:
+	var candidates: Array[Dictionary] = []
+	if not grid.in_bounds(cell):
+		return candidates
+	var target_character: CharacterEntity = grid.get_character_at(cell)
+	if target_character == null or target_character == controlled_character:
+		return candidates
+	if PartySystem.is_member(target_character.character_id):
+		return candidates
+	var action_type := ""
+	var prompt := ""
+	if target_character.is_interactable:
+		action_type = "talk"
+		prompt = "E/Enter talk: %s" % target_character.display_name
+	elif target_character.is_combatable:
+		action_type = "attack"
+		prompt = "E/Enter attack: %s" % target_character.display_name
+	if action_type.is_empty():
+		return candidates
+	candidates.append(_base_interaction_candidate(cell, "facing", "character", target_character.character_id, target_character, action_type, 10, prompt, {
+		"speaker_id": target_character.character_id,
+	}))
+	return candidates
+
+
+func _build_object_interaction_candidates(cell: Vector2i, relation: String, priority: int) -> Array[Dictionary]:
+	var candidates: Array[Dictionary] = []
+	if not grid.in_bounds(cell):
+		return candidates
+	var objects: Array = grid.get_objects_at(cell)
+	for object_value in objects:
+		var object: LocationObject = object_value as LocationObject
+		if object == null or not object.is_interactable():
+			continue
+		var context := _object_interaction_context(cell, relation, priority)
+		candidates.append_array(object.build_interaction_candidates(context))
+	return candidates
+
+
+func _object_interaction_context(target_cell: Vector2i, relation: String, priority: int) -> Dictionary:
+	return {
+		"actor": controlled_character,
+		"actor_id": controlled_character.character_id,
+		"source_location_id": grid.location_id,
+		"source_cell": controlled_character.grid_position,
+		"target_cell": target_cell,
+		"relation": relation,
+		"priority": priority,
+	}
+
+
+func _build_exit_interaction_candidates(cell: Vector2i, relation: String, priority: int) -> Array[Dictionary]:
+	var candidates: Array[Dictionary] = []
+	if not grid.in_bounds(cell):
+		return candidates
+	var exit_data: Dictionary = grid.get_exit_at(cell)
+	if exit_data.is_empty():
+		return candidates
+	var target_id := str(exit_data.get("id", "exit_%s" % grid.cell_key(cell)))
+	var prompt := "E/Enter leave: %s" % str(exit_data.get("target_entrance_id", "next location"))
+	candidates.append(_base_interaction_candidate(cell, relation, "exit", target_id, exit_data, "scene_transition", priority, prompt, {
+		"exit_data": exit_data.duplicate(true),
+	}))
+	return candidates
+
+
+func _build_crop_or_terrain_candidates(cell: Vector2i, relation: String, priority: int) -> Array[Dictionary]:
+	var candidates: Array[Dictionary] = []
+	if not grid.in_bounds(cell):
+		return candidates
+	var crop_action := _crop_or_terrain_action_for_cell(cell)
+	if crop_action.is_empty():
+		return candidates
+	var action_type := str(crop_action.get("action_type", "inspect"))
+	var target_kind := str(crop_action.get("target_kind", "crop"))
+	var target_id := str(crop_action.get("target_id", "%s_%s" % [target_kind, grid.cell_key(cell)]))
+	var prompt := str(crop_action.get("prompt_text", "E/Enter inspect"))
+	candidates.append(_base_interaction_candidate(cell, relation, target_kind, target_id, crop_action.get("target_ref", crop_action), action_type, priority, prompt, crop_action))
+	return candidates
+
+
+func _crop_or_terrain_action_for_cell(cell: Vector2i) -> Dictionary:
+	var crop_state: Dictionary = CropSystem.get_crop_at(grid.location_id, cell)
+	if not crop_state.is_empty():
+		if bool(crop_state.get("mature", false)):
+			return {
+				"action_type": "harvest",
+				"target_kind": "crop",
+				"target_id": "crop_%s" % grid.cell_key(cell),
+				"target_ref": crop_state.duplicate(true),
+				"prompt_text": "E/Enter harvest: %s" % str(crop_state.get("display_name", "crop")),
+			}
+		if not bool(crop_state.get("watered", false)):
+			return {
+				"action_type": "water",
+				"target_kind": "crop",
+				"target_id": "crop_%s" % grid.cell_key(cell),
+				"target_ref": crop_state.duplicate(true),
+				"prompt_text": "E/Enter water: %s" % str(crop_state.get("display_name", "crop")),
+			}
+		return {
+			"action_type": "inspect",
+			"target_kind": "crop",
+			"target_id": "crop_%s" % grid.cell_key(cell),
+			"target_ref": crop_state.duplicate(true),
+			"prompt_text": "Crop growing: %s" % str(crop_state.get("display_name", "crop")),
+		}
+
+	var seed_item_id := CropSystem.get_seed_item_id(controlled_character)
+	if is_cell_plantable(cell) and not seed_item_id.is_empty():
+		return {
+			"action_type": "plant",
+			"target_kind": "terrain",
+			"target_id": "terrain_%s" % grid.cell_key(cell),
+			"target_ref": {},
+			"prompt_text": "E/Enter plant seed",
+			"seed_item_id": seed_item_id,
+		}
+	return {}
+
+
+func _build_fallback_inspect_candidate(cell: Vector2i) -> Dictionary:
+	return _base_interaction_candidate(cell, "facing", "terrain", "terrain_%s" % grid.cell_key(cell), {}, "inspect", 80, "E/Enter inspect ahead  B inventory  J quests  C character  wheel/+/- zoom", {})
+
+
+func _base_interaction_candidate(
+	target_cell: Vector2i,
+	relation: String,
+	target_kind: String,
+	target_id: String,
+	target_ref: Variant,
+	action_type: String,
+	priority: int,
+	prompt_text: String,
+	metadata: Dictionary = {}
+) -> Dictionary:
+	return {
+		"actor": controlled_character,
+		"actor_id": controlled_character.character_id,
+		"source_location_id": grid.location_id,
+		"source_cell": controlled_character.grid_position,
+		"target_cell": target_cell,
+		"relation": relation,
+		"target_kind": target_kind,
+		"target_id": target_id,
+		"target_ref": target_ref,
+		"action_id": "%s.%s" % [target_id, action_type],
+		"action_type": action_type,
+		"action_priority": _interaction_action_priority(action_type),
+		"priority": priority,
+		"prompt_text": prompt_text,
+		"source_building_id": str(metadata.get("source_building_id", "")),
+		"interior_location_id": grid.location_id,
+		"anchor_id": str(metadata.get("anchor_id", "")),
+		"facility_role": str(metadata.get("facility_role", "")),
+		"transition_context": (metadata.get("transition_context", {}) as Dictionary).duplicate(true),
+		"metadata": metadata.duplicate(true),
+	}
+
+
+func _compare_interaction_candidates(left: Dictionary, right: Dictionary) -> bool:
+	var left_priority := int(left.get("priority", 1000))
+	var right_priority := int(right.get("priority", 1000))
+	if left_priority != right_priority:
+		return left_priority < right_priority
+	var left_action_priority := int(left.get("action_priority", _interaction_action_priority(str(left.get("action_type", "")))))
+	var right_action_priority := int(right.get("action_priority", _interaction_action_priority(str(right.get("action_type", "")))))
+	if left_action_priority != right_action_priority:
+		return left_action_priority < right_action_priority
+	var left_target_id := str(left.get("target_id", ""))
+	var right_target_id := str(right.get("target_id", ""))
+	if left_target_id != right_target_id:
+		return left_target_id < right_target_id
+	return str(left.get("action_id", "")) < str(right.get("action_id", ""))
+
+
+func _interaction_action_priority(action_type: String) -> int:
+	match action_type:
+		"talk", "attack":
+			return 5
+		"scene_transition":
+			return 10
+		"pickup":
+			return 20
+		"rest":
+			return 30
+		"shop", "service":
+			return 40
+		"craft":
+			return 50
+		"train":
+			return 60
+		"harvest", "water", "plant":
+			return 70
+		"inspect":
+			return 80
+		"open_container":
+			return 90
+		_:
+			return 100
+
+
+func _interaction_candidate_cache_is_valid() -> bool:
+	if _last_interaction_candidate.is_empty():
+		return false
+	if controlled_character.grid_position != _last_interaction_candidate_actor_cell:
+		return false
+	if controlled_character.get_facing_cell() != _last_interaction_candidate_facing_cell:
+		return false
+	return _candidate_target_ref_is_valid(_last_interaction_candidate)
+
+
+func _candidate_target_ref_is_valid(candidate: Dictionary) -> bool:
+	match str(candidate.get("target_kind", "")):
+		"object", "character":
+			var target_ref: Variant = candidate.get("target_ref", null)
+			return typeof(target_ref) == TYPE_OBJECT and is_instance_valid(target_ref)
+		_:
+			return true
+
+
+func _cache_interaction_candidate(candidate: Dictionary) -> void:
+	_last_interaction_candidate = candidate.duplicate(true)
+	_last_interaction_candidate_frame = Engine.get_process_frames()
+	_last_interaction_candidate_actor_cell = controlled_character.grid_position
+	_last_interaction_candidate_facing_cell = controlled_character.get_facing_cell()
+
+
+func _clear_interaction_candidate_cache() -> void:
+	_last_interaction_candidate.clear()
+	_last_interaction_candidate_frame = -1
+	_last_interaction_candidate_actor_cell = Vector2i(-9999, -9999)
+	_last_interaction_candidate_facing_cell = Vector2i(-9999, -9999)
+
+
+func _execute_interaction_candidate(candidate: Dictionary) -> void:
+	if candidate.is_empty():
+		return
+	_last_executed_interaction_candidate = candidate.duplicate(true)
+	var action_type := str(candidate.get("action_type", "inspect"))
+	match action_type:
+		"talk":
+			_submit_talk_interaction(candidate.get("target_ref", null) as CharacterEntity)
+		"attack":
+			_submit_battle_start(candidate.get("target_ref", null) as CharacterEntity)
+		"pickup":
+			_submit_object_action("PickUpAction", candidate)
+		"scene_transition":
+			_submit_scene_transition_candidate(candidate)
+		"rest":
+			_submit_rest_facility(candidate.get("target_ref", null) as LocationObject)
+			_refresh_interaction_overlay()
+		"shop", "service", "craft":
+			var facility_object: LocationObject = candidate.get("target_ref", null) as LocationObject
+			if facility_object != null:
+				facility_requested.emit(facility_object.get_facility_data())
+			_refresh_interaction_overlay()
+		"train":
+			_publish_simple_interaction_result("TrainAction", candidate, "Training point ready: %s" % str(candidate.get("target_id", "")))
+		"harvest":
+			_submit_crop_action("HarvestAction", candidate.get("target_cell", controlled_character.grid_position) as Vector2i)
+		"water":
+			_submit_crop_action("WaterAction", candidate.get("target_cell", controlled_character.grid_position) as Vector2i)
+		"plant":
+			_submit_crop_action("PlantAction", candidate.get("target_cell", controlled_character.grid_position) as Vector2i)
+		"open_container":
+			_publish_simple_interaction_result("OpenContainerAction", candidate, "Container interaction is not implemented yet.")
+		_:
+			_submit_inspect_candidate(candidate)
+	_clear_interaction_candidate_cache()
+
+
+func _submit_scene_transition_candidate(candidate: Dictionary) -> void:
+	if str(candidate.get("target_kind", "")) == "object":
+		_submit_scene_transition_object(candidate.get("target_ref", null) as LocationObject)
+		return
+	var exit_data: Dictionary = (candidate.get("metadata", {}) as Dictionary).get("exit_data", {}) as Dictionary
+	if exit_data.is_empty():
+		exit_data = candidate.get("target_ref", {}) as Dictionary
+	if not exit_data.is_empty():
+		request_exit_transition(exit_data)
+
+
+func _submit_object_action(action_type: String, candidate: Dictionary) -> void:
+	var target_object: LocationObject = candidate.get("target_ref", null) as LocationObject
+	if target_object == null:
+		return
+	var target: Dictionary = {
+		"object": target_object,
+		"target_cell": candidate.get("target_cell", target_object.grid_position),
+		"interaction_candidate": candidate.duplicate(true),
+	}
+	var context: Dictionary = { "location_root": self }
+	var action: GameAction = ActionSystem.create_action(action_type, controlled_character, target, context) as GameAction
+	ActionSystem.submit(action)
+	_refresh_interaction_overlay()
+
+
+func _submit_inspect_candidate(candidate: Dictionary) -> void:
+	if str(candidate.get("target_kind", "")) == "object":
+		_submit_object_action("InspectAction", candidate)
+		return
+	if str(candidate.get("target_kind", "")) == "crop":
+		_publish_simple_interaction_result("InspectCrop", candidate, str(candidate.get("prompt_text", "Crop is growing.")))
+		return
+	_submit_inspect_empty(candidate.get("target_cell", controlled_character.get_facing_cell()) as Vector2i)
+
+
+func _publish_simple_interaction_result(action_type: String, candidate: Dictionary, feedback: String) -> void:
+	var result := ActionResult.succeeded(action_type, controlled_character.character_id, {
+		"interaction_candidate": candidate.duplicate(true),
+	})
+	result.add_world_change({
+		"type": "interaction_candidate_executed",
+		"action_type": action_type,
+		"target_id": str(candidate.get("target_id", "")),
+		"target_cell": candidate.get("target_cell", Vector2i.ZERO),
+	})
+	result.add_feedback(feedback)
+	ActionSystem.publish_result(result)
+	_refresh_interaction_overlay()
+
+
 func _on_primary_action_requested() -> void:
 	if GameState.current_mode == GameState.GameMode.COMBAT:
 		_refresh_interaction_overlay()
@@ -1660,6 +2031,10 @@ func _on_primary_action_requested() -> void:
 
 	if not _has_controlled_character() or grid == null:
 		return
+
+	var candidate := _resolve_interaction_candidate()
+	_execute_interaction_candidate(candidate)
+	return
 
 	var target_cell: Vector2i = controlled_character.get_facing_cell()
 	var target_character: CharacterEntity = grid.get_character_at(target_cell)
@@ -1953,18 +2328,31 @@ func _submit_object_interaction(target_object: LocationObject, target_cell: Vect
 func _submit_scene_transition_object(target_object: LocationObject) -> void:
 	var transition_data: Dictionary = target_object.get_transition_data()
 	var target_scene_path := str(transition_data.get("target_scene_path", ""))
+	var target_location_id := str(transition_data.get("target_location_id", ""))
 	var target_entrance_id := str(transition_data.get("target_entrance_id", ""))
+	var context: Dictionary = transition_data.get("context", {}) as Dictionary
 	if target_scene_path == "__return__":
+		if not context.is_empty():
+			SceneLoader.set_pending_location_context(context)
 		SceneLoader.load_pending_return_location()
 		return
 	if target_scene_path.is_empty():
+		target_scene_path = DefinitionLoader.get_location_scene_path(target_location_id)
+	if target_scene_path.is_empty():
+		push_error("Scene transition has no target scene path or registered target location: %s" % target_location_id)
 		return
 
 	var return_entrance_id := str(transition_data.get("return_entrance_id", ""))
 	if not return_entrance_id.is_empty():
-		SceneLoader.set_pending_return_location(SceneLoader.current_scene_path, return_entrance_id)
+		SceneLoader.set_pending_return_location(SceneLoader.current_scene_path, return_entrance_id, {
+			"target_location_id": grid.location_id,
+			"location_id": grid.location_id,
+			"source_building_id": str(transition_data.get("source_building_id", "")),
+			"exterior_return_entrance_id": return_entrance_id,
+		})
 
-	var context: Dictionary = transition_data.get("context", {}) as Dictionary
+	if not target_location_id.is_empty():
+		context["target_location_id"] = target_location_id
 	if not context.is_empty():
 		SceneLoader.set_pending_location_context(context)
 	SceneLoader.load_location(target_scene_path, target_entrance_id)
@@ -2273,6 +2661,18 @@ func _refresh_interaction_overlay() -> void:
 		interaction_overlay.clear_target()
 		return
 
+	var candidate := _resolve_interaction_candidate()
+	if candidate.is_empty():
+		interaction_overlay.clear_target()
+		return
+	var overlay_kind := _overlay_kind_for_candidate(candidate)
+	var candidate_target_cell: Vector2i = candidate.get("target_cell", controlled_character.get_facing_cell()) as Vector2i
+	if str(candidate.get("relation", "")) == "current":
+		interaction_overlay.set_target(candidate_target_cell, overlay_kind)
+	else:
+		interaction_overlay.set_target(candidate_target_cell, overlay_kind, controlled_character.grid_position)
+	return
+
 	var current_cell: Vector2i = controlled_character.grid_position
 	var current_object: LocationObject = grid.get_primary_object_at(current_cell)
 	if current_object != null and current_object.is_pickable:
@@ -2334,6 +2734,24 @@ func _get_crop_interaction_kind(cell: Vector2i) -> String:
 		return "crop"
 
 	return ""
+
+
+func _overlay_kind_for_candidate(candidate: Dictionary) -> String:
+	match str(candidate.get("action_type", "")):
+		"pickup":
+			return "pickup"
+		"talk":
+			return "talk"
+		"attack":
+			return "attack"
+		"scene_transition":
+			return "exit"
+		"harvest", "water", "plant":
+			return "crop"
+		"rest", "shop", "service", "craft", "train", "open_container":
+			return "use"
+		_:
+			return "inspect"
 
 
 func _on_controlled_character_grid_position_changed(_character_id: String, _previous_cell: Vector2i, new_cell: Vector2i) -> void:

@@ -7,6 +7,7 @@ var _json_cache: Dictionary = {}
 var _resolved_locations_by_id: Dictionary = {}
 var _location_data_path_by_id: Dictionary = {}
 var _location_scene_path_by_id: Dictionary = {}
+var _generated_interior_manifests_by_id: Dictionary = {}
 
 
 func load_json_resource(resource_path: String, expected_kind: String = "JSON resource") -> Dictionary:
@@ -37,6 +38,17 @@ func load_location(resource_path: String) -> Dictionary:
 
 
 func load_resolved_location(resource_path: String, context: Dictionary = {}) -> Dictionary:
+	var context_location_id := _context_location_id(context)
+	if not context_location_id.is_empty():
+		if _resolved_locations_by_id.has(context_location_id):
+			return (_resolved_locations_by_id[context_location_id] as Dictionary).duplicate(true)
+		if context.has("interior_manifest"):
+			var manifest: Dictionary = context.get("interior_manifest", {}) as Dictionary
+			var materialized := _materialize_generated_interior(manifest)
+			if not materialized.is_empty():
+				_register_resolved_location(materialized, "manifest:%s" % context_location_id, str(manifest.get("scene_path", "")))
+				return materialized.duplicate(true)
+
 	var location_data: Dictionary = load_location(resource_path)
 	if location_data.is_empty():
 		return {}
@@ -78,6 +90,12 @@ func resolve_location_by_id(location_id: String) -> Dictionary:
 
 	if _resolved_locations_by_id.has(location_id):
 		return (_resolved_locations_by_id[location_id] as Dictionary).duplicate(true)
+	if _generated_interior_manifests_by_id.has(location_id):
+		var manifest: Dictionary = _generated_interior_manifests_by_id[location_id] as Dictionary
+		var materialized := _materialize_generated_interior(manifest)
+		if not materialized.is_empty():
+			_register_resolved_location(materialized, "manifest:%s" % location_id, str(manifest.get("scene_path", "")))
+			return materialized.duplicate(true)
 
 	var data_path := "res://data/locations/%s.json" % location_id
 	return load_resolved_location(data_path)
@@ -101,6 +119,80 @@ func _register_resolved_location(location_data: Dictionary, resource_path: Strin
 		_location_data_path_by_id[location_id] = resource_path
 	if not scene_path.is_empty():
 		_location_scene_path_by_id[location_id] = scene_path
+	_register_generated_interiors(location_data, resource_path)
+
+
+func _register_generated_interiors(location_data: Dictionary, resource_path: String) -> void:
+	for manifest_value in (location_data.get("generated_interiors", []) as Array):
+		var manifest: Dictionary = manifest_value as Dictionary
+		var interior_id := str(manifest.get("interior_location_id", ""))
+		if interior_id.is_empty():
+			continue
+		_generated_interior_manifests_by_id[interior_id] = manifest.duplicate(true)
+		var materialized := _materialize_generated_interior(manifest)
+		if materialized.is_empty():
+			continue
+		_resolved_locations_by_id[interior_id] = materialized.duplicate(true)
+		_location_data_path_by_id[interior_id] = "manifest:%s#%s" % [str(location_data.get("id", resource_path)), interior_id]
+		var scene_path := str(manifest.get("scene_path", ""))
+		if not scene_path.is_empty():
+			_location_scene_path_by_id[interior_id] = scene_path
+
+
+func _materialize_generated_interior(manifest: Dictionary) -> Dictionary:
+	var interior_id := str(manifest.get("interior_location_id", ""))
+	if interior_id.is_empty():
+		return {}
+	var location: Dictionary = {
+		"id": interior_id,
+		"display_name": str(manifest.get("display_name", "Generated Interior")),
+		"size": (manifest.get("size", { "width": 8, "height": 6 }) as Dictionary).duplicate(true),
+		"tile_size": int(manifest.get("tile_size", 32)),
+		"default_entrance": str(manifest.get("interior_entry_entrance_id", "entry")),
+		"tiles": (manifest.get("tiles", []) as Array).duplicate(true),
+		"terrain": (manifest.get("terrain", {}) as Dictionary).duplicate(true),
+		"zones": (manifest.get("zones", []) as Array).duplicate(true),
+		"floor_overlays": (manifest.get("floor_overlays", []) as Array).duplicate(true),
+		"floor_decorations": (manifest.get("floor_decorations", []) as Array).duplicate(true),
+		"structures": (manifest.get("structures", []) as Array).duplicate(true),
+		"roofs": (manifest.get("roofs", []) as Array).duplicate(true),
+		"entrances": (manifest.get("entrances", []) as Array).duplicate(true),
+		"anchors": (manifest.get("anchors", []) as Array).duplicate(true),
+		"exits": (manifest.get("exits", []) as Array).duplicate(true),
+		"shops": (manifest.get("shops", []) as Array).duplicate(true),
+		"objects": (manifest.get("objects", []) as Array).duplicate(true),
+		"characters": (manifest.get("characters", []) as Array).duplicate(true),
+		"state": (manifest.get("state", {}) as Dictionary).duplicate(true),
+		"generated_interior_manifest": manifest.duplicate(true),
+	}
+	if (location.get("tiles", []) as Array).is_empty():
+		location["tiles"] = [
+			"wwwwwwww",
+			"wffffffw",
+			"wffffffw",
+			"wffffffw",
+			"wffffffw",
+			"wwwewwww",
+		]
+	if (location.get("terrain", {}) as Dictionary).is_empty():
+		location["terrain"] = _default_interior_terrain()
+	return location
+
+
+func _default_interior_terrain() -> Dictionary:
+	return {
+		"w": { "id": "interior_wall", "label": "Interior Wall", "walkable": false, "color": "#443a32" },
+		"f": { "id": "interior_floor", "label": "Interior Floor", "walkable": true, "color": "#7b6a55" },
+		"e": { "id": "interior_entry", "label": "Interior Entry", "walkable": true, "color": "#b5975d" },
+	}
+
+
+func _context_location_id(context: Dictionary) -> String:
+	for key in ["target_location_id", "interior_location_id", "location_id"]:
+		var value := str(context.get(key, ""))
+		if not value.is_empty():
+			return value
+	return ""
 
 
 func load_character(resource_path: String) -> Dictionary:
@@ -149,6 +241,7 @@ func clear_cache(resource_path: String = "") -> void:
 		_resolved_locations_by_id.clear()
 		_location_data_path_by_id.clear()
 		_location_scene_path_by_id.clear()
+		_generated_interior_manifests_by_id.clear()
 		return
 
 	_json_cache.erase(resource_path)

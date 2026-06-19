@@ -133,17 +133,38 @@ The compiler maps these hooks into normal location data:
   scene-transition objects on the wall-door cell; the visible door is supplied
   by the structure layer, not by a separate exterior floor object;
 - each generated building door receives its own exterior return entrance;
-- generated commercial hooks keep semantic service slots, but v64 does not
-  compile generated shop objects, shop counters, shop records, or shopkeepers;
+- each enterable generated building receives a concrete generated interior
+  manifest with a stable `interior_location_id`;
+- exterior doors target that concrete interior id through `target_location_id`.
+  They reuse `generated_basic_interior.tscn` only as a scene shell, not as the
+  generated building's world/location identity;
+- generated commercial hooks keep semantic service slots. v64 does not compile
+  exterior generated shop objects, exterior shop counters, exterior shop
+  records, or shopkeepers;
+- commercial/service interiors may contain interior service-counter semantics
+  and shop records for later gameplay wiring, but these are attached to the
+  concrete interior manifest rather than spawned into the exterior settlement;
 - generated public hooks become public interaction objects;
 - no generated NPCs are written to location data;
 - no shopkeeper, worker, resident, or public-gatherer records are generated;
 - player spawn remains driven by the generated entrance through the normal
   scene runtime, not through settlement-generated character records.
 
-Phase 64 adds a small `generated_basic_interior` location so generated
-building entrances can resolve to a loadable scene while full interior
-generation remains deferred.
+Generated interiors restore the v56-v59 semantic location contract without
+reviving the removed fixed semantic settlement generator. Each enterable
+building now has:
+
+- a stable concrete interior location id;
+- an exterior placement contract with parcel, footprint, door, yard, prefab,
+  and exterior-slot data;
+- interior anchors for entry, exit, home/work/service/activity roles;
+- interior facility objects such as beds, service counters, workstations,
+  training points, or activity markers according to building use;
+- schedule targets that point to concrete `location_id + anchor_id` pairs.
+
+The reusable `generated_basic_interior` scene remains only a shell/template for
+displaying these concrete manifests. It is not used as the identity of a
+generated building interior.
 
 Enterable generated buildings are now formal structures. A building with an
 interior template and scene-transition door must be at least `2x3` or `3x2`.
@@ -189,6 +210,13 @@ materialized settlement instead of rerunning the full generation session.
 Interior return objects can be used from the player's current cell, so the
 player does not need to face the exit tile after stepping onto it.
 
+`DefinitionLoader` registers generated interior manifests when it materializes
+the exterior settlement. `resolve_location_by_id()` can therefore resolve a
+generated building interior by its concrete id. Scene transitions pass
+`target_location_id` and the manifest context into the reusable interior scene,
+so the loaded `LocationRoot` receives the building-specific data rather than
+the static shell data.
+
 The compiler still does not repair invalid planning. Road graph validation
 remains strict. Entrance presentation no longer overwrites a road tile when
 the entrance cell is already part of the road network.
@@ -196,6 +224,7 @@ the entrance cell is already part of the road network.
 ## Validation
 
 Added `scripts/tests/v64_policy_playable_settlement_smoke.gd`.
+Added `scripts/tests/v64_generated_interiors_contract_smoke.gd`.
 
 The smoke test verifies:
 
@@ -209,6 +238,13 @@ The smoke test verifies:
 - every policy preserves v62.5 compiled road connectivity;
 - the roadside 48x32 policy sample is not capped at the old 18-plot demo size;
 - generated buildings expose interior and semantic slot hooks;
+- generated buildings emit concrete interior manifests;
+- generated interior ids are stable, unique, and not `generated_basic_interior`;
+- exterior building doors use `target_location_id` for the concrete interior;
+- `DefinitionLoader` can resolve generated interiors by concrete id;
+- generated interiors contain entry/exit anchors, facility anchors, and return
+  scene transitions;
+- schedule targets resolve to exterior or concrete interior anchors;
 - generated building doors return to per-building exterior entrances, not the
   main entrance;
 - generated building door interaction objects are wall-bound, non-blocking,
@@ -216,8 +252,8 @@ The smoke test verifies:
 - at least one generated building maps to an interior template;
 - generated settlement compiler produces zero character records;
 - generated NPC count remains zero;
-- generated settlement compiler produces zero generated shop records and zero
-  generated shop counter objects;
+- generated settlement exterior compiler produces zero generated shop records
+  and zero exterior generated shop counter objects;
 - the default roadside generated settlement is not dominated by commercial
   plots;
 - enterable generated buildings are at least `2x3` or `3x2`;
@@ -229,3 +265,4 @@ The smoke test verifies:
 
 - Godot headless project load passes.
 - `run_v64_smoke.json` smoke execution passes.
+- `run_v64_contract_smoke.json` smoke execution passes.

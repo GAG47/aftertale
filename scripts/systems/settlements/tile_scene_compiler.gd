@@ -110,6 +110,9 @@ func _base_location(source_data: Dictionary, session_result: Dictionary) -> Dict
 		"objects": [],
 		"characters": [],
 		"collision_overrides": [],
+		"generated_interiors": [],
+		"building_contracts": [],
+		"schedule_targets": [],
 		"state": {
 			"danger_level": 0,
 			"owner_faction": "field_neutral",
@@ -418,9 +421,30 @@ func _add_building_interaction_object(building: Dictionary) -> void:
 		return
 	if not _is_enterable_footprint_size(building.get("footprint_size", {}) as Dictionary):
 		return
+	var exterior_location_id := str(_compiled.get("id", "generated_settlement"))
+	var interior_location_id := _interior_location_id(building_id)
 	var return_entrance_id := "return_%s" % building_id
+	var exterior_door_anchor_id := "exterior_door_%s" % building_id
+	var exterior_entrance_id := "exterior_entry_%s" % building_id
+	var contract := _building_contract(building, wall_door_cell, door_front_cell, template_id, interior_location_id, return_entrance_id, exterior_door_anchor_id)
+	var manifest := _interior_manifest_for_building(building, contract)
+	(_compiled.get("generated_interiors", []) as Array).append(manifest)
+	(_compiled.get("building_contracts", []) as Array).append(contract)
 	_add_entrance(return_entrance_id, door_front_cell, _facing_toward(door_front_cell, wall_door_cell))
-	_add_anchor("exterior_door_%s" % building_id, "exterior_door", wall_door_cell, _facing_toward(wall_door_cell, door_front_cell))
+	_add_anchor(exterior_door_anchor_id, "exterior_door", wall_door_cell, _facing_toward(wall_door_cell, door_front_cell), {
+		"source_building_id": building_id,
+		"interior_location_id": interior_location_id,
+		"exterior_return_entrance_id": return_entrance_id,
+	})
+	_add_schedule_targets_for_manifest(manifest)
+	_add_schedule_target({
+		"id": "%s.exterior_transition" % building_id,
+		"role": "exterior_transition",
+		"location_id": exterior_location_id,
+		"anchor_id": exterior_door_anchor_id,
+		"source_building_id": building_id,
+		"target_location_id": interior_location_id,
+	})
 	(_compiled.get("objects", []) as Array).append({
 		"id": "wall_door_%s" % building_id,
 		"display_name": _building_display_name(building),
@@ -432,23 +456,492 @@ func _add_building_interaction_object(building: Dictionary) -> void:
 		"is_usable": true,
 		"facility_type": "scene_transition",
 		"target_scene_path": GENERATED_INTERIOR_SCENE,
-		"target_entrance_id": "entry",
+		"target_location_id": interior_location_id,
+		"target_entrance_id": str(manifest.get("interior_entry_entrance_id", "entry")),
 		"return_entrance_id": return_entrance_id,
 		"interior_template_id": template_id,
+		"interior_location_id": interior_location_id,
+		"exterior_entrance_id": exterior_entrance_id,
+		"exterior_return_entrance_id": return_entrance_id,
 		"enterable_building": true,
 		"footprint_size": (building.get("footprint_size", {}) as Dictionary).duplicate(true),
 		"building_type": str(building.get("building_type", building.get("kind", ""))),
 		"use_type": str(building.get("use_type", "")),
 		"source_blueprint_id": building_id,
+		"source_building_id": building_id,
+		"anchor_id": exterior_door_anchor_id,
+		"interaction_kind": "enter_interior",
+		"facility_role": "building_door",
+		"placement_contract": contract.duplicate(true),
 		"transition_context": {
+			"target_location_id": interior_location_id,
+			"location_id": interior_location_id,
 			"interior_template_id": template_id,
-			"interior_location_id": "%s__interior_%s" % [str(_compiled.get("id", "generated_settlement")), building_id],
+			"interior_location_id": interior_location_id,
+			"interior_manifest": manifest.duplicate(true),
+			"exterior_location_id": exterior_location_id,
+			"exterior_entrance_id": exterior_entrance_id,
 			"exterior_return_entrance_id": return_entrance_id,
 			"source_building_id": building_id,
 			"use_type": str(building.get("use_type", "")),
 		},
 		"inspect_text": "Generated building entrance: %s" % template_id,
 	})
+
+
+func _interior_location_id(building_id: String) -> String:
+	return "%s__interior_%s" % [str(_compiled.get("id", "generated_settlement")), building_id]
+
+
+func _building_contract(building: Dictionary, wall_door_cell: Vector2i, door_front_cell: Vector2i, template_id: String, interior_location_id: String, return_entrance_id: String, exterior_door_anchor_id: String) -> Dictionary:
+	var building_id := str(building.get("id", ""))
+	var area: Dictionary = building.get("area", {}) as Dictionary
+	var footprint := _area_to_bounds(area)
+	var door_facing := _facing_toward(wall_door_cell, door_front_cell)
+	var selected_prefab_id := _selected_prefab_id(building, template_id)
+	var contract := {
+		"source_building_id": building_id,
+		"building_id": building_id,
+		"plot_id": str(building.get("plot_id", "")),
+		"parcel_id": str(building.get("plot_id", "")),
+		"use_type": str(building.get("use_type", "")),
+		"building_type": str(building.get("building_type", building.get("kind", ""))),
+		"asset_family": str(building.get("asset_family", "")),
+		"interior_template_id": template_id,
+		"interior_location_id": interior_location_id,
+		"selected_prefab_id": selected_prefab_id,
+		"compatible_prefab_ids": [selected_prefab_id],
+		"footprint": footprint,
+		"door_position": _dict_cell(wall_door_cell),
+		"door_facing": door_facing,
+		"front_clearance": [_dict_cell(door_front_cell)],
+		"exterior_return_entrance_id": return_entrance_id,
+		"exterior_door_anchor_id": exterior_door_anchor_id,
+		"yard_policy": _yard_policy_for_building(building),
+	}
+	contract["exterior_slots"] = _exterior_slots_for_building(building, wall_door_cell, door_front_cell, contract)
+	contract["facility_slots"] = _facility_slots_for_building(building, interior_location_id)
+	return contract
+
+
+func _selected_prefab_id(building: Dictionary, template_id: String) -> String:
+	var building_type := str(building.get("building_type", building.get("kind", "")))
+	if building_type.is_empty():
+		building_type = str(building.get("use_type", "building"))
+	return "%s__%s" % [building_type, template_id]
+
+
+func _yard_policy_for_building(building: Dictionary) -> String:
+	match str(building.get("use_type", "")):
+		"residential":
+			return "small_residential_yard"
+		"commercial":
+			return "clear_service_frontage"
+		"production":
+			return "service_yard"
+		_:
+			return "clear_frontage"
+
+
+func _exterior_slots_for_building(building: Dictionary, wall_door_cell: Vector2i, door_front_cell: Vector2i, contract: Dictionary) -> Array[Dictionary]:
+	var building_id := str(building.get("id", ""))
+	var slots: Array[Dictionary] = []
+	_add_exterior_slot(slots, building_id, "front_door", wall_door_cell, "facade", true, true)
+	_add_exterior_slot(slots, building_id, "sign", _facade_side_cell(building, wall_door_cell), "facade", true, false)
+	_add_exterior_slot(slots, building_id, "porch", door_front_cell, "front_clearance", false, true)
+	_add_exterior_slot(slots, building_id, "yard_object", _safe_exterior_cell(door_front_cell, Vector2i.DOWN), "yard", false, false)
+	if str(building.get("use_type", "")) == "commercial":
+		_add_exterior_slot(slots, building_id, "service_marker", _safe_exterior_cell(door_front_cell, Vector2i.RIGHT), "frontage", false, false)
+	if str(building.get("use_type", "")) == "production":
+		_add_exterior_slot(slots, building_id, "work_marker", _safe_exterior_cell(door_front_cell, Vector2i.LEFT), "frontage", false, false)
+	var footprint: Dictionary = contract.get("footprint", {}) as Dictionary
+	for slot_value in slots:
+		var slot: Dictionary = slot_value
+		var cell := _cell_from_variant(slot.get("grid_position", {}))
+		slot["conflicts_with_footprint"] = _cell_in_bounds(cell, footprint) and not bool(slot.get("allows_footprint_overlap", false))
+		slot["conflicts_with_door"] = cell == wall_door_cell and str(slot.get("slot_type", "")) != "front_door"
+		slot["occupied"] = false
+	return slots
+
+
+func _add_exterior_slot(slots: Array[Dictionary], building_id: String, slot_type: String, cell: Vector2i, layer: String, allows_footprint_overlap: bool, occupied: bool) -> void:
+	if not _in_bounds(cell):
+		return
+	slots.append({
+		"id": "%s.%s" % [building_id, slot_type],
+		"slot_type": slot_type,
+		"grid_position": _dict_cell(cell),
+		"placement_layer": layer,
+		"allows_footprint_overlap": allows_footprint_overlap,
+		"occupied": occupied,
+		"source_building_id": building_id,
+	})
+
+
+func _facade_side_cell(building: Dictionary, wall_door_cell: Vector2i) -> Vector2i:
+	var area: Dictionary = building.get("area", {}) as Dictionary
+	var x := int(area.get("x", 0))
+	var width := int(area.get("width", area.get("w", 1)))
+	var left := wall_door_cell + Vector2i.LEFT
+	if left.x >= x:
+		return left
+	var right := wall_door_cell + Vector2i.RIGHT
+	if right.x < x + width:
+		return right
+	return wall_door_cell
+
+
+func _safe_exterior_cell(origin: Vector2i, offset: Vector2i) -> Vector2i:
+	var candidate := origin + offset
+	if _in_bounds(candidate) and _tile_at(candidate) != "h":
+		return candidate
+	return origin
+
+
+func _facility_slots_for_building(building: Dictionary, interior_location_id: String) -> Array[Dictionary]:
+	var building_id := str(building.get("id", ""))
+	var result: Array[Dictionary] = []
+	for role in _facility_roles_for_building(building):
+		var anchor_id := _anchor_for_facility_role(role)
+		result.append({
+			"id": "%s.%s" % [building_id, role],
+			"role": role,
+			"location_id": interior_location_id,
+			"anchor_id": anchor_id,
+			"source_building_id": building_id,
+			"occupied": true,
+		})
+	return result
+
+
+func _interior_manifest_for_building(building: Dictionary, contract: Dictionary) -> Dictionary:
+	var building_id := str(building.get("id", ""))
+	var interior_location_id := str(contract.get("interior_location_id", ""))
+	var exterior_location_id := str(_compiled.get("id", "generated_settlement"))
+	var interior_template_id := str(contract.get("interior_template_id", ""))
+	var return_entrance_id := str(contract.get("exterior_return_entrance_id", ""))
+	var role := _interior_role(building)
+	var anchors := _interior_anchors(building, interior_location_id, role)
+	var objects := _interior_objects(building, interior_location_id, exterior_location_id, return_entrance_id, role)
+	var shops := _interior_shops(building, role)
+	return {
+		"exterior_location_id": exterior_location_id,
+		"source_building_id": building_id,
+		"interior_location_id": interior_location_id,
+		"display_name": "%s Interior" % _building_display_name(building),
+		"interior_template_id": interior_template_id,
+		"scene_path": GENERATED_INTERIOR_SCENE,
+		"exterior_entrance_id": str(contract.get("exterior_door_anchor_id", "")),
+		"exterior_return_entrance_id": return_entrance_id,
+		"interior_entry_entrance_id": "entry",
+		"interior_exit_entrance_id": "exit",
+		"size": { "width": 8, "height": 6 },
+		"tile_size": DEFAULT_TILE_SIZE,
+		"tiles": [
+			"wwwwwwww",
+			"wffffffw",
+			"wffffffw",
+			"wffffffw",
+			"wffffffw",
+			"wwwewwww",
+		],
+		"terrain": _interior_terrain_definitions(),
+		"entrances": [
+			{ "id": "entry", "grid_position": { "x": 3, "y": 4 }, "facing": "up" },
+			{ "id": "exit", "grid_position": { "x": 3, "y": 5 }, "facing": "down" },
+		],
+		"anchors": anchors,
+		"objects": objects,
+		"shops": shops,
+		"facilities": _facility_rows_from_objects(objects),
+		"schedule_targets": _schedule_targets_for_interior(building, interior_location_id, role),
+		"state_namespace": "%s.state" % interior_location_id,
+		"state": {
+			"danger_level": 0,
+			"owner_faction": "field_neutral",
+			"generated_interior": true,
+			"state_namespace": "%s.state" % interior_location_id,
+			"source_building_id": building_id,
+			"exterior_location_id": exterior_location_id,
+			"interior_template_id": interior_template_id,
+			"use_type": str(building.get("use_type", "")),
+			"building_type": str(building.get("building_type", building.get("kind", ""))),
+		},
+		"template_variables": {
+			"use_type": str(building.get("use_type", "")),
+			"building_type": str(building.get("building_type", building.get("kind", ""))),
+			"asset_family": str(building.get("asset_family", "")),
+		},
+		"placement_contract": contract.duplicate(true),
+		"generation_source": {
+			"policy_id": str((_compiled.get("state", {}) as Dictionary).get("settlement_policy_id", "")),
+			"seed": int((_compiled.get("state", {}) as Dictionary).get("seed", -1)),
+			"plot_id": str(building.get("plot_id", "")),
+		},
+	}
+
+
+func _interior_terrain_definitions() -> Dictionary:
+	return {
+		"w": { "id": "interior_wall", "label": "Interior Wall", "walkable": false, "color": "#443a32" },
+		"f": { "id": "interior_floor", "label": "Interior Floor", "walkable": true, "color": "#7b6a55" },
+		"e": { "id": "interior_entry", "label": "Interior Entry", "walkable": true, "color": "#b5975d" },
+	}
+
+
+func _interior_role(building: Dictionary) -> String:
+	var building_type := str(building.get("building_type", building.get("kind", ""))).to_lower()
+	var use_type := str(building.get("use_type", "")).to_lower()
+	if "tavern" in building_type or "inn" in building_type:
+		return "tavern"
+	if "training" in building_type or "guard" in building_type:
+		return "training"
+	if use_type in ["residential", "commercial", "production", "public"]:
+		return use_type
+	return "public"
+
+
+func _interior_anchors(building: Dictionary, location_id: String, role: String) -> Array[Dictionary]:
+	var building_id := str(building.get("id", ""))
+	var anchors: Array[Dictionary] = [
+		_interior_anchor("entry", "entry", location_id, building_id, Vector2i(3, 4), "up"),
+		_interior_anchor("exit", "exit", location_id, building_id, Vector2i(3, 5), "down"),
+		_interior_anchor("primary", "primary", location_id, building_id, Vector2i(4, 2), "down"),
+	]
+	match role:
+		"residential":
+			anchors.append(_interior_anchor("home", "home", location_id, building_id, Vector2i(4, 2), "down"))
+			anchors.append(_interior_anchor("bed", "bed", location_id, building_id, Vector2i(2, 2), "down"))
+		"commercial":
+			anchors.append(_interior_anchor("service", "service", location_id, building_id, Vector2i(4, 2), "down"))
+			anchors.append(_interior_anchor("counter", "counter", location_id, building_id, Vector2i(4, 3), "down"))
+		"production":
+			anchors.append(_interior_anchor("work", "work", location_id, building_id, Vector2i(4, 2), "down"))
+			anchors.append(_interior_anchor("workstation", "workstation", location_id, building_id, Vector2i(4, 3), "down"))
+		"tavern":
+			anchors.append(_interior_anchor("tavern_counter", "tavern_counter", location_id, building_id, Vector2i(4, 2), "down"))
+			anchors.append(_interior_anchor("dining", "dining", location_id, building_id, Vector2i(2, 2), "down"))
+			anchors.append(_interior_anchor("rest", "rest", location_id, building_id, Vector2i(5, 2), "down"))
+		"training":
+			anchors.append(_interior_anchor("training", "training", location_id, building_id, Vector2i(4, 2), "down"))
+			anchors.append(_interior_anchor("trainer_spot", "trainer_spot", location_id, building_id, Vector2i(3, 2), "down"))
+		_:
+			anchors.append(_interior_anchor("activity", "activity", location_id, building_id, Vector2i(4, 2), "down"))
+			anchors.append(_interior_anchor("gathering", "gathering", location_id, building_id, Vector2i(3, 2), "down"))
+	return anchors
+
+
+func _interior_anchor(anchor_id: String, kind: String, location_id: String, building_id: String, cell: Vector2i, facing: String) -> Dictionary:
+	return {
+		"id": anchor_id,
+		"kind": kind,
+		"location_id": location_id,
+		"source_building_id": building_id,
+		"grid_position": _dict_cell(cell),
+		"facing": facing,
+	}
+
+
+func _interior_objects(building: Dictionary, location_id: String, exterior_location_id: String, return_entrance_id: String, role: String) -> Array[Dictionary]:
+	var building_id := str(building.get("id", ""))
+	var objects: Array[Dictionary] = [
+		{
+			"id": "%s__return_door" % building_id,
+			"display_name": "Return",
+			"grid_position": { "x": 3, "y": 5 },
+			"blocks_movement": false,
+			"kind": "door",
+			"is_inspectable": true,
+			"is_usable": true,
+			"facility_type": "scene_transition",
+			"target_scene_path": "__return__",
+			"target_location_id": exterior_location_id,
+			"target_entrance_id": return_entrance_id,
+			"source_building_id": building_id,
+			"location_id": location_id,
+			"anchor_id": "exit",
+			"facility_role": "return_door",
+			"interaction_kind": "return_to_exterior",
+			"interior_location_id": location_id,
+			"interior_exit_entrance_id": "exit",
+			"exterior_location_id": exterior_location_id,
+			"exterior_return_entrance_id": return_entrance_id,
+			"transition_context": {
+				"target_location_id": exterior_location_id,
+				"location_id": exterior_location_id,
+				"source_building_id": building_id,
+				"interior_location_id": location_id,
+				"interior_exit_entrance_id": "exit",
+				"exterior_location_id": exterior_location_id,
+				"exterior_return_entrance_id": return_entrance_id,
+			},
+			"inspect_text": "Return to the generated settlement.",
+		},
+	]
+	for facility in _facility_objects_for_role(building, location_id, role):
+		objects.append(facility)
+	return objects
+
+
+func _facility_objects_for_role(building: Dictionary, location_id: String, role: String) -> Array[Dictionary]:
+	var building_id := str(building.get("id", ""))
+	match role:
+		"residential":
+			return [_facility_object(building_id, location_id, "bed", "bed", Vector2i(2, 2), "bed", "rest", "bed", "rest")]
+		"commercial":
+			return [_facility_object(building_id, location_id, "counter", "service_counter", Vector2i(4, 3), "shop", "shop", "service_counter", "service")]
+		"production":
+			return [_facility_object(building_id, location_id, "workstation", "workbench", Vector2i(4, 3), "workbench", "crafting", "workstation", "work")]
+		"tavern":
+			return [
+				_facility_object(building_id, location_id, "tavern_counter", "tavern_counter", Vector2i(4, 2), "shop", "shop", "tavern_counter", "service"),
+				_facility_object(building_id, location_id, "dining", "dining_marker", Vector2i(2, 2), "inn", "rest", "dining", "rest"),
+				_facility_object(building_id, location_id, "rest", "rest_marker", Vector2i(5, 2), "bed", "rest", "rest", "rest"),
+			]
+		"training":
+			return [_facility_object(building_id, location_id, "training", "training_dummy", Vector2i(4, 2), "training_dummy", "", "training", "train")]
+		_:
+			return [_facility_object(building_id, location_id, "activity", "activity_marker", Vector2i(4, 2), "notice_board", "", "activity", "inspect")]
+
+
+func _facility_object(building_id: String, location_id: String, anchor_id: String, object_type: String, cell: Vector2i, kind: String, facility_type: String, facility_role: String, interaction_kind: String) -> Dictionary:
+	var row := {
+		"id": "%s__%s" % [building_id, object_type],
+		"object_id": "%s__%s" % [building_id, object_type],
+		"object_type": object_type,
+		"display_name": object_type.capitalize().replace("_", " "),
+		"grid_position": _dict_cell(cell),
+		"blocks_movement": false,
+		"kind": kind,
+		"is_inspectable": true,
+		"is_usable": true,
+		"facility_type": facility_type,
+		"source_building_id": building_id,
+		"location_id": location_id,
+		"anchor_id": anchor_id,
+		"source_anchor_id": anchor_id,
+		"facility_role": facility_role,
+		"interaction_kind": interaction_kind,
+	}
+	if facility_type == "shop":
+		row["shop_id"] = "generated_shop_%s" % building_id
+	if facility_type == "rest":
+		row["rest_type"] = kind if kind in ["bed", "inn"] else "bed"
+		row["rest_minutes"] = 60
+	return row
+
+
+func _interior_shops(building: Dictionary, role: String) -> Array[Dictionary]:
+	if role != "commercial" and role != "tavern":
+		return []
+	var building_id := str(building.get("id", ""))
+	return [{
+		"id": "generated_shop_%s" % building_id,
+		"display_name": "Generated Service Counter",
+		"source_building_id": building_id,
+	}]
+
+
+func _facility_rows_from_objects(objects: Array[Dictionary]) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for object_value in objects:
+		var object: Dictionary = object_value
+		var role := str(object.get("facility_role", ""))
+		if role.is_empty() or role == "return_door":
+			continue
+		result.append({
+			"object_id": str(object.get("id", "")),
+			"object_type": str(object.get("object_type", object.get("kind", ""))),
+			"location_id": str(object.get("location_id", "")),
+			"source_building_id": str(object.get("source_building_id", "")),
+			"anchor_id": str(object.get("anchor_id", "")),
+			"facility_role": role,
+			"interaction_kind": str(object.get("interaction_kind", "")),
+		})
+	return result
+
+
+func _schedule_targets_for_interior(building: Dictionary, location_id: String, role: String) -> Array[Dictionary]:
+	var building_id := str(building.get("id", ""))
+	var result: Array[Dictionary] = []
+	match role:
+		"residential":
+			result.append(_schedule_target_row(building_id, "home", location_id, "home"))
+			result.append(_schedule_target_row(building_id, "bed", location_id, "bed"))
+		"commercial":
+			result.append(_schedule_target_row(building_id, "service", location_id, "service"))
+			result.append(_schedule_target_row(building_id, "counter", location_id, "counter"))
+		"production":
+			result.append(_schedule_target_row(building_id, "work", location_id, "work"))
+			result.append(_schedule_target_row(building_id, "workstation", location_id, "workstation"))
+		"tavern":
+			result.append(_schedule_target_row(building_id, "tavern", location_id, "tavern_counter"))
+			result.append(_schedule_target_row(building_id, "dining", location_id, "dining"))
+			result.append(_schedule_target_row(building_id, "rest", location_id, "rest"))
+		"training":
+			result.append(_schedule_target_row(building_id, "training", location_id, "training"))
+			result.append(_schedule_target_row(building_id, "trainer_spot", location_id, "trainer_spot"))
+		_:
+			result.append(_schedule_target_row(building_id, "activity", location_id, "activity"))
+			result.append(_schedule_target_row(building_id, "gathering", location_id, "gathering"))
+	return result
+
+
+func _schedule_target_row(building_id: String, role: String, location_id: String, anchor_id: String) -> Dictionary:
+	return {
+		"id": "%s.%s" % [building_id, role],
+		"role": role,
+		"location_id": location_id,
+		"anchor_id": anchor_id,
+		"source_building_id": building_id,
+	}
+
+
+func _add_schedule_targets_for_manifest(manifest: Dictionary) -> void:
+	for target_value in (manifest.get("schedule_targets", []) as Array):
+		_add_schedule_target(target_value as Dictionary)
+
+
+func _add_schedule_target(target: Dictionary) -> void:
+	if str(target.get("location_id", "")).is_empty() or str(target.get("anchor_id", "")).is_empty():
+		return
+	(_compiled.get("schedule_targets", []) as Array).append(target.duplicate(true))
+
+
+func _facility_roles_for_building(building: Dictionary) -> Array[String]:
+	match _interior_role(building):
+		"residential":
+			return ["bed"]
+		"commercial":
+			return ["service_counter"]
+		"production":
+			return ["workstation"]
+		"tavern":
+			return ["tavern_counter", "dining", "rest"]
+		"training":
+			return ["training"]
+		_:
+			return ["activity"]
+
+
+func _anchor_for_facility_role(role: String) -> String:
+	match role:
+		"bed":
+			return "bed"
+		"service_counter":
+			return "counter"
+		"workstation":
+			return "workstation"
+		"tavern_counter":
+			return "tavern_counter"
+		"dining":
+			return "dining"
+		"rest":
+			return "rest"
+		"training":
+			return "training"
+		_:
+			return "activity"
 
 
 func _add_public_hook_object(plot: Dictionary) -> void:
@@ -471,13 +964,15 @@ func _add_public_hook_object(plot: Dictionary) -> void:
 	})
 
 
-func _add_anchor(anchor_id: String, kind: String, cell: Vector2i, facing: String) -> void:
+func _add_anchor(anchor_id: String, kind: String, cell: Vector2i, facing: String, extra: Dictionary = {}) -> void:
 	var row := {
 		"id": anchor_id,
 		"kind": kind,
 		"grid_position": _dict_cell(cell),
 		"facing": facing,
 	}
+	for key in extra.keys():
+		row[key] = extra[key]
 	var activity_cells := _activity_cells_around(cell)
 	if not activity_cells.is_empty():
 		row["activity_cells"] = activity_cells
@@ -630,6 +1125,14 @@ func _dict_cell(cell: Vector2i) -> Dictionary:
 	return { "x": cell.x, "y": cell.y }
 
 
+func _cell_in_bounds(cell: Vector2i, bounds: Dictionary) -> bool:
+	var x := int(bounds.get("x", 0))
+	var y := int(bounds.get("y", 0))
+	var width := int(bounds.get("width", bounds.get("w", 1)))
+	var height := int(bounds.get("height", bounds.get("h", 1)))
+	return cell.x >= x and cell.y >= y and cell.x < x + width and cell.y < y + height
+
+
 func _string_array(values: Array) -> Array[String]:
 	var result: Array[String] = []
 	for value in values:
@@ -732,6 +1235,9 @@ func _gameplay_hook_summary(blueprint: Dictionary) -> Dictionary:
 		"activity_slots": activity_slot_count,
 		"service_slot_count": service_slot_count,
 		"public_hook_count": _public_hook_count(blueprint),
+		"generated_interior_count": (_compiled.get("generated_interiors", []) as Array).size(),
+		"building_contract_count": (_compiled.get("building_contracts", []) as Array).size(),
+		"schedule_target_count": (_compiled.get("schedule_targets", []) as Array).size(),
 	}
 
 
