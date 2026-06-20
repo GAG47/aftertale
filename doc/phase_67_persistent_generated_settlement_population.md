@@ -254,6 +254,55 @@ scripts/tests/v67_2_generated_settlement_persistence_integrity_smoke.gd
 
 The v67.2 smoke covers two-slot generation isolation, generated character source isolation, cache switching between slots, `load_game()` context/index restoration before scene load, generated `user://` character reads, and formal generated ID namespace integrity.
 
+## v67.3 Generated NPC Schedule and Appearance Integrity
+
+v67.3 tightens generated population data without replacing the v56-v59 schedule model. NPCs still move only inside the currently visible grid through `NpcMovementAgent`; NPCs in other locations are settled offscreen by `NpcScheduleSystem`; entering a location resolves presence and position from the current schedule/offscreen state.
+
+`TileSceneCompiler` now emits richer schedule targets:
+
+```text
+target_type
+capacity
+target_key
+grid_position
+activity_cells for multi-slot public/social targets
+interior_entry and interior_exit targets
+building_entrance and exterior_transition targets
+transition anchors for exterior/interior doors
+```
+
+Public plot hooks also become `public` schedule targets. They retain `source_plot_id` and fill the legacy `source_building_id` field for generated namespace compatibility.
+
+`PopulationPlanner` now allocates home, work, social, and rest targets through capacity-aware claims instead of taking the first matching target. Single-capacity targets such as beds, counters, workstations, training posts, guard posts, and unknown targets can only be claimed by one NPC. Public/social targets use capacity only when concrete activity cells are present; otherwise they safely collapse to capacity 1. Assignment records include `assigned_target_slots`, `fallbacks`, allocation summary data, and a schedule occupancy audit.
+
+`SchedulePlanner` keeps the existing `location_id + anchor_id` contract and adds compatible transition metadata:
+
+```text
+source_location_id / source_anchor_id
+departure_location_id / departure_anchor_id
+arrival_location_id / arrival_anchor_id
+target_location_id / target_anchor_id
+transition_kind
+transition_anchor_by_location
+grid_position for concrete capacity slots
+```
+
+Generated NPC definitions now include a concrete `appearance.display_mode = "map_sprite"` payload using the existing resource:
+
+```text
+res://assets/art/characters/map_sprites/npc_guard_001.png
+```
+
+`LocationRoot` now performs a final spawn anti-overlap pass for blocking characters. If the preferred spawn/schedule tile is occupied or blocked, it tries activity/slot/fallback cells and then nearby walkable cells. `LocationGrid.register_character()` also rejects registering a blocking character onto an already occupied blocking tile.
+
+Additional smoke coverage:
+
+```text
+scripts/tests/v67_3_generated_npc_schedule_appearance_integrity_smoke.gd
+```
+
+The v67.3 smoke covers generated map-sprite appearance, readable generated character sources, role target assignments, single-capacity claim avoidance, schedule time/location/tile occupancy, multi-capacity public/social concrete slot use, `location_id + anchor_id` schedule resolvability, transition metadata, generated interior entry/exit targets, exterior building entrance targets, LocationRoot spawn anti-overlap, and second-load preservation of NPC IDs, appearance, assignments, and non-overlapping schedules.
+
 覆盖内容：
 
 - 第一次 materialize persistent generated settlement 时写入 snapshot。

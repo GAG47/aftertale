@@ -193,7 +193,8 @@ func _namespace_compiled(settlement_id: String, compiled: Dictionary) -> Diction
 	var result := compiled.duplicate(true)
 	var building_map := _building_namespace_map(settlement_id, result)
 	var interior_map := _interior_namespace_map(settlement_id, result)
-	return _rename_generated_references(result, settlement_id, building_map, interior_map)
+	var plot_map := _plot_namespace_map(settlement_id, result)
+	return _rename_generated_references(result, settlement_id, building_map, interior_map, plot_map)
 
 
 func _building_namespace_map(settlement_id: String, compiled: Dictionary) -> Dictionary:
@@ -223,7 +224,18 @@ func _interior_namespace_map(settlement_id: String, compiled: Dictionary) -> Dic
 	return interior_map
 
 
-func _rename_generated_references(value: Variant, settlement_id: String, building_map: Dictionary, interior_map: Dictionary, depth: int = 0) -> Variant:
+func _plot_namespace_map(settlement_id: String, compiled: Dictionary) -> Dictionary:
+	var plot_map: Dictionary = {}
+	for target_value in (compiled.get("schedule_targets", []) as Array):
+		var target: Dictionary = target_value as Dictionary
+		var local_id := str(target.get("source_plot_id", ""))
+		if local_id.is_empty() or local_id.begins_with("%s__" % settlement_id):
+			continue
+		plot_map[local_id] = "%s__%s" % [settlement_id, local_id]
+	return plot_map
+
+
+func _rename_generated_references(value: Variant, settlement_id: String, building_map: Dictionary, interior_map: Dictionary, plot_map: Dictionary, depth: int = 0) -> Variant:
 	if depth > MAX_REFERENCE_REWRITE_DEPTH:
 		return value
 	match typeof(value):
@@ -235,14 +247,14 @@ func _rename_generated_references(value: Variant, settlement_id: String, buildin
 				if _skip_generated_reference_rewrite_key(key_text):
 					result[key] = child
 				elif typeof(child) == TYPE_STRING:
-					result[key] = _rename_generated_string(str(child), key_text, settlement_id, building_map, interior_map)
+					result[key] = _rename_generated_string(str(child), key_text, settlement_id, building_map, interior_map, plot_map)
 				else:
-					result[key] = _rename_generated_references(child, settlement_id, building_map, interior_map, depth + 1)
+					result[key] = _rename_generated_references(child, settlement_id, building_map, interior_map, plot_map, depth + 1)
 			return result
 		TYPE_ARRAY:
 			var rows: Array = []
 			for child in (value as Array):
-				rows.append(_rename_generated_references(child, settlement_id, building_map, interior_map, depth + 1))
+				rows.append(_rename_generated_references(child, settlement_id, building_map, interior_map, plot_map, depth + 1))
 			return rows
 		_:
 			return value
@@ -263,7 +275,7 @@ func _skip_generated_reference_rewrite_key(key_text: String) -> bool:
 	]
 
 
-func _rename_generated_string(value: String, key_text: String, settlement_id: String, building_map: Dictionary, interior_map: Dictionary) -> String:
+func _rename_generated_string(value: String, key_text: String, settlement_id: String, building_map: Dictionary, interior_map: Dictionary, plot_map: Dictionary) -> String:
 	if interior_map.has(value):
 		return str(interior_map.get(value, value))
 	for old_interior_id in interior_map.keys():
@@ -274,7 +286,10 @@ func _rename_generated_string(value: String, key_text: String, settlement_id: St
 		return _namespace_shop_id(value, settlement_id, building_map)
 	if key_text in ["id", "object_id"] and value.begins_with("wall_door_"):
 		return _namespace_wall_door_object_id(value, settlement_id, building_map)
-	return _rename_building_scoped_id(value, building_map)
+	var building_scoped := _rename_building_scoped_id(value, building_map)
+	if building_scoped != value:
+		return building_scoped
+	return _rename_plot_scoped_id(value, plot_map)
 
 
 func _rename_building_scoped_id(value: String, building_map: Dictionary) -> String:
@@ -286,6 +301,18 @@ func _rename_building_scoped_id(value: String, building_map: Dictionary) -> Stri
 			return "%s%s" % [str(building_map.get(local_id, local_text)), value.substr(local_text.length())]
 		if value.begins_with("%s__" % local_text):
 			return "%s%s" % [str(building_map.get(local_id, local_text)), value.substr(local_text.length())]
+	return value
+
+
+func _rename_plot_scoped_id(value: String, plot_map: Dictionary) -> String:
+	for local_id in plot_map.keys():
+		var local_text := str(local_id)
+		if value == local_text:
+			return str(plot_map.get(local_id, value))
+		if value.begins_with("%s." % local_text):
+			return "%s%s" % [str(plot_map.get(local_id, local_text)), value.substr(local_text.length())]
+		if value.begins_with("%s__" % local_text):
+			return "%s%s" % [str(plot_map.get(local_id, local_text)), value.substr(local_text.length())]
 	return value
 
 

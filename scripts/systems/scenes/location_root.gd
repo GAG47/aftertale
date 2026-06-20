@@ -885,7 +885,47 @@ func _build_spawn_data(spawn_data: Dictionary, definition: Dictionary) -> Dictio
 	return resolved_spawn_data
 
 
+func _resolve_spawn_anti_overlap(spawn_data: Dictionary, blocks_movement: bool) -> Dictionary:
+	if grid == null or not blocks_movement:
+		return spawn_data
+	var position_data: Dictionary = spawn_data.get("grid_position", {}) as Dictionary
+	if position_data.is_empty():
+		return spawn_data
+	var preferred_cell := _cell_from_dict(position_data)
+	if grid.can_enter(preferred_cell):
+		return spawn_data
+
+	var resolved := spawn_data.duplicate(true)
+	for candidate in _spawn_fallback_cells(spawn_data, preferred_cell):
+		if candidate == preferred_cell:
+			continue
+		if not grid.can_enter(candidate):
+			continue
+		resolved["grid_position"] = _dict_from_cell(candidate)
+		resolved["spawn_fallback_reason"] = "preferred_cell_blocked"
+		resolved["preferred_grid_position"] = _dict_from_cell(preferred_cell)
+		return resolved
+	return resolved
+
+
+func _spawn_fallback_cells(spawn_data: Dictionary, preferred_cell: Vector2i) -> Array[Vector2i]:
+	var result: Array[Vector2i] = []
+	for key in ["activity_cells", "slot_cells", "fallback_cells"]:
+		for value in (spawn_data.get(key, []) as Array):
+			if value is Dictionary:
+				result.append(_cell_from_dict(value as Dictionary))
+	for radius in range(1, 4):
+		for y in range(-radius, radius + 1):
+			for x in range(-radius, radius + 1):
+				if absi(x) + absi(y) != radius:
+					continue
+				result.append(preferred_cell + Vector2i(x, y))
+	return result
+
+
 func _spawn_character(definition: Dictionary, resolved_spawn_data: Dictionary) -> CharacterEntity:
+	var blocks_movement := bool(resolved_spawn_data.get("blocks_movement", definition.get("blocks_movement", true)))
+	resolved_spawn_data = _resolve_spawn_anti_overlap(resolved_spawn_data, blocks_movement)
 	var character: CharacterEntity = CharacterEntity.new()
 	character.z_index = 0
 	characters_root.add_child(character)
@@ -1047,6 +1087,8 @@ func _apply_schedule_entry_to_spawn_data(spawn_data: Dictionary, entry: Dictiona
 		spawn_data["grid_position"] = (target.get("grid_position", {}) as Dictionary).duplicate(true)
 	if target.has("facing"):
 		spawn_data["facing"] = str(target.get("facing", "down"))
+	if entry.has("activity_cells"):
+		spawn_data["activity_cells"] = (entry.get("activity_cells", []) as Array).duplicate(true)
 
 	spawn_data["schedule_entry_id"] = str(entry.get("id", ""))
 	spawn_data["anchor_id"] = str(entry.get("anchor_id", ""))
@@ -1297,9 +1339,13 @@ func _apply_schedule_entry_to_character(character: CharacterEntity, entry: Dicti
 func _resolve_schedule_target(entry: Dictionary) -> Dictionary:
 	var target: Dictionary = {}
 	var anchor_id: String = str(entry.get("anchor_id", ""))
+	var using_transition_anchor := false
 	if str(entry.get("location_id", grid.location_id)) != grid.location_id:
 		anchor_id = _get_transition_anchor_for_current_location(entry)
-	if not anchor_id.is_empty() and grid != null:
+		using_transition_anchor = true
+	if not using_transition_anchor and entry.has("grid_position"):
+		target["grid_position"] = (entry.get("grid_position", {}) as Dictionary).duplicate(true)
+	if not target.has("grid_position") and not anchor_id.is_empty() and grid != null:
 		var anchor: Dictionary = grid.get_anchor(anchor_id)
 		if not anchor.is_empty():
 			var anchor_position: Dictionary = anchor.get("grid_position", {}) as Dictionary
@@ -1307,9 +1353,6 @@ func _resolve_schedule_target(entry: Dictionary) -> Dictionary:
 				target["grid_position"] = anchor_position.duplicate(true)
 			if anchor.has("facing"):
 				target["facing"] = str(anchor.get("facing", "down"))
-
-	if not target.has("grid_position") and entry.has("grid_position"):
-		target["grid_position"] = (entry.get("grid_position", {}) as Dictionary).duplicate(true)
 
 	if entry.has("facing"):
 		target["facing"] = str(entry.get("facing", "down"))

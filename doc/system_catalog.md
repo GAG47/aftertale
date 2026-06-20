@@ -263,6 +263,11 @@ v67.2 addendum:
 
 后续可能扩展方向：日程优先级、玩家打断、室内外迁移、AI 意图候选与规则校验。
 
+v67.3 addendum:
+
+- `NpcScheduleSystem` still owns the v56-v59 offscreen settlement model; generated NPCs outside the current location are settled by active schedule/offscreen state rather than simulated through full cross-scene routes.
+- Generated schedule entries now carry transition metadata that `LocationRoot` can consume through `transition_anchor_by_location`, while retaining the base `location_id + anchor_id` contract.
+
 ## scripts/systems/settlements/
 
 当前职责：程序生成聚落，从 policy 和 context 到 blueprint，再编译成可运行 location。
@@ -293,6 +298,15 @@ v67.2 addendum:
 - Generated baseline files live under `user://saves/<slot_id>/worlds/<world_id>/generated/`.
 - Snapshot identity distinguishes `settlement_template_id`, `settlement_instance_id`, `snapshot_id`, and `exterior_location_id`.
 - Formal generated IDs are namespaced before snapshot write: buildings, source/parent building refs, interiors, shops, objects, schedule targets, NPCs, schedule entries, and role assignments.
+
+v67.3 addendum:
+
+- `tile_scene_compiler.gd` emits schedule target metadata for `target_type`, `capacity`, `target_key`, concrete `grid_position`, public/social `activity_cells`, generated interior entry/exit targets, and exterior building entrance/transition targets.
+- Public plot hooks now also expose `public` schedule targets. They keep `source_plot_id` and fill the legacy `source_building_id` field so generated namespace and old target contracts remain stable.
+- `population_planner.gd` performs capacity-aware target claims for home/work/social/rest. Single-capacity targets are not shared across NPCs; multi-capacity public/social targets use concrete activity-cell slots.
+- `schedule_planner.gd` adds source/departure/arrival/target transition metadata without replacing schedule resolution by `location_id + anchor_id`.
+- Generated NPC definitions now include concrete `appearance.display_mode = "map_sprite"` data using `res://assets/art/characters/map_sprites/npc_guard_001.png`.
+- `generated_settlement_store.gd` namespaces public plot scoped schedule target IDs in addition to building/interior/shop/object references.
 
 ## scripts/systems/skills/
 
@@ -330,6 +344,7 @@ v67.2 addendum:
 
 - `v55_ui_smoke.gd`、`v60_1_road_skeleton_smoke.gd`、`v61_settlement_planning_smoke.gd`、`v62_general_settlement_generation_smoke.gd`、`v63_settlement_scene_compiler_smoke.gd`、`v64_generated_interiors_contract_smoke.gd`、`v64_policy_playable_settlement_smoke.gd`、`v65_unified_interaction_resolver_smoke.gd`。
 - `v67_persistent_generated_settlement_population_smoke.gd`：验证 generated settlement snapshot、generated NPC definitions、spawn rows、schedule target 解析、二次读取和 SaveManager index。
+- `v67_3_generated_npc_schedule_appearance_integrity_smoke.gd`：验证 generated NPC map_sprite、role target claims、single-capacity avoidance、schedule occupancy、multi-capacity public/social slots、transition metadata、entry/exit/door targets、LocationRoot spawn anti-overlap 和二次加载稳定性。
 - 对应 `.tscn` 和 `.uid` 文件。
 
 相关系统：`main.gd` smoke flag 流程、settlement、scene compiler、interaction resolver、UI。
@@ -341,6 +356,10 @@ v67.2 addendum:
 v67.2 addendum:
 
 - `v67_2_generated_settlement_persistence_integrity_smoke.gd` verifies multi-slot generated settlement isolation, generated `user://` character definition reads, generated runtime cache switching, `load_game()` generated context restoration, and formal generated ID namespace integrity.
+
+v67.3 addendum:
+
+- `v67_3_generated_npc_schedule_appearance_integrity_smoke.gd` verifies generated NPC schedule and appearance integrity and should be run with the v67.2, v67, and v65 smoke regressions after generated settlement changes.
 
 ## data/
 

@@ -254,7 +254,9 @@ func _read_location_data_by_id(location_id: String) -> Dictionary:
 func _resolve_schedule_target(entry: Dictionary, location_data: Dictionary) -> Dictionary:
 	var target: Dictionary = {}
 	var anchor_id: String = str(entry.get("anchor_id", ""))
-	if not anchor_id.is_empty() and not location_data.is_empty():
+	if entry.has("grid_position"):
+		target["grid_position"] = (entry.get("grid_position", {}) as Dictionary).duplicate(true)
+	if not target.has("grid_position") and not anchor_id.is_empty() and not location_data.is_empty():
 		var anchor: Dictionary = _get_anchor(location_data, anchor_id)
 		if not anchor.is_empty():
 			var anchor_position: Dictionary = anchor.get("grid_position", {}) as Dictionary
@@ -263,8 +265,6 @@ func _resolve_schedule_target(entry: Dictionary, location_data: Dictionary) -> D
 			if anchor.has("facing"):
 				target["facing"] = str(anchor.get("facing", "down"))
 
-	if not target.has("grid_position") and entry.has("grid_position"):
-		target["grid_position"] = (entry.get("grid_position", {}) as Dictionary).duplicate(true)
 	if entry.has("facing"):
 		target["facing"] = str(entry.get("facing", "down"))
 

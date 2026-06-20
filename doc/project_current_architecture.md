@@ -292,7 +292,19 @@ user://saves/<slot_id>/worlds/<world_id>/generated/characters/<npc_id>.json
 
 新增 `scripts/tests/v67_2_generated_settlement_persistence_integrity_smoke.gd` 覆盖多 slot 隔离、cache switch、`load_game()` 上下文恢复、generated `user://` definition 读取和生成 ID 命名空间完整性。
 
-## 13. 未来 AI 增强层的当前位置
+## 13. v67.3 生成 NPC 日程与外观一致性
+
+v67.3 后，generated settlement population 不再通过“第一个可用 target”给 NPC 分配 home/work/social/rest。`PopulationPlanner` 会基于 schedule target 的 `capacity`、`target_type`、`activity_cells` 和 claimed slots 做容量感知分配，并把 `assigned_target_slots`、`fallbacks`、allocation summary 和 schedule occupancy audit 写回 snapshot。单容量目标包括 bed/home/private rest、counter/service counter、workstation/workspot/forge/crafting station、training/guard post 和 unknown target；public/social/dining/gathering/activity 只有在存在具体 activity cells 时才按多 slot 使用。
+
+`TileSceneCompiler` 现在会暴露生成室内的 `interior_entry` / `interior_exit` schedule targets，以及 exterior 的 `building_entrance` / `exterior_transition` targets。public plot hook 也会生成 `public` schedule target，以便生成 NPC 的 social block 可以落到具体公共活动格。
+
+`SchedulePlanner` 继续保留 `location_id + anchor_id` 作为 schedule entry 的基本解析合同，同时补充 `source_*`、`departure_*`、`arrival_*`、`target_*`、`transition_kind` 和 `transition_anchor_by_location`。`LocationRoot` 沿用 v56-v59 模型：当前可见 location 内通过 `NpcMovementAgent` 移动，非当前 location 由 `NpcScheduleSystem` 离屏结算，进入 location 时根据 schedule/offscreen state 决定 NPC 是否出现和落点。
+
+Generated NPC definitions 现在直接包含 `appearance.display_mode = "map_sprite"`，并使用 `res://assets/art/characters/map_sprites/npc_guard_001.png` 作为真实 2D map sprite 资源。`LocationRoot` 会在 spawn 前做阻挡格 anti-overlap：优先使用 schedule/activity/slot/fallback cells，必要时搜索邻近可走格；`LocationGrid.register_character()` 也会拒绝两个 blocking character 注册到同一格。
+
+新增 `scripts/tests/v67_3_generated_npc_schedule_appearance_integrity_smoke.gd` 覆盖 generated NPC map_sprite、assignment claims、single-capacity 避让、schedule occupancy、multi-capacity public/social slot、transition metadata、generated entry/exit/door targets、LocationRoot spawn anti-overlap 和二次加载稳定性。
+
+## 14. 未来 AI 增强层的当前位置
 
 当前项目已经有较多确定性规则系统和数据入口，因此 AI 后续更适合作为候选内容、表达文本和风味生成层接入。比较自然的边界是：
 

@@ -444,6 +444,30 @@ func _add_building_interaction_object(building: Dictionary) -> void:
 		"anchor_id": exterior_door_anchor_id,
 		"source_building_id": building_id,
 		"target_location_id": interior_location_id,
+		"target_type": "transition",
+		"capacity": 1,
+		"grid_position": _dict_cell(wall_door_cell),
+		"exterior_location_id": exterior_location_id,
+		"interior_location_id": interior_location_id,
+		"exterior_anchor_id": exterior_door_anchor_id,
+		"arrival_anchor_id": exterior_door_anchor_id,
+		"departure_anchor_id": exterior_door_anchor_id,
+	})
+	_add_schedule_target({
+		"id": "%s.building_entrance" % building_id,
+		"role": "building_entrance",
+		"location_id": exterior_location_id,
+		"anchor_id": exterior_door_anchor_id,
+		"source_building_id": building_id,
+		"target_location_id": interior_location_id,
+		"target_type": "door",
+		"capacity": 1,
+		"grid_position": _dict_cell(wall_door_cell),
+		"exterior_location_id": exterior_location_id,
+		"interior_location_id": interior_location_id,
+		"exterior_anchor_id": exterior_door_anchor_id,
+		"arrival_anchor_id": exterior_door_anchor_id,
+		"departure_anchor_id": exterior_door_anchor_id,
 	})
 	(_compiled.get("objects", []) as Array).append({
 		"id": "wall_door_%s" % building_id,
@@ -864,6 +888,8 @@ func _facility_rows_from_objects(objects: Array[Dictionary]) -> Array[Dictionary
 func _schedule_targets_for_interior(building: Dictionary, location_id: String, role: String) -> Array[Dictionary]:
 	var building_id := str(building.get("id", ""))
 	var result: Array[Dictionary] = []
+	result.append(_schedule_target_row(building_id, "interior_entry", location_id, "entry"))
+	result.append(_schedule_target_row(building_id, "interior_exit", location_id, "exit"))
 	match role:
 		"residential":
 			result.append(_schedule_target_row(building_id, "home", location_id, "home"))
@@ -875,7 +901,7 @@ func _schedule_targets_for_interior(building: Dictionary, location_id: String, r
 			result.append(_schedule_target_row(building_id, "work", location_id, "work"))
 			result.append(_schedule_target_row(building_id, "workstation", location_id, "workstation"))
 		"tavern":
-			result.append(_schedule_target_row(building_id, "tavern", location_id, "tavern_counter"))
+			result.append(_schedule_target_row(building_id, "tavern_counter", location_id, "tavern_counter"))
 			result.append(_schedule_target_row(building_id, "dining", location_id, "dining"))
 			result.append(_schedule_target_row(building_id, "rest", location_id, "rest"))
 		"training":
@@ -888,24 +914,123 @@ func _schedule_targets_for_interior(building: Dictionary, location_id: String, r
 
 
 func _schedule_target_row(building_id: String, role: String, location_id: String, anchor_id: String) -> Dictionary:
-	return {
+	var cell := _default_interior_anchor_cell(anchor_id)
+	var row := {
 		"id": "%s.%s" % [building_id, role],
 		"role": role,
 		"location_id": location_id,
 		"anchor_id": anchor_id,
 		"source_building_id": building_id,
+		"target_type": _target_type_for_schedule_role(role),
+		"capacity": _capacity_for_schedule_role(role),
+		"grid_position": _dict_cell(cell),
+		"interior_location_id": location_id,
+		"arrival_anchor_id": "entry",
+		"departure_anchor_id": "exit",
 	}
+	var activity_cells := _interior_activity_cells_around(cell)
+	if int(row.get("capacity", 1)) > 1 and not activity_cells.is_empty():
+		row["activity_cells"] = activity_cells
+	return row
 
 
 func _add_schedule_targets_for_manifest(manifest: Dictionary) -> void:
 	for target_value in (manifest.get("schedule_targets", []) as Array):
-		_add_schedule_target(target_value as Dictionary)
+		var target: Dictionary = (target_value as Dictionary).duplicate(true)
+		if not target.has("exterior_location_id"):
+			target["exterior_location_id"] = str(manifest.get("exterior_location_id", ""))
+		if not target.has("interior_location_id"):
+			target["interior_location_id"] = str(manifest.get("interior_location_id", ""))
+		if not target.has("exterior_anchor_id"):
+			target["exterior_anchor_id"] = str(manifest.get("exterior_entrance_id", ""))
+		if not target.has("arrival_anchor_id"):
+			target["arrival_anchor_id"] = "entry"
+		if not target.has("departure_anchor_id"):
+			target["departure_anchor_id"] = "exit"
+		_add_schedule_target(target)
 
 
 func _add_schedule_target(target: Dictionary) -> void:
 	if str(target.get("location_id", "")).is_empty() or str(target.get("anchor_id", "")).is_empty():
 		return
-	(_compiled.get("schedule_targets", []) as Array).append(target.duplicate(true))
+	var row := target.duplicate(true)
+	var role := str(row.get("role", ""))
+	if not row.has("target_type"):
+		row["target_type"] = _target_type_for_schedule_role(role)
+	if not row.has("capacity"):
+		row["capacity"] = _capacity_for_schedule_role(role)
+	row["target_key"] = "%s:%s" % [str(row.get("location_id", "")), str(row.get("anchor_id", ""))]
+	(_compiled.get("schedule_targets", []) as Array).append(row)
+
+
+func _target_type_for_schedule_role(role: String) -> String:
+	match role:
+		"bed", "home", "rest":
+			return "private_rest"
+		"counter", "service", "service_counter", "tavern_counter":
+			return "service_counter"
+		"work", "workstation", "workspot", "forge", "crafting_station":
+			return "workstation"
+		"training", "trainer_spot", "guard_post":
+			return "training"
+		"dining", "tavern", "social", "gathering", "activity", "public":
+			return "public"
+		"interior_entry", "interior_exit", "exterior_transition", "building_entrance":
+			return "transition"
+		_:
+			return "unknown"
+
+
+func _capacity_for_schedule_role(role: String) -> int:
+	match role:
+		"dining", "tavern", "social", "gathering", "activity", "public":
+			return 4
+		_:
+			return 1
+
+
+func _default_interior_anchor_cell(anchor_id: String) -> Vector2i:
+	match anchor_id:
+		"entry":
+			return Vector2i(3, 4)
+		"exit":
+			return Vector2i(3, 5)
+		"home":
+			return Vector2i(4, 2)
+		"bed":
+			return Vector2i(2, 2)
+		"service":
+			return Vector2i(4, 2)
+		"counter":
+			return Vector2i(4, 3)
+		"work":
+			return Vector2i(4, 2)
+		"workstation":
+			return Vector2i(4, 3)
+		"tavern_counter":
+			return Vector2i(4, 2)
+		"dining":
+			return Vector2i(2, 2)
+		"rest":
+			return Vector2i(5, 2)
+		"training":
+			return Vector2i(4, 2)
+		"trainer_spot":
+			return Vector2i(3, 2)
+		"gathering":
+			return Vector2i(3, 2)
+		_:
+			return Vector2i(4, 2)
+
+
+func _interior_activity_cells_around(cell: Vector2i) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for direction in [Vector2i.UP, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT]:
+		var candidate: Vector2i = cell + direction
+		if candidate.x <= 0 or candidate.y <= 0 or candidate.x >= 7 or candidate.y >= 5:
+			continue
+		result.append(_dict_cell(candidate))
+	return result
 
 
 func _facility_roles_for_building(building: Dictionary) -> Array[String]:
@@ -949,8 +1074,9 @@ func _add_public_hook_object(plot: Dictionary) -> void:
 	if anchor_id.is_empty():
 		return
 	var cell := _area_center(plot.get("area", {}) as Dictionary)
+	var plot_id := str(plot.get("id", "public"))
 	(_compiled.get("objects", []) as Array).append({
-		"id": "notice_%s" % str(plot.get("id", "public")),
+		"id": "notice_%s" % plot_id,
 		"display_name": "Generated Notice Board",
 		"grid_position": _dict_cell(cell),
 		"blocks_movement": false,
@@ -961,6 +1087,18 @@ func _add_public_hook_object(plot: Dictionary) -> void:
 		"source_blueprint_id": str(plot.get("id", "")),
 		"source_anchor_id": anchor_id,
 		"inspect_text": "A generated public activity hook.",
+	})
+	_add_schedule_target({
+		"id": "%s.public_activity" % plot_id,
+		"role": "public",
+		"location_id": str(_compiled.get("id", "generated_settlement")),
+		"anchor_id": anchor_id,
+		"source_building_id": plot_id,
+		"source_plot_id": plot_id,
+		"target_type": "public",
+		"capacity": 4,
+		"grid_position": _dict_cell(cell),
+		"activity_cells": _activity_cells_around(cell),
 	})
 
 

@@ -279,6 +279,8 @@ func get_object_by_id(object_id: String) -> LocationObject:
 func register_character(character_id: String, cell: Vector2i, character: CharacterEntity, blocks_movement: bool) -> bool:
 	if character_id.is_empty() or not in_bounds(cell):
 		return false
+	if blocks_movement and is_occupied(cell):
+		return false
 
 	characters_by_id[character_id] = character
 
