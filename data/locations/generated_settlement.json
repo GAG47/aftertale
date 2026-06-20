@@ -4,6 +4,8 @@
   "tile_size": 32,
   "generator": {
     "type": "settlement",
+    "persistent_generated_settlement": true,
+    "settlement_id": "generated_settlement",
     "settlement_policy_id": "roadside_trade_village",
     "seed": 6301,
     "size": { "width": 48, "height": 32 },

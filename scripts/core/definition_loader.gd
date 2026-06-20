@@ -2,6 +2,7 @@ extends Node
 
 const VillageRoadGenerator := preload("res://scripts/systems/scenes/village_road_generator.gd")
 const TileSceneCompiler := preload("res://scripts/systems/settlements/tile_scene_compiler.gd")
+const GeneratedSettlementStoreScript := preload("res://scripts/systems/settlements/generated_settlement_store.gd")
 
 var _json_cache: Dictionary = {}
 var _resolved_locations_by_id: Dictionary = {}
@@ -70,11 +71,19 @@ func materialize_location(location_data: Dictionary, resource_path: String = "",
 			_register_resolved_location(generated, resource_path, "")
 			return generated.duplicate(true)
 		"settlement_blueprint":
+			if _uses_persistent_generated_settlement(location_data):
+				var snapshot_location := _load_or_create_persistent_generated_settlement(location_data, resource_path)
+				if not snapshot_location.is_empty():
+					return snapshot_location.duplicate(true)
 			var compiler: RefCounted = TileSceneCompiler.new()
 			var compiled: Dictionary = compiler.generate_location(location_data)
 			_register_resolved_location(compiled, resource_path, "")
 			return compiled.duplicate(true)
 		"settlement":
+			if _uses_persistent_generated_settlement(location_data):
+				var snapshot_location := _load_or_create_persistent_generated_settlement(location_data, resource_path)
+				if not snapshot_location.is_empty():
+					return snapshot_location.duplicate(true)
 			var compiler: RefCounted = TileSceneCompiler.new()
 			var compiled: Dictionary = compiler.generate_location(location_data)
 			_register_resolved_location(compiled, resource_path, "")
@@ -90,6 +99,9 @@ func resolve_location_by_id(location_id: String) -> Dictionary:
 
 	if _resolved_locations_by_id.has(location_id):
 		return (_resolved_locations_by_id[location_id] as Dictionary).duplicate(true)
+	var snapshot_location := _load_persistent_generated_location_by_id(location_id)
+	if not snapshot_location.is_empty():
+		return snapshot_location.duplicate(true)
 	if _generated_interior_manifests_by_id.has(location_id):
 		var manifest: Dictionary = _generated_interior_manifests_by_id[location_id] as Dictionary
 		var materialized := _materialize_generated_interior(manifest)
@@ -120,6 +132,62 @@ func _register_resolved_location(location_data: Dictionary, resource_path: Strin
 	if not scene_path.is_empty():
 		_location_scene_path_by_id[location_id] = scene_path
 	_register_generated_interiors(location_data, resource_path)
+
+
+func _uses_persistent_generated_settlement(location_data: Dictionary) -> bool:
+	if bool(location_data.get("persistent_generated_settlement", false)):
+		return true
+	var generator_data: Dictionary = location_data.get("generator", {}) as Dictionary
+	return bool(generator_data.get("persistent_generated_settlement", generator_data.get("persistent_snapshot", false)))
+
+
+func _load_or_create_persistent_generated_settlement(location_data: Dictionary, resource_path: String) -> Dictionary:
+	var store: RefCounted = GeneratedSettlementStoreScript.new()
+	var snapshot: Dictionary = store.ensure_snapshot(location_data, resource_path)
+	if snapshot.is_empty():
+		return {}
+	_register_persistent_generated_snapshot(snapshot, resource_path)
+	return _snapshot_exterior_location(snapshot)
+
+
+func _load_persistent_generated_location_by_id(location_id: String) -> Dictionary:
+	var store: RefCounted = GeneratedSettlementStoreScript.new()
+	var snapshot: Dictionary = store.load_snapshot_for_location_id(location_id)
+	if snapshot.is_empty():
+		return {}
+	_register_persistent_generated_snapshot(snapshot, "snapshot:%s" % str(snapshot.get("settlement_id", "")))
+	if _resolved_locations_by_id.has(location_id):
+		return (_resolved_locations_by_id[location_id] as Dictionary).duplicate(true)
+	return {}
+
+
+func _register_persistent_generated_snapshot(snapshot: Dictionary, resource_path: String) -> void:
+	for location_value in (snapshot.get("locations", []) as Array):
+		var location: Dictionary = location_value as Dictionary
+		_register_resolved_location(location, resource_path, str(location.get("scene_path", "")))
+	for manifest_value in (snapshot.get("generated_interiors", []) as Array):
+		var manifest: Dictionary = manifest_value as Dictionary
+		var interior_id := str(manifest.get("interior_location_id", ""))
+		if interior_id.is_empty():
+			continue
+		_generated_interior_manifests_by_id[interior_id] = manifest.duplicate(true)
+		var materialized := _materialize_generated_interior(manifest)
+		if materialized.is_empty():
+			continue
+		_resolved_locations_by_id[interior_id] = materialized.duplicate(true)
+		_location_data_path_by_id[interior_id] = "snapshot:%s#%s" % [str(snapshot.get("settlement_id", "")), interior_id]
+		var scene_path := str(manifest.get("scene_path", ""))
+		if not scene_path.is_empty():
+			_location_scene_path_by_id[interior_id] = scene_path
+
+
+func _snapshot_exterior_location(snapshot: Dictionary) -> Dictionary:
+	var exterior_id := str(snapshot.get("exterior_location_id", ""))
+	for location_value in (snapshot.get("locations", []) as Array):
+		var location: Dictionary = location_value as Dictionary
+		if exterior_id.is_empty() or str(location.get("id", "")) == exterior_id:
+			return location.duplicate(true)
+	return {}
 
 
 func _register_generated_interiors(location_data: Dictionary, resource_path: String) -> void:

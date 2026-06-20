@@ -11,6 +11,7 @@ const SAVE_DIR := "user://saves"
 
 var last_save_path: String = DEFAULT_SAVE_PATH
 var last_message: String = ""
+var generated_settlements: Dictionary = {}
 
 
 func save_game(save_path: String = DEFAULT_SAVE_PATH) -> ActionResult:
@@ -35,6 +36,7 @@ func save_game(save_path: String = DEFAULT_SAVE_PATH) -> ActionResult:
 		"crops": CropSystem.get_save_state(),
 		"business": BusinessSystem.get_save_state(),
 		"npc_schedules": NpcScheduleSystem.get_save_state(),
+		"generated_settlements": generated_settlements.duplicate(true),
 	}
 
 	var dir_error: Error = DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(SAVE_DIR))
@@ -90,6 +92,7 @@ func load_game(save_path: String = DEFAULT_SAVE_PATH) -> ActionResult:
 	CropSystem.apply_save_state(save_data.get("crops", {}) as Dictionary)
 	BusinessSystem.apply_save_state(save_data.get("business", {}) as Dictionary)
 	NpcScheduleSystem.apply_save_state(save_data.get("npc_schedules", {}) as Dictionary)
+	generated_settlements = (save_data.get("generated_settlements", {}) as Dictionary).duplicate(true)
 
 	var scene_state: Dictionary = save_data.get("scene", {}) as Dictionary
 	var scene_path: String = str(scene_state.get("scene_path", ""))
@@ -124,6 +127,28 @@ func load_game(save_path: String = DEFAULT_SAVE_PATH) -> ActionResult:
 
 func has_save(save_path: String = DEFAULT_SAVE_PATH) -> bool:
 	return FileAccess.file_exists(save_path)
+
+
+func get_current_slot_id() -> String:
+	return _slot_id_from_save_path(last_save_path)
+
+
+func register_generated_settlement(settlement_id: String, snapshot_path: String, schema_version: int, generator_version: String) -> void:
+	if settlement_id.is_empty() or snapshot_path.is_empty():
+		return
+	generated_settlements[settlement_id] = {
+		"snapshot_path": snapshot_path,
+		"schema_version": schema_version,
+		"generator_version": generator_version,
+	}
+
+
+func get_generated_settlement_index() -> Dictionary:
+	return generated_settlements.duplicate(true)
+
+
+func clear_generated_settlement_index() -> void:
+	generated_settlements.clear()
 
 
 func _can_save_in_current_mode() -> bool:
@@ -167,6 +192,18 @@ func _get_active_scene() -> Node:
 		return null
 
 	return SceneLoader.current_scene
+
+
+func _slot_id_from_save_path(save_path: String) -> String:
+	var file_name := save_path.get_file()
+	if file_name.is_empty():
+		return "slot_1"
+	var dot_index := file_name.rfind(".")
+	if dot_index > 0:
+		file_name = file_name.substr(0, dot_index)
+	if file_name.is_empty():
+		return "slot_1"
+	return file_name
 
 
 func _fail_save(save_path: String, reason: String) -> ActionResult:

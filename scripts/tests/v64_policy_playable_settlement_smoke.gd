@@ -263,7 +263,7 @@ func _generated_settlement_uses_policy_id() -> bool:
 	var state: Dictionary = location.get("state", {}) as Dictionary
 	if str(state.get("settlement_policy_id", "")) != "roadside_trade_village":
 		return _fail("v64 generated_settlement.json must be driven by settlement_policy_id")
-	if not _has_playable_hooks(location):
+	if not _has_playable_hooks_for_game_location(location):
 		return _fail("v64 generated_settlement.json compiled output must expose gameplay hooks")
 	if not _has_no_generated_shop_hooks(location):
 		return _fail("v64 generated_settlement.json must not compile generated shop counters")
@@ -275,6 +275,26 @@ func _generated_settlement_uses_policy_id() -> bool:
 func _roadside_default_is_residential_first(location: Dictionary) -> bool:
 	var counts: Dictionary = (location.get("generation_summary", {}) as Dictionary).get("plot_use_counts", {}) as Dictionary
 	return int(counts.get("residential", 0)) > int(counts.get("commercial", 0))
+
+
+func _has_playable_hooks_for_game_location(compiled: Dictionary) -> bool:
+	var summary: Dictionary = compiled.get("generation_summary", {}) as Dictionary
+	var gameplay_hooks: Dictionary = summary.get("gameplay_hooks", {}) as Dictionary
+	if int(gameplay_hooks.get("enterable_building_count", 0)) <= 0:
+		return false
+	if int(gameplay_hooks.get("generated_interior_count", 0)) <= 0:
+		return false
+	if int(gameplay_hooks.get("building_contract_count", 0)) != int(gameplay_hooks.get("generated_interior_count", -1)):
+		return false
+	if int(gameplay_hooks.get("schedule_target_count", 0)) <= 0:
+		return false
+	if not _has_enterable_generated_building(compiled):
+		return false
+	if not _small_structures_are_not_enterable(compiled):
+		return false
+	if not _public_hooks_are_valid(compiled):
+		return false
+	return true
 
 
 func _interior_exit_current_cell_prompt_works(root: Node) -> bool:

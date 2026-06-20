@@ -18,7 +18,7 @@ func run(root: Node) -> bool:
 	if JSON.stringify(first.get("generation_summary", {})) != JSON.stringify(second.get("generation_summary", {})):
 		return _fail("v63 compiled settlement must be deterministic for a fixed seed")
 
-	if not _compiled_location_is_valid(first, "generated_settlement", Vector2i(48, 32)):
+	if not _compiled_location_is_valid(first, "generated_settlement__exterior", Vector2i(48, 32)):
 		return false
 	DefinitionLoader.clear_cache()
 	var quality_sample := DefinitionLoader.load_resolved_location(QUALITY_SETTLEMENT_PATH)
@@ -131,7 +131,7 @@ func _has_generated_building_wall_structures(location_data: Dictionary) -> bool:
 		var structure: Dictionary = structure_value as Dictionary
 		if str(structure.get("type", "")) != "wall_ring":
 			continue
-		if not str(structure.get("source_blueprint_id", "")).begins_with("building_"):
+		if not _is_building_source_id(str(structure.get("source_blueprint_id", ""))):
 			continue
 		if bool(structure.get("blocks_movement", true)):
 			return false
@@ -146,7 +146,7 @@ func _has_generated_building_door_structures(location_data: Dictionary) -> bool:
 		var structure: Dictionary = structure_value as Dictionary
 		if str(structure.get("type", "")) != "door":
 			continue
-		if not str(structure.get("source_blueprint_id", "")).begins_with("building_"):
+		if not _is_building_source_id(str(structure.get("source_blueprint_id", ""))):
 			continue
 		if bool(structure.get("blocks_movement", true)):
 			return false
@@ -196,6 +196,10 @@ func _summary_has_connectivity_contract(summary: Dictionary) -> bool:
 	if (summary.get("building_access", []) as Array).is_empty():
 		return false
 	return true
+
+
+func _is_building_source_id(value: String) -> bool:
+	return value.begins_with("building_") or value.find("__building_") >= 0
 
 
 func _fail(message: String) -> bool:
