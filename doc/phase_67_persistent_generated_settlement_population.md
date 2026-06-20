@@ -196,6 +196,64 @@ NpcScheduleSystem offscreen state
 scripts/tests/v67_persistent_generated_settlement_population_smoke.gd
 ```
 
+## v67.2 Persistence Integrity Update
+
+v67.2 tightens the generated settlement baseline so it is bound to the active save context instead of a guessed slot path.
+
+Current generated baseline paths are:
+
+```text
+user://saves/<slot_id>/worlds/<world_id>/generated/settlements/<settlement_instance_id>.json
+user://saves/<slot_id>/worlds/<world_id>/generated/characters/<npc_id>.json
+```
+
+`SaveManager` now owns the active generated-content context:
+
+```text
+active_save_path
+active_save_slot_id
+active_world_id
+generated_settlements
+```
+
+`GeneratedSettlementStore` reads snapshot paths from `SaveManager.generated_settlements` first. New snapshot writes use the current `SaveManager.get_generated_root_path()` and register the resulting snapshot path back into the save index.
+
+`load_game()` restores generated settlement context before loading the saved scene:
+
+```text
+read save JSON
+validate version
+configure active save path / slot / world
+restore generated_settlements index
+clear generated runtime caches
+restore system save states
+load saved scene
+restore controlled character
+```
+
+New game and slot/world changes clear generated runtime caches through `DefinitionLoader.clear_generated_runtime_cache()` and `GeneratedSettlementStore.clear_runtime_cache()`. Snapshots stay on disk; in-memory resolved locations and `user://` generated JSON cache entries are flushed when context changes.
+
+v67.2 separates ID meanings in the snapshot:
+
+```text
+settlement_template_id: source/template identity
+settlement_instance_id: persistent generated settlement instance
+snapshot_id: stable baseline snapshot id
+exterior_location_id: generated exterior location id
+```
+
+Formal generated IDs are namespaced before snapshot write. This includes building ids, source building ids, parent building ids, interior location ids, generated shop ids, generated object ids, schedule target ids, NPC ids, schedule entry ids, and role assignment ids. Interior anchor ids remain local to their location; schedule resolution still uses `location_id + anchor_id`.
+
+`DefinitionLoader` now explicitly supports generated `user://` JSON definitions and reports generated-resource errors separately from ordinary `res://` definition errors.
+
+Additional smoke coverage:
+
+```text
+scripts/tests/v67_2_generated_settlement_persistence_integrity_smoke.gd
+```
+
+The v67.2 smoke covers two-slot generation isolation, generated character source isolation, cache switching between slots, `load_game()` context/index restoration before scene load, generated `user://` character reads, and formal generated ID namespace integrity.
+
 覆盖内容：
 
 - 第一次 materialize persistent generated settlement 时写入 snapshot。

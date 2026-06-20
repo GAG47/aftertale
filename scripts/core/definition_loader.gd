@@ -19,14 +19,21 @@ func load_json_resource(resource_path: String, expected_kind: String = "JSON res
 		var cached: Dictionary = _json_cache[resource_path] as Dictionary
 		return cached.duplicate(true)
 
+	var generated_user_resource := resource_path.begins_with("user://")
 	var file: FileAccess = FileAccess.open(resource_path, FileAccess.READ)
 	if file == null:
-		push_error("DefinitionLoader could not open %s: %s" % [expected_kind, resource_path])
+		if generated_user_resource:
+			push_error("DefinitionLoader could not open generated user:// %s: %s" % [expected_kind, resource_path])
+		else:
+			push_error("DefinitionLoader could not open %s: %s" % [expected_kind, resource_path])
 		return {}
 
 	var parsed: Variant = JSON.parse_string(file.get_as_text())
 	if not (parsed is Dictionary):
-		push_error("DefinitionLoader expected %s to be a JSON object: %s" % [expected_kind, resource_path])
+		if generated_user_resource:
+			push_error("DefinitionLoader expected generated user:// %s to be a JSON object: %s" % [expected_kind, resource_path])
+		else:
+			push_error("DefinitionLoader expected %s to be a JSON object: %s" % [expected_kind, resource_path])
 		return {}
 
 	var definition: Dictionary = parsed as Dictionary
@@ -61,7 +68,7 @@ func load_resolved_location(resource_path: String, context: Dictionary = {}) -> 
 	return materialize_location(location_data, resource_path, context)
 
 
-func materialize_location(location_data: Dictionary, resource_path: String = "", _context: Dictionary = {}) -> Dictionary:
+func materialize_location(location_data: Dictionary, resource_path: String = "", context: Dictionary = {}) -> Dictionary:
 	var generator_data: Dictionary = location_data.get("generator", {}) as Dictionary
 	var generator_type := str(generator_data.get("type", ""))
 	match generator_type:
@@ -72,7 +79,7 @@ func materialize_location(location_data: Dictionary, resource_path: String = "",
 			return generated.duplicate(true)
 		"settlement_blueprint":
 			if _uses_persistent_generated_settlement(location_data):
-				var snapshot_location := _load_or_create_persistent_generated_settlement(location_data, resource_path)
+				var snapshot_location := _load_or_create_persistent_generated_settlement(location_data, resource_path, context)
 				if not snapshot_location.is_empty():
 					return snapshot_location.duplicate(true)
 			var compiler: RefCounted = TileSceneCompiler.new()
@@ -81,7 +88,7 @@ func materialize_location(location_data: Dictionary, resource_path: String = "",
 			return compiled.duplicate(true)
 		"settlement":
 			if _uses_persistent_generated_settlement(location_data):
-				var snapshot_location := _load_or_create_persistent_generated_settlement(location_data, resource_path)
+				var snapshot_location := _load_or_create_persistent_generated_settlement(location_data, resource_path, context)
 				if not snapshot_location.is_empty():
 					return snapshot_location.duplicate(true)
 			var compiler: RefCounted = TileSceneCompiler.new()
@@ -141,9 +148,9 @@ func _uses_persistent_generated_settlement(location_data: Dictionary) -> bool:
 	return bool(generator_data.get("persistent_generated_settlement", generator_data.get("persistent_snapshot", false)))
 
 
-func _load_or_create_persistent_generated_settlement(location_data: Dictionary, resource_path: String) -> Dictionary:
+func _load_or_create_persistent_generated_settlement(location_data: Dictionary, resource_path: String, context: Dictionary = {}) -> Dictionary:
 	var store: RefCounted = GeneratedSettlementStoreScript.new()
-	var snapshot: Dictionary = store.ensure_snapshot(location_data, resource_path)
+	var snapshot: Dictionary = store.ensure_snapshot(location_data, resource_path, context)
 	if snapshot.is_empty():
 		return {}
 	_register_persistent_generated_snapshot(snapshot, resource_path)
@@ -313,3 +320,13 @@ func clear_cache(resource_path: String = "") -> void:
 		return
 
 	_json_cache.erase(resource_path)
+
+
+func clear_generated_runtime_cache() -> void:
+	for resource_path in _json_cache.keys():
+		if str(resource_path).begins_with("user://"):
+			_json_cache.erase(resource_path)
+	_resolved_locations_by_id.clear()
+	_location_data_path_by_id.clear()
+	_location_scene_path_by_id.clear()
+	_generated_interior_manifests_by_id.clear()

@@ -275,7 +275,24 @@ AI 当前更适合作为内容增强层，而不是替代现有规则层。后�
 
 调试表现散落在 debug panel、overlay、tile renderer、settlement debug view 和 tool scenes 中。它们当前主要用于观察运行状态、生成结果、交互候选和战斗网格。
 
-## 12. 未来 AI 增强层的当前位置
+## 12. v67.2 生成聚落持久化一致性
+
+v67.2 后，generated settlement baseline 不再依赖从最近存档路径猜测 slot。`SaveManager` 显式维护 `active_save_path`、`active_save_slot_id`、`active_world_id` 和 `generated_settlements`。`GeneratedSettlementStore` 通过这些字段确定正式生成根目录，并优先使用 save index 中记录的 snapshot path 读取 baseline。
+
+当前生成 baseline 的正式路径形态为：
+
+```text
+user://saves/<slot_id>/worlds/<world_id>/generated/settlements/<settlement_instance_id>.json
+user://saves/<slot_id>/worlds/<world_id>/generated/characters/<npc_id>.json
+```
+
+`load_game()` 的顺序已经调整为先读取存档、设置 active save/world context、恢复 generated settlement index、清理 generated runtime cache，再恢复系统状态和加载保存的场景。新游戏、slot/world 切换和 index 恢复都会清理 `DefinitionLoader` 的 generated runtime cache，避免不同存档槽之间复用 resolved location 或 `user://` generated JSON 缓存。
+
+生成聚落 snapshot 中现在区分 `settlement_template_id`、`settlement_instance_id`、`snapshot_id` 和 `exterior_location_id`。building、interior、shop、object、NPC、schedule target、schedule entry、role assignment 等正式生成 ID 在写入 snapshot 前会进入 settlement namespace；location 内部 anchor 仍保持局部 ID，并继续通过 `location_id + anchor_id` 解析。
+
+新增 `scripts/tests/v67_2_generated_settlement_persistence_integrity_smoke.gd` 覆盖多 slot 隔离、cache switch、`load_game()` 上下文恢复、generated `user://` definition 读取和生成 ID 命名空间完整性。
+
+## 13. 未来 AI 增强层的当前位置
 
 当前项目已经有较多确定性规则系统和数据入口，因此 AI 后续更适合作为候选内容、表达文本和风味生成层接入。比较自然的边界是：
 

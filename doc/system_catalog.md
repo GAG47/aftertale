@@ -218,6 +218,12 @@
 
 后续可能扩展方向：版本迁移、多个存档槽、生成内容持久化审计、战斗中存档策略。
 
+v67.2 addendum:
+
+- `save_manager.gd` also owns generated-content context: `active_save_path`, `active_save_slot_id`, `active_world_id`, and `generated_settlements`.
+- `load_game()` restores active save/world context and the generated settlement index before scene load, then clears generated runtime caches.
+- New game and slot/world changes clear generated runtime caches so resolved generated locations and `user://` generated JSON entries do not leak across save slots.
+
 ## scripts/systems/scenes/
 
 当前职责：location 运行时、格子地图、对象、场景表现、建筑渲染、调试渲染、战斗与交互 overlay。
@@ -281,6 +287,13 @@
 
 后续可能扩展方向：生成结果校验、内容合同稳定、更多 policy 类型、手写内容与生成内容融合、长期历史演化。
 
+v67.2 addendum:
+
+- `generated_settlement_store.gd` now reads snapshot paths from the `SaveManager` generated settlement index before falling back to the expected path under the active slot/world root.
+- Generated baseline files live under `user://saves/<slot_id>/worlds/<world_id>/generated/`.
+- Snapshot identity distinguishes `settlement_template_id`, `settlement_instance_id`, `snapshot_id`, and `exterior_location_id`.
+- Formal generated IDs are namespaced before snapshot write: buildings, source/parent building refs, interiors, shops, objects, schedule targets, NPCs, schedule entries, and role assignments.
+
 ## scripts/systems/skills/
 
 当前职责：技能定义加载、目标范围、目标选择规则、影响单位和技能失败原因。
@@ -324,6 +337,10 @@
 当前状态：已经形成按阶段验证关键系统的测试基础。
 
 后续可能扩展方向：更多自动化回归、数据定义校验、存档读档测试、战斗和 NPC 行为测试。
+
+v67.2 addendum:
+
+- `v67_2_generated_settlement_persistence_integrity_smoke.gd` verifies multi-slot generated settlement isolation, generated `user://` character definition reads, generated runtime cache switching, `load_game()` generated context restoration, and formal generated ID namespace integrity.
 
 ## data/
 

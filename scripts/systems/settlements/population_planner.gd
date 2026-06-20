@@ -190,6 +190,7 @@ func _npc_definition(npc_id: String, role: String, settlement_id: String, policy
 
 func _assignment_record(npc_id: String, role: String, assignment: Dictionary, validation: Dictionary) -> Dictionary:
 	return {
+		"id": "%s__role_assignment" % npc_id,
 		"npc_id": npc_id,
 		"role": role,
 		"source_building_id": str(assignment.get("source_building_id", "")),

@@ -24,7 +24,9 @@ func _ready() -> void:
 
 func _try_run_smoke_test_from_flag() -> bool:
 	var smoke_path := ""
-	if FileAccess.file_exists("res://data/run_v67_smoke.json"):
+	if FileAccess.file_exists("res://data/run_v67_2_smoke.json"):
+		smoke_path = "res://scripts/tests/v67_2_generated_settlement_persistence_integrity_smoke.gd"
+	elif FileAccess.file_exists("res://data/run_v67_smoke.json"):
 		smoke_path = "res://scripts/tests/v67_persistent_generated_settlement_population_smoke.gd"
 	elif FileAccess.file_exists("res://data/run_v65_smoke.json"):
 		smoke_path = "res://scripts/tests/v65_unified_interaction_resolver_smoke.gd"
@@ -56,7 +58,7 @@ func _try_run_smoke_test_from_flag() -> bool:
 func _start_new_game() -> void:
 	GameState.start_new_session()
 	NpcScheduleSystem.reset_schedule_state()
-	SaveManager.clear_generated_settlement_index()
+	SaveManager.reset_active_save_context()
 	PartySystem.reset_party("debug_player")
 	GameState.set_scene_context("boot", "none")
 
