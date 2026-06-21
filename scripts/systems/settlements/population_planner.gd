@@ -12,8 +12,17 @@ func _init() -> void:
 
 
 func plan_population(settlement_id: String, policy_id: String, seed: int, exterior_location: Dictionary) -> Dictionary:
-	var schedule_targets: Array = exterior_location.get("schedule_targets", []) as Array
-	var building_contracts: Array = exterior_location.get("building_contracts", []) as Array
+	var semantic_map: Dictionary = exterior_location.get("semantic_map", {}) as Dictionary
+	var schedule_targets: Array = _targets_from_semantic_map(semantic_map)
+	var target_source := "semantic_map"
+	if schedule_targets.is_empty():
+		schedule_targets = exterior_location.get("schedule_targets", []) as Array
+		target_source = "schedule_targets"
+	var building_contracts: Array = _building_contracts_from_semantic_map(semantic_map)
+	var building_source := "semantic_map"
+	if building_contracts.is_empty():
+		building_contracts = exterior_location.get("building_contracts", []) as Array
+		building_source = "building_contracts"
 	var target_index: Dictionary = _build_target_index(schedule_targets)
 	var target_allocator: Dictionary = _build_target_allocator(target_index)
 	var contracts_by_use: Dictionary = _contracts_by_use(building_contracts)
@@ -52,6 +61,10 @@ func plan_population(settlement_id: String, policy_id: String, seed: int, exteri
 			"generated_population_count": definitions.size(),
 			"role_counts": role_counts,
 			"spawn_location_count": spawn_rows_by_location.size(),
+			"target_source": target_source,
+			"building_source": building_source,
+			"semantic_map_schema_version": int(semantic_map.get("schema_version", 0)),
+			"semantic_target_count": (semantic_map.get("targets", []) as Array).size(),
 			"building_capacity_summary": building_capacity_summary,
 			"skipped_population": skipped_population,
 			"unresolved_targets": unresolved,
@@ -274,6 +287,41 @@ func _validate_assignment_and_schedule(npc_id: String, assignment: Dictionary, s
 		"npc_id": npc_id,
 		"errors": errors,
 	}
+
+
+func _targets_from_semantic_map(semantic_map: Dictionary) -> Array:
+	var result: Array = []
+	for target_value in (semantic_map.get("targets", []) as Array):
+		var target: Dictionary = (target_value as Dictionary).duplicate(true)
+		if str(target.get("location_id", "")).is_empty() or str(target.get("anchor_id", "")).is_empty():
+			continue
+		if not target.has("id"):
+			target["id"] = str(target.get("semantic_target_id", target.get("target_key", "")))
+		if not target.has("target_type"):
+			target["target_type"] = str(target.get("semantic_activity", ""))
+		if not target.has("activity_cells") and target.has("standing_cells"):
+			target["activity_cells"] = (target.get("standing_cells", []) as Array).duplicate(true)
+		if not target.has("target_key"):
+			target["target_key"] = _target_key(target)
+		if not target.has("global_target_id"):
+			target["global_target_id"] = _target_key(target)
+		result.append(target)
+	return result
+
+
+func _building_contracts_from_semantic_map(semantic_map: Dictionary) -> Array:
+	var result: Array = []
+	for building_value in (semantic_map.get("buildings", []) as Array):
+		var building: Dictionary = (building_value as Dictionary).duplicate(true)
+		var building_id := str(building.get("building_id", building.get("source_building_id", "")))
+		if building_id.is_empty():
+			continue
+		if not building.has("building_id"):
+			building["building_id"] = building_id
+		if not building.has("source_building_id"):
+			building["source_building_id"] = building_id
+		result.append(building)
+	return result
 
 
 func _build_target_index(schedule_targets: Array) -> Dictionary:
@@ -611,8 +659,11 @@ func _apply_slot_position(target: Dictionary, slot_index: int) -> void:
 func _capacity_for_target(target: Dictionary) -> int:
 	var declared := int(target.get("capacity", 0))
 	if declared > 0:
-		if declared > 1 and (target.get("activity_cells", []) as Array).is_empty():
-			return 1
+		var activity_cells: Array = target.get("activity_cells", []) as Array
+		if declared > 1:
+			if activity_cells.is_empty():
+				return 1
+			return max(1, min(declared, activity_cells.size()))
 		return declared
 	var role := str(target.get("role", ""))
 	match role:

@@ -2,7 +2,7 @@ class_name GeneratedSettlementStore
 extends RefCounted
 
 const SCHEMA_VERSION := 1
-const GENERATOR_VERSION := "v67"
+const GENERATOR_VERSION := "v68"
 const MAX_REFERENCE_REWRITE_DEPTH := 16
 const TileSceneCompilerScript := preload("res://scripts/systems/settlements/tile_scene_compiler.gd")
 const PopulationPlannerScript := preload("res://scripts/systems/settlements/population_planner.gd")
@@ -186,6 +186,7 @@ func _build_snapshot(source_data: Dictionary, resource_path: String, context: Di
 		"generated_interiors": generated_interiors,
 		"building_contracts": (exterior_location.get("building_contracts", []) as Array).duplicate(true),
 		"schedule_targets": (exterior_location.get("schedule_targets", []) as Array).duplicate(true),
+		"semantic_map": (exterior_location.get("semantic_map", {}) as Dictionary).duplicate(true),
 		"npc_definitions": npc_definitions,
 		"npc_spawn_rows_by_location": spawn_rows_by_location,
 		"npc_role_assignments": population.get("npc_role_assignments", []),
@@ -300,6 +301,8 @@ func _rename_generated_string(value: String, key_text: String, settlement_id: St
 		var old_text := str(old_interior_id)
 		if value.begins_with("%s." % old_text):
 			return "%s%s" % [str(interior_map.get(old_interior_id, old_text)), value.substr(old_text.length())]
+		if value.begins_with("%s:" % old_text):
+			return "%s%s" % [str(interior_map.get(old_interior_id, old_text)), value.substr(old_text.length())]
 	if key_text in ["shop_id"] or (key_text == "id" and value.begins_with("generated_shop_")):
 		return _namespace_shop_id(value, settlement_id, building_map)
 	if key_text in ["id", "object_id"] and value.begins_with("wall_door_"):
@@ -319,6 +322,8 @@ func _rename_building_scoped_id(value: String, building_map: Dictionary) -> Stri
 			return "%s%s" % [str(building_map.get(local_id, local_text)), value.substr(local_text.length())]
 		if value.begins_with("%s__" % local_text):
 			return "%s%s" % [str(building_map.get(local_id, local_text)), value.substr(local_text.length())]
+		if value.begins_with("%s:" % local_text):
+			return "%s%s" % [str(building_map.get(local_id, local_text)), value.substr(local_text.length())]
 	return value
 
 
@@ -330,6 +335,8 @@ func _rename_plot_scoped_id(value: String, plot_map: Dictionary) -> String:
 		if value.begins_with("%s." % local_text):
 			return "%s%s" % [str(plot_map.get(local_id, local_text)), value.substr(local_text.length())]
 		if value.begins_with("%s__" % local_text):
+			return "%s%s" % [str(plot_map.get(local_id, local_text)), value.substr(local_text.length())]
+		if value.begins_with("%s:" % local_text):
 			return "%s%s" % [str(plot_map.get(local_id, local_text)), value.substr(local_text.length())]
 	return value
 

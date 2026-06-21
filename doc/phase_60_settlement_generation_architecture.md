@@ -8,10 +8,21 @@ Complete.
 
 Phase 60 defines the permanent settlement generation architecture.
 
-This phase rejects previous scene-generation implementations as active design
-authority. Removed BSP, road-first, parcel, prefab, and generated-interior
-paths must not shape the new generator's data model, ownership boundaries, or
-output contract.
+This phase rejects the previous BSP village layout implementation as the active
+settlement planner. It does not reject the mature runtime semantic contracts
+established by Phase 56 through Phase 59. Building instance identity, concrete
+interior location identity, local anchors, entrances, exits, interaction sides,
+activity cells, schedule target resolution, visible movement in the current
+location, offscreen settlement outside the current location, and generated
+contract validation remain active design authority.
+
+The corrected boundary is:
+
+```text
+discard the old BSP village planner
+preserve the v56-v59 semantic map and NPC runtime contracts
+compile the new settlement pipeline back into those mature contracts
+```
 
 From this phase forward, every settlement type must use the same generation
 pipeline:
@@ -19,10 +30,10 @@ pipeline:
 ```text
 SettlementPolicy
 SettlementContext
-        |
+		|
 SettlementGenerationSession
-        |
-        v
+		|
+		v
 FeatureMaps
 -> Agents
 -> Proposals
@@ -39,7 +50,7 @@ step, agent weights, evaluator weights, and asset families.
 
 ## Result
 
-Phase 60 establishes the new settlement-generation authority. It defines the
+Phase 60 establishes the new settlement-planning authority. It defines the
 pipeline, lifecycle owner, seed ownership, proposal lifecycle, trace model,
 blueprint authority, resolver/evaluator boundary, compiler contract, roadmap
 boundaries, and forbidden implementation patterns.
@@ -47,7 +58,8 @@ boundaries, and forbidden implementation patterns.
 No runtime settlement behavior is implemented in this phase. That work begins
 in Phase 61. Phase 60 is complete because the architecture and future phase
 contracts are now stable enough for implementation to proceed without depending
-on the removed BSP, road-first, parcel, prefab, or generated-interior paths.
+on the removed BSP village planner. Later phases must still preserve the
+v56-v59 runtime semantic map and NPC movement contracts.
 
 ## Architectural Rule
 
@@ -56,8 +68,9 @@ phase.
 
 The complete structure must be designed before settlement behavior is expanded.
 The generator must not be developed through throwaway partial pipelines,
-compatibility shims for the old village data shape, or feature slices that
-pretend to be the final architecture while bypassing core layers.
+temporary local loops, compatibility shims that bypass the real contract, or
+feature slices that pretend to be the final architecture while bypassing core
+layers.
 
 The active design rule is:
 
@@ -198,6 +211,8 @@ It owns:
 - entrances;
 - exits;
 - interaction anchors;
+- semantic map targets;
+- building and location identity handoff;
 - history events.
 
 It must not directly store final tile strings, Godot node paths, renderer-only
@@ -391,8 +406,9 @@ gameplay-ready scene data. Intermediate roadmap versions must not be invisible.
 ### Phase 60
 
 Define the complete data structures, ownership boundaries, and pipeline rules.
-No old data contract may be treated as the target shape. Define the compiler
-contract and the required debug-visibility contract.
+The old BSP village planner may not be treated as the target shape. The
+v56-v59 runtime semantic contracts must remain the compiler target. Define the
+compiler contract and the required debug-visibility contract.
 
 ### Phase 61
 
@@ -418,7 +434,11 @@ anchors needed for debugging and feature-map pressure.
 Compile settlement blueprints into the normal Godot location pipeline. The
 compiler must produce visible tiles, plots, buildings, collision, road graph
 diagnostics, debug overlays, seed persistence, and reproduction metadata
-without repairing invalid planning.
+without repairing invalid planning. The compiled output must satisfy the
+v56-v59 semantic map contract: concrete building identities, concrete interior
+location identities, local anchors, entrances, exits, interaction sides,
+activity cells, schedule targets, transition anchors, and generated contract
+validation.
 
 ### Phase 64
 
@@ -431,8 +451,15 @@ generator entry point.
 ## Forbidden Patterns
 
 - Do not revive the BSP layout as an active settlement planner.
-- Do not revive the old road-first shortcut implementation.
-- Do not use previous village output data as the new architecture target.
+- Do not revive the old village-specific road-first shortcut implementation as
+  a separate generator family.
+- Do not use the previous BSP village layout output shape as the new planner's
+  internal data model.
+- Do not discard v56-v59 runtime semantic contracts. The new planner must
+  compile back into those contracts unless a later design explicitly replaces
+  them with a better complete contract.
+- Do not build temporary local loops or minimum slices that bypass the final
+  semantic, runtime, or validation contract.
 - Do not let agents directly mutate the blueprint.
 - Do not let the compiler repair invalid plans.
 - Do not create one generator per settlement type.
@@ -456,7 +483,9 @@ Phase 60 is complete when the following are defined in code or design records:
 - compiler authority is limited to blueprint-to-scene conversion;
 - intermediate roadmap versions have Godot-visible debug output requirements;
 - settlement-type variation is policy-driven;
-- old village generation formats are not treated as compatibility targets;
+- the old BSP village planner is not treated as a compatibility target;
+- v56-v59 semantic map and NPC runtime contracts are preserved as the compiler
+  target;
 - future phases can implement behavior without changing the core pipeline.
 
 ## Verification

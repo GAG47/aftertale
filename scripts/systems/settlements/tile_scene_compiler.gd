@@ -3,6 +3,7 @@ extends RefCounted
 
 const DEFAULT_TILE_SIZE := 32
 const GENERATED_INTERIOR_SCENE := "res://scenes/locations/generated_basic_interior.tscn"
+const SEMANTIC_MAP_SCHEMA_VERSION := 1
 const RoadGraphScript := preload("res://scripts/systems/settlements/settlement_road_graph.gd")
 
 var _tiles: Array[Array] = []
@@ -44,6 +45,7 @@ func compile_session_result(source_data: Dictionary, session_result: Dictionary)
 	_apply_blueprint_anchors(blueprint)
 	_apply_gameplay_hooks(blueprint, session_result)
 	_compiled["tiles"] = _stringify_tiles()
+	_finalize_semantic_map()
 	_compiled["generation_summary"] = _generation_summary(session_result)
 	return _compiled.duplicate(true)
 
@@ -82,6 +84,7 @@ func validate_compiled_location(location_data: Dictionary) -> Array[String]:
 	var blocked_count := (location_data.get("collision_overrides", []) as Array).size()
 	if blocked_count <= 0:
 		errors.append("compiled location has no collision overrides")
+	errors.append_array(_validate_semantic_map_contract(location_data))
 	return errors
 
 
@@ -113,6 +116,7 @@ func _base_location(source_data: Dictionary, session_result: Dictionary) -> Dict
 		"generated_interiors": [],
 		"building_contracts": [],
 		"schedule_targets": [],
+		"semantic_map": _empty_semantic_map(str(source_data.get("id", "generated_settlement")), policy),
 		"state": {
 			"danger_level": 0,
 			"owner_faction": "field_neutral",
@@ -125,6 +129,328 @@ func _base_location(source_data: Dictionary, session_result: Dictionary) -> Dict
 			"rejected_count": int(summary.get("rejected_count", 0)),
 		},
 	}
+
+
+func _empty_semantic_map(location_id: String, policy: Dictionary) -> Dictionary:
+	return {
+		"schema_version": SEMANTIC_MAP_SCHEMA_VERSION,
+		"source": "v68_generated_settlement_semantic_map",
+		"exterior_location_id": location_id,
+		"policy_id": str(policy.get("policy_id", "")),
+		"locations": [
+			{
+				"location_id": location_id,
+				"location_kind": "exterior",
+				"semantic_kind": "generated_settlement_exterior",
+				"anchor_scope": "location",
+				"source": "compiled_exterior",
+			},
+		],
+		"buildings": [],
+		"targets": [],
+		"validation": {},
+	}
+
+
+func _semantic_map() -> Dictionary:
+	var semantic_map: Dictionary = _compiled.get("semantic_map", {}) as Dictionary
+	if semantic_map.is_empty():
+		semantic_map = _empty_semantic_map(str(_compiled.get("id", "generated_settlement")), {})
+		_compiled["semantic_map"] = semantic_map
+	return semantic_map
+
+
+func _semantic_rows(key: String) -> Array:
+	var semantic_map := _semantic_map()
+	if not semantic_map.has(key):
+		semantic_map[key] = []
+		_compiled["semantic_map"] = semantic_map
+	return semantic_map.get(key, []) as Array
+
+
+func _register_semantic_location(location_id: String, location_kind: String, semantic_kind: String, extra: Dictionary = {}) -> void:
+	if location_id.is_empty():
+		return
+	var rows := _semantic_rows("locations")
+	for existing_value in rows:
+		var existing: Dictionary = existing_value as Dictionary
+		if str(existing.get("location_id", "")) == location_id:
+			return
+	var row := {
+		"location_id": location_id,
+		"location_kind": location_kind,
+		"semantic_kind": semantic_kind,
+		"anchor_scope": "location",
+	}
+	for key in extra.keys():
+		row[key] = extra[key]
+	rows.append(row)
+
+
+func _register_semantic_building(building: Dictionary, contract: Dictionary, manifest: Dictionary, wall_door_cell: Vector2i, door_front_cell: Vector2i) -> void:
+	var building_id := str(contract.get("building_id", contract.get("source_building_id", "")))
+	if building_id.is_empty():
+		return
+	var rows := _semantic_rows("buildings")
+	for existing_value in rows:
+		var existing: Dictionary = existing_value as Dictionary
+		if str(existing.get("building_id", "")) == building_id:
+			return
+	rows.append({
+		"building_id": building_id,
+		"source_building_id": building_id,
+		"plot_id": str(contract.get("plot_id", "")),
+		"use_type": str(contract.get("use_type", "")),
+		"building_type": str(contract.get("building_type", building.get("kind", ""))),
+		"exterior_location_id": str(manifest.get("exterior_location_id", _compiled.get("id", ""))),
+		"interior_location_id": str(manifest.get("interior_location_id", "")),
+		"interior_template_id": str(contract.get("interior_template_id", "")),
+		"exterior_door_anchor_id": str(contract.get("exterior_door_anchor_id", "")),
+		"building_entrance_anchor_id": str(contract.get("building_entrance_anchor_id", "")),
+		"interior_entry_anchor_id": "interior_entry",
+		"interior_exit_anchor_id": "interior_exit",
+		"exterior_return_entrance_id": str(contract.get("exterior_return_entrance_id", "")),
+		"door_position": _dict_cell(wall_door_cell),
+		"door_front_position": _dict_cell(door_front_cell),
+		"front_clearance": (contract.get("front_clearance", []) as Array).duplicate(true),
+		"footprint": (contract.get("footprint", {}) as Dictionary).duplicate(true),
+		"facility_slots": (contract.get("facility_slots", []) as Array).duplicate(true),
+		"exterior_slots": (contract.get("exterior_slots", []) as Array).duplicate(true),
+	})
+
+
+func _register_semantic_target(target: Dictionary) -> void:
+	var target_id := str(target.get("semantic_target_id", target.get("id", "")))
+	var target_key := str(target.get("target_key", ""))
+	if target_id.is_empty() or target_key.is_empty():
+		return
+	var rows := _semantic_rows("targets")
+	for existing_value in rows:
+		var existing: Dictionary = existing_value as Dictionary
+		if str(existing.get("semantic_target_id", "")) == target_id and str(existing.get("target_key", "")) == target_key:
+			return
+	rows.append(_semantic_target_row(target))
+
+
+func _semantic_target_row(target: Dictionary) -> Dictionary:
+	var role := str(target.get("role", ""))
+	var row := {
+		"semantic_target_id": str(target.get("semantic_target_id", target.get("id", ""))),
+		"id": str(target.get("id", "")),
+		"role": role,
+		"target_type": str(target.get("target_type", _target_type_for_schedule_role(role))),
+		"location_id": str(target.get("location_id", "")),
+		"anchor_id": str(target.get("anchor_id", "")),
+		"target_key": str(target.get("target_key", "")),
+		"capacity": int(target.get("capacity", _capacity_for_schedule_role(role))),
+		"semantic_owner_type": _semantic_owner_type_for_target(target),
+		"semantic_activity": _semantic_activity_for_role(role),
+		"standing_mode": _standing_mode_for_target(target),
+	}
+	for key in [
+		"source_building_id",
+		"source_plot_id",
+		"target_location_id",
+		"interior_location_id",
+		"exterior_location_id",
+		"exterior_anchor_id",
+		"exterior_door_anchor_id",
+		"arrival_anchor_id",
+		"departure_anchor_id",
+		"object_id",
+		"object_grid_position",
+		"grid_position",
+		"facing",
+	]:
+		if not target.has(key):
+			continue
+		var value: Variant = target[key]
+		if typeof(value) in [TYPE_DICTIONARY, TYPE_ARRAY]:
+			row[key] = value.duplicate(true)
+		else:
+			row[key] = value
+	var activity_cells: Array = target.get("activity_cells", []) as Array
+	if not activity_cells.is_empty():
+		row["activity_cells"] = activity_cells.duplicate(true)
+		row["standing_cells"] = activity_cells.duplicate(true)
+	return row
+
+
+func _semantic_owner_type_for_target(target: Dictionary) -> String:
+	if not str(target.get("source_plot_id", "")).is_empty():
+		return "public_plot"
+	if not str(target.get("source_building_id", "")).is_empty():
+		return "building"
+	return "location"
+
+
+func _semantic_activity_for_role(role: String) -> String:
+	match role:
+		"bed", "home", "rest":
+			return "rest"
+		"counter", "service", "service_counter", "tavern_counter":
+			return "service"
+		"work", "workstation", "workspot", "forge", "crafting_station":
+			return "work"
+		"training", "trainer_spot", "guard_post":
+			return "training"
+		"dining", "tavern", "social", "gathering", "activity", "public":
+			return "social"
+		"interior_entry", "interior_exit", "exterior_transition", "building_entrance":
+			return "transition"
+		_:
+			return "unknown"
+
+
+func _standing_mode_for_target(target: Dictionary) -> String:
+	var role := str(target.get("role", ""))
+	var target_type := str(target.get("target_type", _target_type_for_schedule_role(role)))
+	if target_type in ["transition", "door"] or role in ["interior_entry", "interior_exit", "exterior_transition", "building_entrance"]:
+		return "anchor"
+	if not (target.get("activity_cells", []) as Array).is_empty():
+		return "activity_cells"
+	return "anchor"
+
+
+func _finalize_semantic_map() -> void:
+	var semantic_map := _semantic_map()
+	var errors := _validate_semantic_map_contract(_compiled)
+	semantic_map["location_count"] = (semantic_map.get("locations", []) as Array).size()
+	semantic_map["building_count"] = (semantic_map.get("buildings", []) as Array).size()
+	semantic_map["target_count"] = (semantic_map.get("targets", []) as Array).size()
+	semantic_map["validation"] = {
+		"error_count": errors.size(),
+		"errors": errors,
+	}
+	_compiled["semantic_map"] = semantic_map
+
+
+func _validate_semantic_map_contract(location_data: Dictionary) -> Array[String]:
+	var errors: Array[String] = []
+	var semantic_map: Dictionary = location_data.get("semantic_map", {}) as Dictionary
+	if semantic_map.is_empty():
+		errors.append("compiled semantic_map is missing")
+		return errors
+	var targets: Array = semantic_map.get("targets", []) as Array
+	if targets.is_empty():
+		errors.append("compiled semantic_map has no targets")
+	var buildings: Array = semantic_map.get("buildings", []) as Array
+	var locations: Array = semantic_map.get("locations", []) as Array
+	if locations.is_empty():
+		errors.append("compiled semantic_map has no locations")
+	if buildings.is_empty() and not (location_data.get("building_contracts", []) as Array).is_empty():
+		errors.append("compiled semantic_map has no buildings")
+
+	var exterior_id := str(location_data.get("id", ""))
+	var anchors_by_location := _semantic_anchor_index(location_data)
+	var interiors_by_location := _interior_manifest_index(location_data)
+	var grid := LocationGrid.from_dictionary(location_data)
+	for building_value in buildings:
+		var building: Dictionary = building_value as Dictionary
+		var building_id := str(building.get("building_id", ""))
+		var interior_location_id := str(building.get("interior_location_id", ""))
+		if building_id.is_empty():
+			errors.append("semantic building is missing building_id")
+		if interior_location_id.is_empty() or not interiors_by_location.has(interior_location_id):
+			errors.append("semantic building missing interior manifest:%s" % building_id)
+		var interior_anchors: Dictionary = anchors_by_location.get(interior_location_id, {}) as Dictionary
+		if not interior_anchors.has("interior_entry") or not interior_anchors.has("interior_exit"):
+			errors.append("semantic building missing interior entry/exit anchors:%s" % building_id)
+
+	for target_value in targets:
+		var target: Dictionary = target_value as Dictionary
+		var target_id := str(target.get("semantic_target_id", target.get("id", "")))
+		var location_id := str(target.get("location_id", ""))
+		var anchor_id := str(target.get("anchor_id", ""))
+		if target_id.is_empty():
+			errors.append("semantic target is missing id")
+		if location_id.is_empty() or anchor_id.is_empty():
+			errors.append("semantic target missing location or anchor:%s" % target_id)
+			continue
+		var location_anchors: Dictionary = anchors_by_location.get(location_id, {}) as Dictionary
+		if location_anchors.is_empty():
+			errors.append("semantic target location is unknown:%s/%s" % [target_id, location_id])
+		elif not location_anchors.has(anchor_id):
+			errors.append("semantic target anchor is unknown:%s/%s/%s" % [target_id, location_id, anchor_id])
+		if str(target.get("standing_mode", "")) == "activity_cells" and (target.get("activity_cells", []) as Array).is_empty():
+			errors.append("semantic activity target has no standing cells:%s" % target_id)
+		for cell_value in _semantic_cells_to_validate(target):
+			var cell := _cell_from_variant(cell_value)
+			if location_id == exterior_id:
+				if grid.is_valid() and not grid.can_enter(cell):
+					errors.append("semantic exterior cell is not enterable:%s/%s" % [target_id, str(cell)])
+			else:
+				var manifest: Dictionary = interiors_by_location.get(location_id, {}) as Dictionary
+				if not _interior_cell_is_walkable(manifest, cell):
+					errors.append("semantic interior cell is not enterable:%s/%s" % [target_id, str(cell)])
+	return errors
+
+
+func _semantic_anchor_index(location_data: Dictionary) -> Dictionary:
+	var result: Dictionary = {}
+	var exterior_id := str(location_data.get("id", ""))
+	result[exterior_id] = _anchor_id_set(location_data.get("anchors", []) as Array, location_data.get("entrances", []) as Array)
+	for manifest_value in (location_data.get("generated_interiors", []) as Array):
+		var manifest: Dictionary = manifest_value as Dictionary
+		var location_id := str(manifest.get("interior_location_id", ""))
+		if location_id.is_empty():
+			continue
+		result[location_id] = _anchor_id_set(manifest.get("anchors", []) as Array, manifest.get("entrances", []) as Array)
+	return result
+
+
+func _anchor_id_set(anchor_rows: Array, entrance_rows: Array) -> Dictionary:
+	var result: Dictionary = {}
+	for anchor_value in anchor_rows:
+		var anchor: Dictionary = anchor_value as Dictionary
+		var anchor_id := str(anchor.get("id", ""))
+		if not anchor_id.is_empty():
+			result[anchor_id] = true
+	for entrance_value in entrance_rows:
+		var entrance: Dictionary = entrance_value as Dictionary
+		var entrance_id := str(entrance.get("id", ""))
+		if not entrance_id.is_empty():
+			result[entrance_id] = true
+	return result
+
+
+func _interior_manifest_index(location_data: Dictionary) -> Dictionary:
+	var result: Dictionary = {}
+	for manifest_value in (location_data.get("generated_interiors", []) as Array):
+		var manifest: Dictionary = manifest_value as Dictionary
+		var location_id := str(manifest.get("interior_location_id", ""))
+		if not location_id.is_empty():
+			result[location_id] = manifest
+	return result
+
+
+func _semantic_cells_to_validate(target: Dictionary) -> Array:
+	var cells: Array = []
+	if target.has("grid_position"):
+		cells.append(target.get("grid_position", {}))
+	for cell_value in (target.get("activity_cells", []) as Array):
+		cells.append(cell_value)
+	return cells
+
+
+func _interior_cell_is_walkable(manifest: Dictionary, cell: Vector2i) -> bool:
+	if manifest.is_empty():
+		return false
+	var size: Dictionary = manifest.get("size", {}) as Dictionary
+	var width := int(size.get("width", 0))
+	var height := int(size.get("height", 0))
+	if cell.x < 0 or cell.y < 0 or cell.x >= width or cell.y >= height:
+		return false
+	var rows: Array = manifest.get("tiles", []) as Array
+	if cell.y >= rows.size():
+		return false
+	var row_text := str(rows[cell.y])
+	if cell.x >= row_text.length():
+		return false
+	var tile_key := row_text.substr(cell.x, 1)
+	var terrain: Dictionary = manifest.get("terrain", {}) as Dictionary
+	var tile: Dictionary = terrain.get(tile_key, {}) as Dictionary
+	return bool(tile.get("walkable", false))
 
 
 func _terrain_definitions() -> Dictionary:
@@ -432,6 +758,15 @@ func _add_building_interaction_object(building: Dictionary) -> void:
 	var manifest := _interior_manifest_for_building(building, contract)
 	(_compiled.get("generated_interiors", []) as Array).append(manifest)
 	(_compiled.get("building_contracts", []) as Array).append(contract)
+	_register_semantic_location(interior_location_id, "interior", "generated_building_interior", {
+		"source_building_id": building_id,
+		"exterior_location_id": exterior_location_id,
+		"entry_anchor_id": "interior_entry",
+		"exit_anchor_id": "interior_exit",
+		"interior_template_id": template_id,
+		"scene_path": GENERATED_INTERIOR_SCENE,
+	})
+	_register_semantic_building(building, contract, manifest, wall_door_cell, door_front_cell)
 	_add_entrance(return_entrance_id, door_front_cell, _facing_toward(door_front_cell, wall_door_cell))
 	_add_anchor(exterior_door_anchor_id, "exterior_door", wall_door_cell, _facing_toward(wall_door_cell, door_front_cell), {
 		"source_building_id": building_id,
@@ -941,10 +1276,36 @@ func _schedule_target_row(building_id: String, role: String, location_id: String
 		"arrival_anchor_id": "interior_entry",
 		"departure_anchor_id": "interior_exit",
 	}
+	var object_id := _object_id_for_schedule_role(building_id, role)
+	if not object_id.is_empty():
+		row["object_id"] = object_id
+		row["object_grid_position"] = _dict_cell(cell)
 	var activity_cells := _interior_activity_cells_around(cell)
-	if int(row.get("capacity", 1)) > 1 and not activity_cells.is_empty():
+	if not (role in ["interior_entry", "interior_exit"]) and not activity_cells.is_empty():
 		row["activity_cells"] = activity_cells
 	return row
+
+
+func _object_id_for_schedule_role(building_id: String, role: String) -> String:
+	match role:
+		"bed":
+			return "%s__bed" % building_id
+		"service", "counter":
+			return "%s__service_counter" % building_id
+		"work", "workstation":
+			return "%s__workbench" % building_id
+		"tavern_counter":
+			return "%s__tavern_counter" % building_id
+		"dining":
+			return "%s__dining_marker" % building_id
+		"rest":
+			return "%s__rest_marker" % building_id
+		"training", "trainer_spot":
+			return "%s__training_dummy" % building_id
+		"activity", "gathering":
+			return "%s__activity_marker" % building_id
+		_:
+			return ""
 
 
 func _add_schedule_targets_for_manifest(manifest: Dictionary) -> void:
@@ -973,7 +1334,12 @@ func _add_schedule_target(target: Dictionary) -> void:
 	if not row.has("capacity"):
 		row["capacity"] = _capacity_for_schedule_role(role)
 	row["target_key"] = "%s:%s" % [str(row.get("location_id", "")), str(row.get("anchor_id", ""))]
+	if not row.has("semantic_target_id"):
+		row["semantic_target_id"] = str(row.get("id", row.get("target_key", "")))
+	if not row.has("standing_mode"):
+		row["standing_mode"] = _standing_mode_for_target(row)
 	(_compiled.get("schedule_targets", []) as Array).append(row)
+	_register_semantic_target(row)
 
 
 func _target_type_for_schedule_role(role: String) -> String:
@@ -1088,8 +1454,10 @@ func _add_public_hook_object(plot: Dictionary) -> void:
 		return
 	var cell := _area_center(plot.get("area", {}) as Dictionary)
 	var plot_id := str(plot.get("id", "public"))
+	var object_id := "notice_%s" % plot_id
+	var activity_cells := _activity_cells_around(cell)
 	(_compiled.get("objects", []) as Array).append({
-		"id": "notice_%s" % plot_id,
+		"id": object_id,
 		"display_name": "Generated Notice Board",
 		"grid_position": _dict_cell(cell),
 		"blocks_movement": false,
@@ -1101,6 +1469,8 @@ func _add_public_hook_object(plot: Dictionary) -> void:
 		"source_anchor_id": anchor_id,
 		"inspect_text": "A generated public activity hook.",
 	})
+	if activity_cells.is_empty():
+		return
 	_add_schedule_target({
 		"id": "%s.public_activity" % plot_id,
 		"role": "public",
@@ -1110,8 +1480,10 @@ func _add_public_hook_object(plot: Dictionary) -> void:
 		"source_plot_id": plot_id,
 		"target_type": "public",
 		"capacity": 4,
-		"grid_position": _dict_cell(cell),
-		"activity_cells": _activity_cells_around(cell),
+		"grid_position": (activity_cells[0] as Dictionary).duplicate(true),
+		"object_id": object_id,
+		"object_grid_position": _dict_cell(cell),
+		"activity_cells": activity_cells,
 	})
 
 
@@ -1355,6 +1727,8 @@ func _gameplay_hook_summary(blueprint: Dictionary) -> Dictionary:
 	var home_slot_count := 0
 	var work_slot_count := 0
 	var activity_slot_count := 0
+	var semantic_map: Dictionary = _compiled.get("semantic_map", {}) as Dictionary
+	var semantic_validation: Dictionary = semantic_map.get("validation", {}) as Dictionary
 	for building_value in (blueprint.get("buildings", []) as Array):
 		var building: Dictionary = building_value as Dictionary
 		var footprint_size: Dictionary = building.get("footprint_size", {}) as Dictionary
@@ -1389,6 +1763,11 @@ func _gameplay_hook_summary(blueprint: Dictionary) -> Dictionary:
 		"generated_interior_count": (_compiled.get("generated_interiors", []) as Array).size(),
 		"building_contract_count": (_compiled.get("building_contracts", []) as Array).size(),
 		"schedule_target_count": (_compiled.get("schedule_targets", []) as Array).size(),
+		"semantic_map_schema_version": int(semantic_map.get("schema_version", 0)),
+		"semantic_location_count": (semantic_map.get("locations", []) as Array).size(),
+		"semantic_building_count": (semantic_map.get("buildings", []) as Array).size(),
+		"semantic_target_count": (semantic_map.get("targets", []) as Array).size(),
+		"semantic_validation_error_count": int(semantic_validation.get("error_count", 0)),
 	}
 
 

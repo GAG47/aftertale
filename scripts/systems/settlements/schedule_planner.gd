@@ -71,13 +71,22 @@ func _entry(npc_id: String, suffix: String, start: String, end: String, target: 
 	if target.has("uses_capacity_slot"):
 		entry["uses_capacity_slot"] = bool(target.get("uses_capacity_slot", false))
 	for key in [
+		"semantic_target_id",
+		"semantic_owner_type",
+		"semantic_activity",
+		"standing_mode",
 		"source_building_id",
+		"source_plot_id",
 		"target_type",
 		"interior_location_id",
 		"exterior_location_id",
 		"exterior_anchor_id",
+		"exterior_door_anchor_id",
 		"arrival_anchor_id",
 		"departure_anchor_id",
+		"object_id",
+		"object_grid_position",
+		"standing_cells",
 	]:
 		if target.has(key):
 			entry[key] = target[key]
@@ -104,8 +113,8 @@ func _with_transition_metadata(entries: Array[Dictionary], _assignment: Dictiona
 				str(entry.get("location_id", "")): str(entry.get("anchor_id", "")),
 			}
 		else:
-			var departure_anchor := _departure_anchor_for_entry(previous)
-			var arrival_anchor := _arrival_anchor_for_entry(entry)
+			var departure_anchor := _departure_transition_anchor(previous, entry)
+			var arrival_anchor := _arrival_transition_anchor(previous, entry)
 			entry["transition_kind"] = "cross_location"
 			entry["departure_location_id"] = str(previous.get("location_id", ""))
 			entry["departure_anchor_id"] = departure_anchor
@@ -115,8 +124,8 @@ func _with_transition_metadata(entries: Array[Dictionary], _assignment: Dictiona
 				str(previous.get("location_id", "")): departure_anchor,
 				str(entry.get("location_id", "")): arrival_anchor,
 			}
-			var exterior_location_id := str(entry.get("exterior_location_id", ""))
-			var exterior_anchor_id := str(entry.get("exterior_anchor_id", ""))
+			var exterior_location_id := _transition_exterior_location(previous, entry)
+			var exterior_anchor_id := _transition_exterior_anchor(previous, entry)
 			if not exterior_location_id.is_empty() and not exterior_anchor_id.is_empty():
 				anchors_by_location[exterior_location_id] = exterior_anchor_id
 			entry["transition_anchor_by_location"] = anchors_by_location
@@ -124,18 +133,54 @@ func _with_transition_metadata(entries: Array[Dictionary], _assignment: Dictiona
 	return entries
 
 
-func _arrival_anchor_for_entry(entry: Dictionary) -> String:
-	var location_id := str(entry.get("location_id", ""))
-	if location_id == str(entry.get("interior_location_id", "")):
-		return str(entry.get("arrival_anchor_id", "entry"))
-	return str(entry.get("arrival_anchor_id", entry.get("anchor_id", "")))
+func _departure_transition_anchor(source_entry: Dictionary, target_entry: Dictionary) -> String:
+	var source_location_id := str(source_entry.get("location_id", ""))
+	if _entry_location_is_interior(source_entry, source_location_id):
+		return "interior_exit"
+	if _entry_location_is_interior(target_entry, str(target_entry.get("location_id", ""))):
+		var target_exterior_anchor := str(target_entry.get("exterior_anchor_id", ""))
+		if not target_exterior_anchor.is_empty():
+			return target_exterior_anchor
+	return str(source_entry.get("departure_anchor_id", source_entry.get("anchor_id", "")))
 
 
-func _departure_anchor_for_entry(entry: Dictionary) -> String:
-	var location_id := str(entry.get("location_id", ""))
-	if location_id == str(entry.get("interior_location_id", "")):
-		return str(entry.get("departure_anchor_id", "exit"))
-	return str(entry.get("departure_anchor_id", entry.get("anchor_id", "")))
+func _arrival_transition_anchor(source_entry: Dictionary, target_entry: Dictionary) -> String:
+	var target_location_id := str(target_entry.get("location_id", ""))
+	if _entry_location_is_interior(target_entry, target_location_id):
+		return str(target_entry.get("arrival_anchor_id", "interior_entry"))
+	if _entry_location_is_interior(source_entry, str(source_entry.get("location_id", ""))):
+		var source_exterior_anchor := str(source_entry.get("exterior_anchor_id", ""))
+		if not source_exterior_anchor.is_empty():
+			return source_exterior_anchor
+	return str(target_entry.get("arrival_anchor_id", target_entry.get("anchor_id", "")))
+
+
+func _transition_exterior_location(source_entry: Dictionary, target_entry: Dictionary) -> String:
+	var target_exterior_location := str(target_entry.get("exterior_location_id", ""))
+	if not target_exterior_location.is_empty():
+		return target_exterior_location
+	var source_exterior_location := str(source_entry.get("exterior_location_id", ""))
+	if not source_exterior_location.is_empty():
+		return source_exterior_location
+	var target_location_id := str(target_entry.get("location_id", ""))
+	if not _entry_location_is_interior(target_entry, target_location_id):
+		return target_location_id
+	return ""
+
+
+func _transition_exterior_anchor(source_entry: Dictionary, target_entry: Dictionary) -> String:
+	var target_location_id := str(target_entry.get("location_id", ""))
+	if _entry_location_is_interior(target_entry, target_location_id):
+		return str(target_entry.get("exterior_anchor_id", ""))
+	var source_location_id := str(source_entry.get("location_id", ""))
+	if _entry_location_is_interior(source_entry, source_location_id):
+		return str(source_entry.get("exterior_anchor_id", ""))
+	return str(target_entry.get("exterior_anchor_id", ""))
+
+
+func _entry_location_is_interior(entry: Dictionary, location_id: String) -> bool:
+	var interior_location_id := str(entry.get("interior_location_id", ""))
+	return not interior_location_id.is_empty() and location_id == interior_location_id
 
 
 func _target_or_fallback(target: Dictionary, assignment: Dictionary) -> Dictionary:

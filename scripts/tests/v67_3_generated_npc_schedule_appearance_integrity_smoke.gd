@@ -226,6 +226,8 @@ func _building_capacity_is_valid(snapshot: Dictionary) -> bool:
 
 func _schedule_integrity_is_valid(snapshot: Dictionary) -> bool:
 	var anchors_by_location := _anchors_by_location(snapshot)
+	var interior_locations := _generated_interior_location_set(snapshot)
+	var exterior_id := str(snapshot.get("exterior_location_id", ""))
 	var occupancy_rows: Array[Dictionary] = []
 	var has_cross_location := false
 	var has_multi_capacity_slot := false
@@ -249,6 +251,8 @@ func _schedule_integrity_is_valid(snapshot: Dictionary) -> bool:
 				if (entry.get("transition_anchor_by_location", {}) as Dictionary).is_empty():
 					return _fail("v67.3 cross-location entry missing transition_anchor_by_location")
 				if not _transition_anchors_are_resolvable(entry, anchors_by_location):
+					return false
+				if not _cross_scene_transition_anchors_are_valid(entry, interior_locations, exterior_id):
 					return false
 			if int(entry.get("target_capacity", 1)) > 1:
 				if not bool(entry.get("uses_capacity_slot", false)):
@@ -296,6 +300,48 @@ func _transition_anchors_are_resolvable(entry: Dictionary, anchors_by_location: 
 		if not (anchors_by_location.get(location_id, {}) as Dictionary).has(anchor_id):
 			return _fail("v67.3 transition anchor is not resolvable: %s/%s" % [location_id, anchor_id])
 	return true
+
+
+func _cross_scene_transition_anchors_are_valid(entry: Dictionary, interior_locations: Dictionary, exterior_id: String) -> bool:
+	var entry_id := str(entry.get("id", ""))
+	var source_location_id := str(entry.get("source_location_id", ""))
+	var target_location_id := str(entry.get("location_id", ""))
+	var anchors: Dictionary = entry.get("transition_anchor_by_location", {}) as Dictionary
+	if not anchors.has(source_location_id) or not anchors.has(target_location_id):
+		return _fail("v67.3 cross-location entry missing source/target transition anchors: %s" % entry_id)
+	if interior_locations.has(source_location_id):
+		if str(entry.get("departure_anchor_id", "")) != "interior_exit":
+			return _fail("v67.3 interior departure must use interior_exit: %s" % entry_id)
+		if str(anchors.get(source_location_id, "")) != "interior_exit":
+			return _fail("v67.3 interior transition map must use interior_exit: %s" % entry_id)
+	if interior_locations.has(target_location_id):
+		if str(entry.get("arrival_anchor_id", "")) != "interior_entry":
+			return _fail("v67.3 interior arrival must use interior_entry: %s" % entry_id)
+		if str(anchors.get(target_location_id, "")) != "interior_entry":
+			return _fail("v67.3 target interior transition map must use interior_entry: %s" % entry_id)
+	if interior_locations.has(source_location_id) and target_location_id == exterior_id:
+		var exterior_anchor := str(anchors.get(target_location_id, ""))
+		if exterior_anchor.is_empty():
+			return _fail("v67.3 exterior arrival must use the source building door: %s" % entry_id)
+		if not exterior_anchor.begins_with("building_entrance_"):
+			return _fail("v67.3 exterior arrival must use a building entrance anchor: %s" % entry_id)
+		if str(entry.get("target_type", "")) == "public" and exterior_anchor == str(entry.get("anchor_id", "")):
+			return _fail("v67.3 public exterior arrival must not use the final activity anchor: %s" % entry_id)
+	if source_location_id == exterior_id and interior_locations.has(target_location_id):
+		var exterior_departure := str(anchors.get(source_location_id, ""))
+		if exterior_departure.is_empty() or not exterior_departure.begins_with("building_entrance_"):
+			return _fail("v67.3 exterior departure into an interior must use a building entrance anchor: %s" % entry_id)
+	return true
+
+
+func _generated_interior_location_set(snapshot: Dictionary) -> Dictionary:
+	var result: Dictionary = {}
+	for manifest_value in (snapshot.get("generated_interiors", []) as Array):
+		var manifest: Dictionary = manifest_value as Dictionary
+		var location_id := str(manifest.get("interior_location_id", ""))
+		if not location_id.is_empty():
+			result[location_id] = true
+	return result
 
 
 func _entrance_and_exit_targets_are_exposed(snapshot: Dictionary) -> bool:

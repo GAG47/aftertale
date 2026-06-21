@@ -79,8 +79,8 @@ func _source() -> Dictionary:
 func _snapshot_shape_is_valid(snapshot: Dictionary) -> bool:
 	if int(snapshot.get("schema_version", 0)) != 1:
 		return _fail("snapshot schema_version must be 1")
-	if str(snapshot.get("generator_version", "")) != "v67":
-		return _fail("snapshot generator_version must be v67")
+	if not (str(snapshot.get("generator_version", "")) in ["v67", "v68"]):
+		return _fail("snapshot generator_version must be v67 or v68")
 	if str(snapshot.get("settlement_id", "")) != SETTLEMENT_ID:
 		return _fail("snapshot settlement_id mismatch")
 	if str(snapshot.get("policy_id", "")) != "roadside_trade_village":
