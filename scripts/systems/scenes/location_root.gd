@@ -750,6 +750,7 @@ func _spawn_characters_from_data() -> void:
 		var resolved_spawn_data: Dictionary = _build_spawn_data(spawn_data, definition)
 		var offscreen_state: Dictionary = NpcScheduleSystem.get_offscreen_character_state(grid.location_id, character_id)
 		var active_entry: Dictionary = _get_active_schedule_entry(definition, resolved_spawn_data)
+		var should_request_arrival_movement := false
 		if not active_entry.is_empty():
 			if not _schedule_entry_matches_location_context(active_entry):
 				continue
@@ -757,12 +758,20 @@ func _spawn_characters_from_data() -> void:
 			if scheduled_location_id != grid.location_id:
 				continue
 
-			_apply_schedule_entry_to_spawn_data(resolved_spawn_data, active_entry, scheduled_location_id)
-			_apply_matching_offscreen_state_to_spawn_data(resolved_spawn_data, offscreen_state, active_entry)
+			if not offscreen_state.is_empty() and str(offscreen_state.get("entry_id", "")) == str(active_entry.get("id", "")):
+				_apply_schedule_entry_to_spawn_data(resolved_spawn_data, active_entry, scheduled_location_id)
+				_apply_matching_offscreen_state_to_spawn_data(resolved_spawn_data, offscreen_state, active_entry)
+			elif _should_spawn_at_arrival_anchor(active_entry, TimeManager.get_absolute_minutes(), scheduled_location_id):
+				_apply_arrival_anchor_to_spawn_data(resolved_spawn_data, active_entry, scheduled_location_id)
+				should_request_arrival_movement = true
+			else:
+				_apply_schedule_entry_to_spawn_data(resolved_spawn_data, active_entry, scheduled_location_id)
 		elif not offscreen_state.is_empty() and str(offscreen_state.get("location_id", grid.location_id)) == grid.location_id:
 			_apply_offscreen_state_to_spawn_data(resolved_spawn_data, offscreen_state)
 
-		_spawn_character(definition, resolved_spawn_data)
+		var spawned_character := _spawn_character(definition, resolved_spawn_data)
+		if should_request_arrival_movement and spawned_character != null:
+			_request_arrival_schedule_movement(spawned_character, active_entry, str(active_entry.get("location_id", grid.location_id)))
 
 	if not _has_controlled_character():
 		_spawn_default_player_from_entrance()
@@ -848,18 +857,25 @@ func apply_current_schedule(absolute_minutes: int) -> void:
 
 		if character == null:
 			var resolved_spawn_data: Dictionary = _build_spawn_data(spawn_data, definition)
-			_apply_schedule_entry_to_spawn_data(resolved_spawn_data, active_entry, scheduled_location_id)
+			var should_request_arrival_movement := _should_spawn_at_arrival_anchor(active_entry, absolute_minutes, scheduled_location_id)
+			if should_request_arrival_movement:
+				_apply_arrival_anchor_to_spawn_data(resolved_spawn_data, active_entry, scheduled_location_id)
+			else:
+				_apply_schedule_entry_to_spawn_data(resolved_spawn_data, active_entry, scheduled_location_id)
 			var spawned_character: CharacterEntity = _spawn_character(definition, resolved_spawn_data)
 			if spawned_character != null:
-				result.add_world_change({
-					"type": "scheduled_character_arrived",
-					"character_id": spawned_character.character_id,
-					"location_id": grid.location_id,
-					"entry_id": spawned_character.current_schedule_entry_id,
-					"grid_position": spawned_character.grid_position,
-					"activity": spawned_character.current_activity,
-				})
-				result.add_feedback("%s arrived for %s." % [spawned_character.display_name, spawned_character.current_activity])
+				if should_request_arrival_movement:
+					_request_arrival_schedule_movement(spawned_character, active_entry, scheduled_location_id, result)
+				else:
+					result.add_world_change({
+						"type": "scheduled_character_arrived",
+						"character_id": spawned_character.character_id,
+						"location_id": grid.location_id,
+						"entry_id": spawned_character.current_schedule_entry_id,
+						"grid_position": spawned_character.grid_position,
+						"activity": spawned_character.current_activity,
+					})
+					result.add_feedback("%s arrived for %s." % [spawned_character.display_name, spawned_character.current_activity])
 				NpcScheduleSystem.schedule_applied.emit(spawned_character.character_id, grid.location_id, spawned_character.current_schedule_entry_id)
 				change_count += 1
 			continue
@@ -1098,6 +1114,27 @@ func _apply_schedule_entry_to_spawn_data(spawn_data: Dictionary, entry: Dictiona
 	spawn_data["scheduled_location_id"] = scheduled_location_id
 
 
+func _apply_arrival_anchor_to_spawn_data(spawn_data: Dictionary, entry: Dictionary, scheduled_location_id: String) -> void:
+	var anchor_id := _get_arrival_anchor_for_current_location(entry)
+	var anchor: Dictionary = grid.get_anchor(anchor_id) if grid != null and not anchor_id.is_empty() else {}
+	if not anchor.is_empty():
+		var anchor_position: Dictionary = anchor.get("grid_position", {}) as Dictionary
+		if not anchor_position.is_empty():
+			spawn_data["grid_position"] = anchor_position.duplicate(true)
+		if anchor.has("facing"):
+			spawn_data["facing"] = str(anchor.get("facing", "down"))
+	if entry.has("activity_cells"):
+		spawn_data["activity_cells"] = (entry.get("activity_cells", []) as Array).duplicate(true)
+
+	spawn_data["schedule_entry_id"] = str(entry.get("id", ""))
+	spawn_data["anchor_id"] = str(entry.get("anchor_id", ""))
+	spawn_data["activity_type"] = str(entry.get("activity_type", "idle"))
+	spawn_data["activity"] = str(entry.get("activity", "idle"))
+	spawn_data["movement"] = str(entry.get("movement", "walk"))
+	spawn_data["scheduled_location_id"] = scheduled_location_id
+	spawn_data["arrival_anchor_id"] = anchor_id
+
+
 func _apply_matching_offscreen_state_to_spawn_data(spawn_data: Dictionary, offscreen_state: Dictionary, active_entry: Dictionary) -> void:
 	if offscreen_state.is_empty():
 		return
@@ -1259,6 +1296,100 @@ func _find_cross_scene_spawn_cell(source_cell: Vector2i, target_cell: Vector2i) 
 	return best_cell
 
 
+func _should_spawn_at_arrival_anchor(entry: Dictionary, absolute_minutes: int, scheduled_location_id: String) -> bool:
+	if grid == null or scheduled_location_id != grid.location_id:
+		return false
+	if str(entry.get("transition_kind", "")) != "cross_location" and str(entry.get("source_location_id", scheduled_location_id)) == scheduled_location_id:
+		return false
+	if _minutes_since_entry_start(entry, absolute_minutes) > 1:
+		return false
+
+	var arrival_anchor_id := _get_arrival_anchor_for_current_location(entry)
+	if arrival_anchor_id.is_empty():
+		return false
+	var arrival_anchor: Dictionary = grid.get_anchor(arrival_anchor_id)
+	if arrival_anchor.is_empty():
+		return false
+	var arrival_cell := _cell_from_dict(arrival_anchor.get("grid_position", {}) as Dictionary)
+	if not grid.can_enter(arrival_cell):
+		return false
+
+	var schedule_target: Dictionary = _resolve_schedule_target(entry)
+	if not schedule_target.has("grid_position"):
+		return false
+	var target_cell := _cell_from_dict(schedule_target.get("grid_position", {}) as Dictionary)
+	return target_cell != arrival_cell
+
+
+func _get_arrival_anchor_for_current_location(entry: Dictionary) -> String:
+	if grid == null:
+		return ""
+	var anchors_by_location: Dictionary = entry.get("transition_anchor_by_location", {}) as Dictionary
+	var mapped_anchor := str(anchors_by_location.get(grid.location_id, ""))
+	if not mapped_anchor.is_empty():
+		return mapped_anchor
+	if str(entry.get("arrival_location_id", "")) == grid.location_id:
+		return str(entry.get("arrival_anchor_id", ""))
+	if str(entry.get("location_id", "")) == grid.location_id:
+		return str(entry.get("arrival_anchor_id", entry.get("anchor_id", "")))
+	return ""
+
+
+func _request_arrival_schedule_movement(character: CharacterEntity, entry: Dictionary, scheduled_location_id: String, result = null) -> bool:
+	if character == null or grid == null:
+		return false
+	var schedule_target: Dictionary = _resolve_schedule_target(entry)
+	if not schedule_target.has("grid_position"):
+		return false
+	var target_cell := _cell_from_dict(schedule_target.get("grid_position", {}) as Dictionary)
+	var movement_entry := entry.duplicate(true)
+	if schedule_target.has("facing"):
+		movement_entry["facing"] = str(schedule_target.get("facing", entry.get("facing", character.facing)))
+	var movement_request: Dictionary = _request_scheduled_character_movement(character, movement_entry, scheduled_location_id, target_cell)
+	var movement_state := str(movement_request.get("state", ""))
+	if result == null:
+		return movement_state in ["started", "arrived", "unchanged"]
+
+	if movement_state == "started":
+		result.add_world_change({
+			"type": "scheduled_character_arrival_segment_started",
+			"character_id": character.character_id,
+			"location_id": grid.location_id,
+			"entry_id": str(entry.get("id", "")),
+			"from_anchor_id": _get_arrival_anchor_for_current_location(entry),
+			"target_anchor_id": str(entry.get("anchor_id", "")),
+			"from": character.grid_position,
+			"target": target_cell,
+			"activity_type": str(entry.get("activity_type", "idle")),
+			"activity": str(entry.get("activity", "idle")),
+		})
+		result.add_feedback("%s entered and started walking to %s." % [character.display_name, str(entry.get("activity", "schedule"))])
+		return true
+	if movement_state == "arrived":
+		result.add_world_change({
+			"type": "scheduled_character_arrived",
+			"character_id": character.character_id,
+			"location_id": grid.location_id,
+			"entry_id": character.current_schedule_entry_id,
+			"grid_position": character.grid_position,
+			"activity": character.current_activity,
+		})
+		result.add_feedback("%s arrived for %s." % [character.display_name, character.current_activity])
+		return true
+	if movement_state == "blocked":
+		result.add_world_change({
+			"type": "scheduled_character_blocked",
+			"character_id": character.character_id,
+			"location_id": grid.location_id,
+			"entry_id": str(entry.get("id", "")),
+			"target": target_cell,
+			"reason": str(movement_request.get("reason", "")),
+		})
+		result.add_feedback("%s could not reach scheduled activity %s." % [character.display_name, str(entry.get("activity", "schedule"))])
+		return true
+	return false
+
+
 func _apply_schedule_entry_to_character(character: CharacterEntity, entry: Dictionary, scheduled_location_id: String, result: ActionResult) -> bool:
 	var entry_id: String = str(entry.get("id", ""))
 	var next_activity_type: String = str(entry.get("activity_type", character.current_activity_type))
@@ -1279,7 +1410,7 @@ func _apply_schedule_entry_to_character(character: CharacterEntity, entry: Dicti
 			next_facing = str(schedule_target.get("facing", next_facing))
 			facing_changed = character.facing != next_facing
 		movement_active = _npc_movement_agent != null and _npc_movement_agent.has_active_intent(character.character_id, entry_id, target_cell)
-		if character.grid_position != target_cell and (entry_changed or activity_type_changed or activity_changed) and not movement_active:
+		if character.grid_position != target_cell and not movement_active:
 			var movement_entry: Dictionary = entry.duplicate(true)
 			movement_entry["facing"] = next_facing
 			var movement_request: Dictionary = _request_scheduled_character_movement(character, movement_entry, scheduled_location_id, target_cell)
@@ -1365,7 +1496,16 @@ func _get_transition_anchor_for_current_location(entry: Dictionary) -> String:
 		return ""
 
 	var anchors_by_location: Dictionary = entry.get("transition_anchor_by_location", {}) as Dictionary
-	return str(anchors_by_location.get(grid.location_id, ""))
+	var mapped_anchor := str(anchors_by_location.get(grid.location_id, ""))
+	if not mapped_anchor.is_empty():
+		return mapped_anchor
+	if str(entry.get("departure_location_id", "")) == grid.location_id:
+		return str(entry.get("departure_anchor_id", ""))
+	if str(entry.get("arrival_location_id", "")) == grid.location_id:
+		return str(entry.get("arrival_anchor_id", ""))
+	if str(entry.get("exterior_location_id", "")) == grid.location_id:
+		return str(entry.get("exterior_anchor_id", ""))
+	return ""
 
 
 func _request_scheduled_character_movement(character: CharacterEntity, entry: Dictionary, scheduled_location_id: String, target_cell: Vector2i) -> Dictionary:

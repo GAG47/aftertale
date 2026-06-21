@@ -425,8 +425,10 @@ func _add_building_interaction_object(building: Dictionary) -> void:
 	var interior_location_id := _interior_location_id(building_id)
 	var return_entrance_id := "return_%s" % building_id
 	var exterior_door_anchor_id := "exterior_door_%s" % building_id
+	var building_entrance_anchor_id := "building_entrance_%s" % building_id
 	var exterior_entrance_id := "exterior_entry_%s" % building_id
 	var contract := _building_contract(building, wall_door_cell, door_front_cell, template_id, interior_location_id, return_entrance_id, exterior_door_anchor_id)
+	contract["building_entrance_anchor_id"] = building_entrance_anchor_id
 	var manifest := _interior_manifest_for_building(building, contract)
 	(_compiled.get("generated_interiors", []) as Array).append(manifest)
 	(_compiled.get("building_contracts", []) as Array).append(contract)
@@ -436,38 +438,46 @@ func _add_building_interaction_object(building: Dictionary) -> void:
 		"interior_location_id": interior_location_id,
 		"exterior_return_entrance_id": return_entrance_id,
 	})
+	_add_anchor(building_entrance_anchor_id, "building_entrance", door_front_cell, _facing_toward(door_front_cell, wall_door_cell), {
+		"source_building_id": building_id,
+		"interior_location_id": interior_location_id,
+		"exterior_door_anchor_id": exterior_door_anchor_id,
+		"exterior_return_entrance_id": return_entrance_id,
+	})
 	_add_schedule_targets_for_manifest(manifest)
 	_add_schedule_target({
 		"id": "%s.exterior_transition" % building_id,
 		"role": "exterior_transition",
 		"location_id": exterior_location_id,
-		"anchor_id": exterior_door_anchor_id,
+		"anchor_id": building_entrance_anchor_id,
 		"source_building_id": building_id,
 		"target_location_id": interior_location_id,
 		"target_type": "transition",
 		"capacity": 1,
-		"grid_position": _dict_cell(wall_door_cell),
+		"grid_position": _dict_cell(door_front_cell),
 		"exterior_location_id": exterior_location_id,
 		"interior_location_id": interior_location_id,
-		"exterior_anchor_id": exterior_door_anchor_id,
-		"arrival_anchor_id": exterior_door_anchor_id,
-		"departure_anchor_id": exterior_door_anchor_id,
+		"exterior_anchor_id": building_entrance_anchor_id,
+		"exterior_door_anchor_id": exterior_door_anchor_id,
+		"arrival_anchor_id": building_entrance_anchor_id,
+		"departure_anchor_id": building_entrance_anchor_id,
 	})
 	_add_schedule_target({
 		"id": "%s.building_entrance" % building_id,
 		"role": "building_entrance",
 		"location_id": exterior_location_id,
-		"anchor_id": exterior_door_anchor_id,
+		"anchor_id": building_entrance_anchor_id,
 		"source_building_id": building_id,
 		"target_location_id": interior_location_id,
 		"target_type": "door",
 		"capacity": 1,
-		"grid_position": _dict_cell(wall_door_cell),
+		"grid_position": _dict_cell(door_front_cell),
 		"exterior_location_id": exterior_location_id,
 		"interior_location_id": interior_location_id,
-		"exterior_anchor_id": exterior_door_anchor_id,
-		"arrival_anchor_id": exterior_door_anchor_id,
-		"departure_anchor_id": exterior_door_anchor_id,
+		"exterior_anchor_id": building_entrance_anchor_id,
+		"exterior_door_anchor_id": exterior_door_anchor_id,
+		"arrival_anchor_id": building_entrance_anchor_id,
+		"departure_anchor_id": building_entrance_anchor_id,
 	})
 	(_compiled.get("objects", []) as Array).append({
 		"id": "wall_door_%s" % building_id,
@@ -655,7 +665,8 @@ func _interior_manifest_for_building(building: Dictionary, contract: Dictionary)
 		"display_name": "%s Interior" % _building_display_name(building),
 		"interior_template_id": interior_template_id,
 		"scene_path": GENERATED_INTERIOR_SCENE,
-		"exterior_entrance_id": str(contract.get("exterior_door_anchor_id", "")),
+		"exterior_entrance_id": str(contract.get("building_entrance_anchor_id", contract.get("exterior_door_anchor_id", ""))),
+		"exterior_door_anchor_id": str(contract.get("exterior_door_anchor_id", "")),
 		"exterior_return_entrance_id": return_entrance_id,
 		"interior_entry_entrance_id": "entry",
 		"interior_exit_entrance_id": "exit",
@@ -730,6 +741,8 @@ func _interior_anchors(building: Dictionary, location_id: String, role: String) 
 	var anchors: Array[Dictionary] = [
 		_interior_anchor("entry", "entry", location_id, building_id, Vector2i(3, 4), "up"),
 		_interior_anchor("exit", "exit", location_id, building_id, Vector2i(3, 5), "down"),
+		_interior_anchor("interior_entry", "interior_entry", location_id, building_id, Vector2i(3, 4), "up"),
+		_interior_anchor("interior_exit", "interior_exit", location_id, building_id, Vector2i(3, 5), "down"),
 		_interior_anchor("primary", "primary", location_id, building_id, Vector2i(4, 2), "down"),
 	]
 	match role:
@@ -888,8 +901,8 @@ func _facility_rows_from_objects(objects: Array[Dictionary]) -> Array[Dictionary
 func _schedule_targets_for_interior(building: Dictionary, location_id: String, role: String) -> Array[Dictionary]:
 	var building_id := str(building.get("id", ""))
 	var result: Array[Dictionary] = []
-	result.append(_schedule_target_row(building_id, "interior_entry", location_id, "entry"))
-	result.append(_schedule_target_row(building_id, "interior_exit", location_id, "exit"))
+	result.append(_schedule_target_row(building_id, "interior_entry", location_id, "interior_entry"))
+	result.append(_schedule_target_row(building_id, "interior_exit", location_id, "interior_exit"))
 	match role:
 		"residential":
 			result.append(_schedule_target_row(building_id, "home", location_id, "home"))
@@ -925,8 +938,8 @@ func _schedule_target_row(building_id: String, role: String, location_id: String
 		"capacity": _capacity_for_schedule_role(role),
 		"grid_position": _dict_cell(cell),
 		"interior_location_id": location_id,
-		"arrival_anchor_id": "entry",
-		"departure_anchor_id": "exit",
+		"arrival_anchor_id": "interior_entry",
+		"departure_anchor_id": "interior_exit",
 	}
 	var activity_cells := _interior_activity_cells_around(cell)
 	if int(row.get("capacity", 1)) > 1 and not activity_cells.is_empty():
@@ -944,9 +957,9 @@ func _add_schedule_targets_for_manifest(manifest: Dictionary) -> void:
 		if not target.has("exterior_anchor_id"):
 			target["exterior_anchor_id"] = str(manifest.get("exterior_entrance_id", ""))
 		if not target.has("arrival_anchor_id"):
-			target["arrival_anchor_id"] = "entry"
+			target["arrival_anchor_id"] = "interior_entry"
 		if not target.has("departure_anchor_id"):
-			target["departure_anchor_id"] = "exit"
+			target["departure_anchor_id"] = "interior_exit"
 		_add_schedule_target(target)
 
 
@@ -991,9 +1004,9 @@ func _capacity_for_schedule_role(role: String) -> int:
 
 func _default_interior_anchor_cell(anchor_id: String) -> Vector2i:
 	match anchor_id:
-		"entry":
+		"entry", "interior_entry":
 			return Vector2i(3, 4)
-		"exit":
+		"exit", "interior_exit":
 			return Vector2i(3, 5)
 		"home":
 			return Vector2i(4, 2)

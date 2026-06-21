@@ -313,3 +313,18 @@ Generated NPC definitions 现在直接包含 `appearance.display_mode = "map_spr
 - 现有系统执行最终世界变化，并通过 `ActionResult`、`GameState`、`LocationRoot` 和 UI 反馈。
 
 后续接入 AI 时，建议优先观察内容层边界、可回放性、存档稳定性、调试可解释性，以及 AI 候选内容与当前 JSON 定义和规则系统之间的转换接口。
+## 15. v67.3 Generated Settlement Runtime Integrity
+
+The generated settlement line now separates three responsibilities:
+
+- `GeneratedSettlementStore` owns persistent generated baselines under the active save/world generated root and can clear the active generated context before regeneration.
+- `PopulationPlanner` and `SchedulePlanner` turn generated building contracts and schedule targets into capacity-bounded NPC definitions, role assignments, spawn rows, and schedule entries.
+- `LocationRoot` and `NpcScheduleSystem` consume those schedule entries at runtime using the existing visible-movement/offscreen-settlement model.
+
+Generated NPC appearances use the current 2D character renderer path. Definitions carry `appearance.display_mode = "map_sprite"` and the generated population smoke verifies `CharacterAppearanceRenderer.render_path_for_appearance()` returns `map_sprite`, so this branch is not only a data-shape convention.
+
+Generated residential population is now constrained by actual building capacity before NPC creation. Private rest capacity treats bed, private-rest, rest, and home targets as aliases for the same residential capacity instead of additive slots, which prevents one small bedroom from receiving several home/rest NPCs. `population_summary` records generated count, building capacity summary, skipped capacity, unresolved assignments, and warnings for auditability.
+
+Generated door and transition data is now concrete enough for runtime movement. Exterior buildings expose walkable `building_entrance` anchors on door-front cells, generated interiors expose `interior_entry` and `interior_exit` anchors, and schedule entries carry departure/arrival metadata while retaining the `location_id + anchor_id` resolution contract.
+
+At runtime, a visible departure walks to the current location exit/door anchor before removal. A visible arrival spawns at the current location entry anchor and then walks to its target tile. NPCs whose schedule is outside the current location remain offscreen and are resolved again when that location is entered.

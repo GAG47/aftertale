@@ -17,33 +17,23 @@ func plan_population(settlement_id: String, policy_id: String, seed: int, exteri
 	var target_index: Dictionary = _build_target_index(schedule_targets)
 	var target_allocator: Dictionary = _build_target_allocator(target_index)
 	var contracts_by_use: Dictionary = _contracts_by_use(building_contracts)
+	var building_capacity_summary := _build_building_capacity_summary(building_contracts, target_index)
+	var population_plans: Array[Dictionary] = _build_population_plans(contracts_by_use, building_capacity_summary)
 
 	var definitions: Array[Dictionary] = []
 	var assignments: Array[Dictionary] = []
 	var spawn_rows_by_location: Dictionary = {}
 	var unresolved: Array[Dictionary] = []
+	var skipped_population: Array[Dictionary] = (building_capacity_summary.get("skipped_population", []) as Array).duplicate(true)
 	var role_counts: Dictionary = {}
 	var sequence: int = 1
 
-	for contract in _selected_contracts(contracts_by_use, "residential", 4):
-		sequence = _append_npc("resident", settlement_id, policy_id, seed, sequence, contract, target_index, target_allocator, definitions, assignments, spawn_rows_by_location, unresolved, role_counts)
-
-	for contract in _selected_contracts(contracts_by_use, "commercial", 3):
-		var role := "shopkeeper"
-		if _target_for_contract(target_index, contract, ["tavern", "tavern_counter"]).is_empty():
-			role = "merchant"
-		else:
-			role = "innkeeper"
-		sequence = _append_npc(role, settlement_id, policy_id, seed, sequence, contract, target_index, target_allocator, definitions, assignments, spawn_rows_by_location, unresolved, role_counts)
-
-	for contract in _selected_contracts(contracts_by_use, "production", 3):
-		sequence = _append_npc("worker", settlement_id, policy_id, seed, sequence, contract, target_index, target_allocator, definitions, assignments, spawn_rows_by_location, unresolved, role_counts)
-
-	for contract in _selected_contracts(contracts_by_use, "public", 2):
-		sequence = _append_npc("traveler", settlement_id, policy_id, seed, sequence, contract, target_index, target_allocator, definitions, assignments, spawn_rows_by_location, unresolved, role_counts)
+	for plan_value in population_plans:
+		var plan: Dictionary = plan_value
+		sequence = _append_npc(str(plan.get("role", "resident")), settlement_id, policy_id, seed, sequence, plan.get("contract", {}) as Dictionary, target_index, target_allocator, definitions, assignments, spawn_rows_by_location, unresolved, skipped_population, role_counts)
 
 	if definitions.is_empty() and _allocator_has_available_targets(target_allocator):
-		sequence = _append_npc("resident", settlement_id, policy_id, seed, sequence, {}, target_index, target_allocator, definitions, assignments, spawn_rows_by_location, unresolved, role_counts)
+		sequence = _append_npc("resident", settlement_id, policy_id, seed, sequence, {}, target_index, target_allocator, definitions, assignments, spawn_rows_by_location, unresolved, skipped_population, role_counts)
 
 	var occupancy_audit := _audit_schedule_occupancy(definitions)
 	if not (occupancy_audit.get("conflicts", []) as Array).is_empty():
@@ -59,9 +49,14 @@ func plan_population(settlement_id: String, policy_id: String, seed: int, exteri
 			"policy_id": policy_id,
 			"seed": seed,
 			"npc_count": definitions.size(),
+			"generated_population_count": definitions.size(),
 			"role_counts": role_counts,
 			"spawn_location_count": spawn_rows_by_location.size(),
+			"building_capacity_summary": building_capacity_summary,
+			"skipped_population": skipped_population,
 			"unresolved_targets": unresolved,
+			"unresolved_assignments": unresolved,
+			"capacity_warnings": (building_capacity_summary.get("capacity_warnings", []) as Array).duplicate(true),
 			"target_allocation": _allocation_summary(target_allocator),
 			"schedule_occupancy": occupancy_audit,
 		},
@@ -81,6 +76,7 @@ func _append_npc(
 	assignments: Array[Dictionary],
 	spawn_rows_by_location: Dictionary,
 	unresolved: Array[Dictionary],
+	skipped_population: Array[Dictionary],
 	role_counts: Dictionary
 ) -> int:
 	if definitions.size() >= MAX_GENERATED_NPCS:
@@ -92,7 +88,23 @@ func _append_npc(
 	var validation: Dictionary = _validate_assignment_and_schedule(npc_id, assignment, schedule)
 	if not (validation.get("errors", []) as Array).is_empty():
 		unresolved.append(validation)
+		_release_assignment_claims(target_allocator, assignment)
+		skipped_population.append({
+			"npc_id": npc_id,
+			"role": role,
+			"source_building_id": str(assignment.get("source_building_id", "")),
+			"reason": "unresolved_assignment",
+			"validation": validation.duplicate(true),
+		})
+		return sequence + 1
 	if schedule.is_empty():
+		_release_assignment_claims(target_allocator, assignment)
+		skipped_population.append({
+			"npc_id": npc_id,
+			"role": role,
+			"source_building_id": str(assignment.get("source_building_id", "")),
+			"reason": "empty_schedule",
+		})
 		return sequence + 1
 
 	var definition := _npc_definition(npc_id, role, settlement_id, policy_id, seed, assignment, schedule, sequence)
@@ -121,7 +133,7 @@ func _assignment_for_role(npc_id: String, role: String, contract: Dictionary, ta
 			work_target = _claim_target_for_contract(target_allocator, target_index, contract, ["activity", "gathering", "home"], npc_id, "work", assigned_slots, reserved_keys)
 
 	if home_target.is_empty():
-		home_target = _claim_first_target(target_allocator, target_index, ["bed", "home", "rest", "interior_entry"], npc_id, "home", assigned_slots, reserved_keys, fallbacks, "contract_home_unavailable")
+		home_target = _claim_first_target(target_allocator, target_index, ["bed", "home", "rest"], npc_id, "home", assigned_slots, reserved_keys, fallbacks, "contract_home_unavailable")
 		rest_target = home_target.duplicate(true)
 	if work_target.is_empty():
 		work_target = _claim_first_target(target_allocator, target_index, ["workstation", "work", "counter", "service", "tavern_counter", "activity", "gathering", "exterior_transition"], npc_id, "work", assigned_slots, reserved_keys, fallbacks, "contract_work_unavailable")
@@ -287,6 +299,168 @@ func _build_target_index(schedule_targets: Array) -> Dictionary:
 	}
 
 
+func _build_building_capacity_summary(building_contracts: Array, target_index: Dictionary) -> Dictionary:
+	var by_building: Dictionary = target_index.get("by_building", {}) as Dictionary
+	var buildings: Dictionary = {}
+	var totals := {
+		"residential_capacity": 0,
+		"rest_capacity": 0,
+		"work_capacity": 0,
+		"service_capacity": 0,
+		"guard_training_capacity": 0,
+		"social_capacity": 0,
+	}
+	var capacity_warnings: Array[Dictionary] = []
+	var skipped_population: Array[Dictionary] = []
+
+	for contract_value in building_contracts:
+		var contract: Dictionary = contract_value as Dictionary
+		var building_id := str(contract.get("building_id", contract.get("source_building_id", "")))
+		if building_id.is_empty():
+			continue
+		var rows: Array = by_building.get(building_id, []) as Array
+		var use_type := str(contract.get("use_type", "public"))
+		var row := {
+			"building_id": building_id,
+			"use_type": use_type,
+			"interior_location_id": str(contract.get("interior_location_id", "")),
+			"residential_capacity": _private_rest_capacity(rows) if use_type == "residential" else 0,
+			"rest_capacity": _private_rest_capacity(rows),
+			"work_capacity": _sum_capacity_for_roles(rows, ["workstation", "work", "workspot", "forge", "crafting_station"]),
+			"service_capacity": _sum_capacity_for_roles(rows, ["counter", "service", "service_counter", "shop_counter", "tavern_counter"]),
+			"guard_training_capacity": _sum_capacity_for_roles(rows, ["training", "trainer_spot", "guard_post", "patrol"]),
+			"social_capacity": _sum_capacity_for_roles(rows, ["public", "dining", "tavern", "social", "gathering", "activity"]),
+		}
+		buildings[building_id] = row
+		for key in totals.keys():
+			totals[key] = int(totals.get(key, 0)) + int(row.get(key, 0))
+		if use_type == "residential" and int(row.get("residential_capacity", 0)) <= 0:
+			capacity_warnings.append({
+				"type": "missing_residential_capacity",
+				"building_id": building_id,
+			})
+			skipped_population.append({
+				"role": "resident",
+				"source_building_id": building_id,
+				"reason": "residential_capacity_zero",
+			})
+
+	return {
+		"buildings": buildings,
+		"totals": totals,
+		"capacity_warnings": capacity_warnings,
+		"skipped_population": skipped_population,
+	}
+
+
+func _private_rest_capacity(rows: Array) -> int:
+	var bed_capacity := _sum_capacity_for_roles(rows, ["bed", "private_rest"])
+	if bed_capacity > 0:
+		return bed_capacity
+	var rest_capacity := _sum_capacity_for_roles(rows, ["rest"])
+	if rest_capacity > 0:
+		return rest_capacity
+	return _sum_capacity_for_roles(rows, ["home"])
+
+
+func _sum_capacity_for_roles(rows: Array, roles: Array[String]) -> int:
+	var total := 0
+	var counted_keys: Dictionary = {}
+	for row_value in rows:
+		var row: Dictionary = row_value as Dictionary
+		if not roles.has(str(row.get("role", ""))):
+			continue
+		var key := _target_key(row)
+		if key.is_empty() or counted_keys.has(key):
+			continue
+		counted_keys[key] = true
+		total += _capacity_for_target(row)
+	return total
+
+
+func _build_population_plans(contracts_by_use: Dictionary, building_capacity_summary: Dictionary) -> Array[Dictionary]:
+	var plans: Array[Dictionary] = []
+	var skipped: Array = building_capacity_summary.get("skipped_population", []) as Array
+	var totals: Dictionary = building_capacity_summary.get("totals", {}) as Dictionary
+	var remaining_housing := mini(MAX_GENERATED_NPCS, int(totals.get("residential_capacity", 0)))
+	if remaining_housing <= 0:
+		skipped.append({
+			"role": "population",
+			"reason": "residential_capacity_zero",
+		})
+		return plans
+
+	for contract in _selected_contracts(contracts_by_use, "residential", MAX_GENERATED_NPCS):
+		if remaining_housing <= 0:
+			_record_skipped_capacity(skipped, "resident", contract, "residential_capacity_exhausted")
+			continue
+		var capacity := _capacity_for_contract(building_capacity_summary, contract, "residential_capacity")
+		if capacity <= 0:
+			_record_skipped_capacity(skipped, "resident", contract, "residential_capacity_zero")
+			continue
+		plans.append({ "role": "resident", "contract": contract.duplicate(true) })
+		remaining_housing -= 1
+
+	for contract in _selected_contracts(contracts_by_use, "commercial", MAX_GENERATED_NPCS):
+		if remaining_housing <= 0:
+			_record_skipped_capacity(skipped, "shopkeeper", contract, "residential_capacity_exhausted")
+			continue
+		var service_capacity := _capacity_for_contract(building_capacity_summary, contract, "service_capacity")
+		if service_capacity <= 0:
+			_record_skipped_capacity(skipped, "shopkeeper", contract, "service_capacity_zero")
+			continue
+		var role := "innkeeper" if service_capacity > 0 and _contract_is_tavern(contract) else "merchant"
+		plans.append({ "role": role, "contract": contract.duplicate(true) })
+		remaining_housing -= 1
+
+	for contract in _selected_contracts(contracts_by_use, "production", MAX_GENERATED_NPCS):
+		if remaining_housing <= 0:
+			_record_skipped_capacity(skipped, "worker", contract, "residential_capacity_exhausted")
+			continue
+		var work_capacity := _capacity_for_contract(building_capacity_summary, contract, "work_capacity")
+		if work_capacity <= 0:
+			_record_skipped_capacity(skipped, "worker", contract, "work_capacity_zero")
+			continue
+		plans.append({ "role": "worker", "contract": contract.duplicate(true) })
+		remaining_housing -= 1
+
+	for contract in _selected_contracts(contracts_by_use, "public", MAX_GENERATED_NPCS):
+		if remaining_housing <= 0:
+			_record_skipped_capacity(skipped, "traveler", contract, "residential_capacity_exhausted")
+			continue
+		var social_capacity := _capacity_for_contract(building_capacity_summary, contract, "social_capacity")
+		var training_capacity := _capacity_for_contract(building_capacity_summary, contract, "guard_training_capacity")
+		if training_capacity > 0:
+			plans.append({ "role": "guard", "contract": contract.duplicate(true) })
+			remaining_housing -= 1
+		elif social_capacity > 0:
+			plans.append({ "role": "traveler", "contract": contract.duplicate(true) })
+			remaining_housing -= 1
+
+	return plans
+
+
+func _capacity_for_contract(building_capacity_summary: Dictionary, contract: Dictionary, key: String) -> int:
+	var building_id := str(contract.get("building_id", contract.get("source_building_id", "")))
+	var buildings: Dictionary = building_capacity_summary.get("buildings", {}) as Dictionary
+	var row: Dictionary = buildings.get(building_id, {}) as Dictionary
+	return int(row.get(key, 0))
+
+
+func _record_skipped_capacity(skipped: Array, role: String, contract: Dictionary, reason: String) -> void:
+	skipped.append({
+		"role": role,
+		"source_building_id": str(contract.get("building_id", contract.get("source_building_id", ""))),
+		"reason": reason,
+	})
+
+
+func _contract_is_tavern(contract: Dictionary) -> bool:
+	var building_type := str(contract.get("building_type", "")).to_lower()
+	var use_type := str(contract.get("use_type", "")).to_lower()
+	return building_type.find("tavern") >= 0 or use_type.find("tavern") >= 0
+
+
 func _build_target_allocator(target_index: Dictionary) -> Dictionary:
 	var allocator: Dictionary = {}
 	var by_role: Dictionary = target_index.get("by_role", {}) as Dictionary
@@ -404,6 +578,24 @@ func _claim_from_candidates(
 		reserved_keys.append(key)
 		return target
 	return {}
+
+
+func _release_assignment_claims(target_allocator: Dictionary, assignment: Dictionary) -> void:
+	for claim_value in (assignment.get("assigned_target_slots", []) as Array):
+		var claim: Dictionary = claim_value as Dictionary
+		var key := str(claim.get("target_key", ""))
+		if key.is_empty() or not target_allocator.has(key):
+			continue
+		var allocation: Dictionary = target_allocator.get(key, {}) as Dictionary
+		var claimed_rows: Array = allocation.get("claimed", []) as Array
+		var kept: Array = []
+		for existing_value in claimed_rows:
+			var existing: Dictionary = existing_value as Dictionary
+			if str(existing.get("npc_id", "")) == str(claim.get("npc_id", "")) and str(existing.get("claim_kind", "")) == str(claim.get("claim_kind", "")):
+				continue
+			kept.append(existing)
+		allocation["claimed"] = kept
+		target_allocator[key] = allocation
 
 
 func _apply_slot_position(target: Dictionary, slot_index: int) -> void:

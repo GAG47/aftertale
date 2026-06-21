@@ -33,6 +33,18 @@ static func draw_character(canvas: CanvasItem, context: Dictionary) -> void:
 	_draw_texture_layer(canvas, appearance, "held_item")
 
 
+static func render_path_for_appearance(appearance_value: Dictionary) -> String:
+	var appearance: Dictionary = _dictionary(appearance_value)
+	var display_mode: String = str(appearance.get("display_mode", "modular"))
+	if display_mode == "map_sprite":
+		var map_sprite: Dictionary = _dictionary(appearance.get("map_sprite", {}))
+		var source: String = str(map_sprite.get("source", ""))
+		if not source.is_empty() and _load_map_sprite_texture(source) != null:
+			return "map_sprite"
+		return "map_sprite_placeholder"
+	return "modular"
+
+
 static func _draw_map_sprite(canvas: CanvasItem, appearance: Dictionary) -> bool:
 	var map_sprite: Dictionary = _dictionary(appearance.get("map_sprite", {}))
 	var source: String = str(map_sprite.get("source", ""))

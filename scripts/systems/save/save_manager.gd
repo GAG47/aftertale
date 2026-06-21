@@ -223,6 +223,14 @@ func get_generated_settlement_index() -> Dictionary:
 	return generated_settlements.duplicate(true)
 
 
+func unregister_generated_settlement(settlement_id: String, clear_runtime_cache: bool = true) -> void:
+	if settlement_id.is_empty():
+		return
+	generated_settlements.erase(settlement_id)
+	if clear_runtime_cache:
+		clear_generated_runtime_caches()
+
+
 func apply_generated_settlement_index(index: Dictionary, clear_runtime_cache: bool = true) -> void:
 	generated_settlements = index.duplicate(true)
 	if clear_runtime_cache:

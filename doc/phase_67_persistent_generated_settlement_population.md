@@ -303,6 +303,28 @@ scripts/tests/v67_3_generated_npc_schedule_appearance_integrity_smoke.gd
 
 The v67.3 smoke covers generated map-sprite appearance, readable generated character sources, role target assignments, single-capacity claim avoidance, schedule time/location/tile occupancy, multi-capacity public/social concrete slot use, `location_id + anchor_id` schedule resolvability, transition metadata, generated interior entry/exit targets, exterior building entrance targets, LocationRoot spawn anti-overlap, and second-load preservation of NPC IDs, appearance, assignments, and non-overlapping schedules.
 
+## v67.3 Integrity Follow-up
+
+The follow-up pass makes the generated settlement baseline stricter before it is allowed to feed runtime NPCs.
+
+`GeneratedSettlementStore.clear_generated_data_for_active_context()` clears the active save/world generated root for `settlements`, `characters`, and `locations`, unregisters the generated settlement index, and flushes generated runtime caches. The v67.3 smoke uses this API before regeneration so the test proves a new active-context snapshot is created instead of migrating or reusing an older `user://` baseline.
+
+`PopulationPlanner` now computes `building_capacity_summary` before NPC plans are created. Residential generation is bounded by per-building private rest capacity, and private rest capacity counts bed/private-rest first, then rest, then home, so a one-bed house contributes one home/rest slot rather than several aliases for the same room. When an NPC fails validation, its target claims are released and the skipped reason is recorded in `population_summary.skipped_population`.
+
+`TileSceneCompiler` exposes concrete generated transition anchors. Exterior building entrances now use a walkable `building_entrance` anchor on the door-front cell, while the wall door remains a transition object. Generated interiors expose concrete `interior_entry` and `interior_exit` anchors in addition to legacy `entry` and `exit` aliases. Schedule targets carry resolvable arrival/departure anchors for both interior and exterior movement.
+
+`CharacterAppearanceRenderer.render_path_for_appearance()` reports whether a generated appearance will render through the existing 2D `map_sprite` path or fall back to another branch. The generated NPC appearance data uses `display_mode = "map_sprite"` with the existing `npc_guard_001.png` map sprite, and the smoke verifies the actual renderer branch rather than only checking JSON fields.
+
+`LocationRoot` now consumes transition metadata at runtime while preserving the v56-v59 schedule model:
+
+- NPCs in the current visible location move with `NpcMovementAgent`.
+- NPCs outside the current location are settled by `NpcScheduleSystem` as offscreen state.
+- A visible departure walks to the current location departure anchor and is removed after cross-location arrival.
+- A visible arrival spawns at the current location arrival anchor and then walks to the scheduled target tile.
+- Entering a location resolves presence from the current schedule plus offscreen state rather than creating travel entries.
+
+The v67.3 smoke now includes runtime coverage for arrival-entry spawning and movement, departure-to-exit removal, offscreen settlement for non-current locations, generated map-sprite renderer selection, active-context generated data clearing, capacity-bounded residential assignment, resolvable generated entry/exit/door anchors, and second-load baseline stability.
+
 覆盖内容：
 
 - 第一次 materialize persistent generated settlement 时写入 snapshot。

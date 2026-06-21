@@ -1,6 +1,7 @@
 extends RefCounted
 
 const StoreScript := preload("res://scripts/systems/settlements/generated_settlement_store.gd")
+const AppearanceRendererScript := preload("res://scripts/systems/characters/character_appearance_renderer.gd")
 const BASIC_INTERIOR_SCENE := "res://scenes/locations/generated_basic_interior.tscn"
 
 const SETTLEMENT_ID := "v67_3_integrity_settlement"
@@ -11,6 +12,8 @@ const SOURCE_PATH := "res://data/locations/v67_3_integrity_template.json"
 const OVERLAP_LOCATION_PATH := "user://v67_3_overlap_location.json"
 const OVERLAP_CHARACTER_A_PATH := "user://v67_3_overlap_a.json"
 const OVERLAP_CHARACTER_B_PATH := "user://v67_3_overlap_b.json"
+const RUNTIME_LOCATION_PATH := "user://v67_3_runtime_location.json"
+const RUNTIME_CHARACTER_PATH := "user://v67_3_runtime_character.json"
 
 
 func run(root: Node) -> bool:
@@ -18,15 +21,14 @@ func run(root: Node) -> bool:
 		SceneLoader.configure(root.get_node("WorldRoot"))
 
 	SaveManager.configure_active_save_context(SAVE_PATH, WORLD_ID)
-	SaveManager.clear_generated_settlement_index()
+	var store: RefCounted = StoreScript.new()
+	StoreScript.clear_generated_data_for_active_context()
+	if store.has_snapshot(SETTLEMENT_ID):
+		return _fail("v67.3 active generated data clear left an old snapshot behind")
 	GameState.start_new_session("v67_3_integrity_session")
 	TimeManager.reset()
 	NpcScheduleSystem.reset_schedule_state()
 	DefinitionLoader.clear_cache()
-	DefinitionLoader.clear_generated_runtime_cache()
-
-	var store: RefCounted = StoreScript.new()
-	store.delete_snapshot(SETTLEMENT_ID)
 	DefinitionLoader.clear_generated_runtime_cache()
 
 	var first := DefinitionLoader.materialize_location(_source(), SOURCE_PATH, {
@@ -40,13 +42,19 @@ func run(root: Node) -> bool:
 
 	if not _generated_npcs_have_map_sprite(snapshot):
 		return false
+	if not _generated_character_runtime_uses_map_sprite(root, snapshot):
+		return false
 	if not _assignments_are_valid(snapshot):
+		return false
+	if not _building_capacity_is_valid(snapshot):
 		return false
 	if not _schedule_integrity_is_valid(snapshot):
 		return false
 	if not _entrance_and_exit_targets_are_exposed(snapshot):
 		return false
 	if not _location_root_spawn_avoids_blocking_overlap(root, snapshot):
+		return false
+	if not _runtime_schedule_transitions_are_visible(root, snapshot):
 		return false
 
 	DefinitionLoader.clear_cache()
@@ -109,6 +117,35 @@ func _generated_npcs_have_map_sprite(snapshot: Dictionary) -> bool:
 	return true
 
 
+func _generated_character_runtime_uses_map_sprite(root: Node, snapshot: Dictionary) -> bool:
+	var definitions: Array = snapshot.get("npc_definitions", []) as Array
+	if definitions.is_empty():
+		return _fail("v67.3 runtime appearance test needs a generated NPC definition")
+	var snapshot_definition: Dictionary = definitions[0] as Dictionary
+	var character_source := str(snapshot_definition.get("source", ""))
+	var definition := DefinitionLoader.load_json_resource(character_source)
+	if definition.is_empty():
+		return _fail("v67.3 runtime appearance test could not load generated character source: %s" % character_source)
+	var character := CharacterEntity.new()
+	character.configure(definition, {
+		"id": str(definition.get("id", "v67_3_runtime_appearance")),
+		"source": character_source,
+		"grid_position": { "x": 1, "y": 1 },
+		"facing": "down",
+	}, root)
+	var appearance := character.appearance.duplicate(true)
+	var render_path := str(AppearanceRendererScript.render_path_for_appearance(appearance))
+	character.queue_free()
+	if str(appearance.get("display_mode", "")) != "map_sprite":
+		return _fail("v67.3 generated NPC runtime appearance did not keep map_sprite mode")
+	var layers: Dictionary = appearance.get("layers", {}) as Dictionary
+	if not layers.is_empty():
+		return _fail("v67.3 generated NPC runtime appearance still carried modular layers")
+	if render_path != "map_sprite":
+		return _fail("v67.3 generated NPC renderer did not select map_sprite path: %s" % render_path)
+	return true
+
+
 func _assignments_are_valid(snapshot: Dictionary) -> bool:
 	var single_capacity_claims: Dictionary = {}
 	for assignment_value in (snapshot.get("npc_role_assignments", []) as Array):
@@ -129,6 +166,61 @@ func _assignments_are_valid(snapshot: Dictionary) -> bool:
 				if single_capacity_claims.has(key) and str(single_capacity_claims.get(key, "")) != npc_id:
 					return _fail("v67.3 single-capacity target claimed by multiple NPCs: %s" % key)
 				single_capacity_claims[key] = npc_id
+	return true
+
+
+func _building_capacity_is_valid(snapshot: Dictionary) -> bool:
+	var summary: Dictionary = snapshot.get("population_summary", {}) as Dictionary
+	var capacity_summary: Dictionary = summary.get("building_capacity_summary", {}) as Dictionary
+	if capacity_summary.is_empty():
+		return _fail("v67.3 population summary must include building_capacity_summary")
+	var totals: Dictionary = capacity_summary.get("totals", {}) as Dictionary
+	var residential_total := int(totals.get("residential_capacity", 0))
+	if residential_total <= 0:
+		return _fail("v67.3 generated settlement must expose positive residential capacity")
+	if (snapshot.get("npc_definitions", []) as Array).size() > residential_total:
+		return _fail("v67.3 generated NPC count exceeds residential capacity")
+
+	var residential_capacity_by_location: Dictionary = {}
+	var buildings: Dictionary = capacity_summary.get("buildings", {}) as Dictionary
+	for building_id_value in buildings.keys():
+		var building_row: Dictionary = buildings.get(building_id_value, {}) as Dictionary
+		if str(building_row.get("use_type", "")) != "residential":
+			continue
+		var location_id := str(building_row.get("interior_location_id", ""))
+		var capacity := int(building_row.get("residential_capacity", 0))
+		if location_id.is_empty() or capacity <= 0:
+			continue
+		residential_capacity_by_location[location_id] = capacity
+	if residential_capacity_by_location.is_empty():
+		return _fail("v67.3 capacity audit could not resolve residential interiors")
+
+	var home_npcs_by_location: Dictionary = {}
+	var private_claim_by_target: Dictionary = {}
+	for assignment_value in (snapshot.get("npc_role_assignments", []) as Array):
+		var assignment: Dictionary = assignment_value as Dictionary
+		var npc_id := str(assignment.get("npc_id", ""))
+		for target_field in ["home_target", "rest_target"]:
+			var target: Dictionary = assignment.get(target_field, {}) as Dictionary
+			var location_id := str(target.get("location_id", ""))
+			if not residential_capacity_by_location.has(location_id):
+				continue
+			if not home_npcs_by_location.has(location_id):
+				home_npcs_by_location[location_id] = {}
+			(home_npcs_by_location[location_id] as Dictionary)[npc_id] = true
+			var target_key := str(target.get("target_key", ""))
+			if target_key.is_empty():
+				target_key = "%s:%s" % [location_id, str(target.get("anchor_id", ""))]
+			if private_claim_by_target.has(target_key) and str(private_claim_by_target.get(target_key, "")) != npc_id:
+				return _fail("v67.3 private home/rest target was assigned to multiple NPCs: %s" % target_key)
+			private_claim_by_target[target_key] = npc_id
+
+	for location_id_value in home_npcs_by_location.keys():
+		var location_id := str(location_id_value)
+		var npc_rows: Dictionary = home_npcs_by_location.get(location_id, {}) as Dictionary
+		var capacity := int(residential_capacity_by_location.get(location_id, 0))
+		if npc_rows.size() > capacity:
+			return _fail("v67.3 residential interior over capacity: %s %d>%d" % [location_id, npc_rows.size(), capacity])
 	return true
 
 
@@ -208,21 +300,32 @@ func _transition_anchors_are_resolvable(entry: Dictionary, anchors_by_location: 
 
 func _entrance_and_exit_targets_are_exposed(snapshot: Dictionary) -> bool:
 	var exterior_id := str(snapshot.get("exterior_location_id", ""))
+	var anchors_by_location := _anchors_by_location(snapshot)
 	var exterior_has_building_entrance := false
 	for target_value in (snapshot.get("schedule_targets", []) as Array):
 		var target: Dictionary = target_value as Dictionary
 		var role := str(target.get("role", ""))
 		if str(target.get("location_id", "")) == exterior_id and role in ["building_entrance", "exterior_transition"]:
 			exterior_has_building_entrance = true
+			var anchor_id := str(target.get("anchor_id", ""))
+			if not (anchors_by_location.get(exterior_id, {}) as Dictionary).has(anchor_id):
+				return _fail("v67.3 exterior entrance schedule target anchor is not resolvable: %s" % anchor_id)
 	if not exterior_has_building_entrance:
 		return _fail("v67.3 exterior must expose building entrance schedule target")
 
 	for manifest_value in (snapshot.get("generated_interiors", []) as Array):
 		var manifest: Dictionary = manifest_value as Dictionary
+		var location_id := str(manifest.get("interior_location_id", ""))
+		var anchors: Dictionary = anchors_by_location.get(location_id, {}) as Dictionary
+		if not anchors.has("interior_entry") or not anchors.has("interior_exit"):
+			return _fail("v67.3 generated interior must expose concrete interior_entry/interior_exit anchors")
 		var roles: Dictionary = {}
 		for target_value in (manifest.get("schedule_targets", []) as Array):
 			var target: Dictionary = target_value as Dictionary
 			roles[str(target.get("role", ""))] = true
+			var anchor_id := str(target.get("anchor_id", ""))
+			if not anchors.has(anchor_id):
+				return _fail("v67.3 generated interior schedule target anchor is not resolvable: %s/%s" % [location_id, anchor_id])
 		if not roles.has("interior_entry") or not roles.has("interior_exit"):
 			return _fail("v67.3 generated interior must expose entry and exit schedule targets")
 	return true
@@ -292,6 +395,193 @@ func _location_root_spawn_avoids_blocking_overlap(root: Node, snapshot: Dictiona
 	_cleanup_instance(instance)
 	if cell_a == cell_b:
 		return _fail("v67.3 LocationRoot left two blocking NPCs on the same tile")
+	return true
+
+
+func _runtime_schedule_transitions_are_visible(root: Node, snapshot: Dictionary) -> bool:
+	if root == null:
+		return _fail("v67.3 runtime transition tests need root")
+	var fixture := _runtime_fixture(snapshot)
+	if fixture.is_empty():
+		return _fail("v67.3 runtime transition fixture could not be resolved")
+	if not _runtime_arrival_uses_entry_then_walks(root, snapshot, fixture):
+		return false
+	if not _runtime_departure_walks_to_exit_then_removes(root, snapshot, fixture):
+		return false
+	if not _runtime_offscreen_settle_keeps_non_current_offscreen(root, snapshot, fixture):
+		return false
+	return true
+
+
+func _runtime_arrival_uses_entry_then_walks(root: Node, snapshot: Dictionary, fixture: Dictionary) -> bool:
+	var npc_id := "v67_3_runtime_arrival"
+	var schedule := [
+		_cross_location_entry(
+			npc_id,
+			"arrival",
+			"08:00",
+			"08:05",
+			str(fixture.get("exterior_location_id", "")),
+			fixture.get("exterior_target", {}) as Dictionary,
+			str(fixture.get("interior_location_id", "")),
+			fixture.get("interior_target", {}) as Dictionary,
+			str((fixture.get("exterior_target", {}) as Dictionary).get("anchor_id", "")),
+			"interior_entry",
+			"entering the building"
+		),
+	]
+	if not _write_json(RUNTIME_CHARACTER_PATH, _runtime_character_definition(snapshot, npc_id, schedule)):
+		return false
+	var location_data := (fixture.get("interior_location", {}) as Dictionary).duplicate(true)
+	location_data["characters"] = [
+		_player_spawn_row({ "x": 1, "y": 1 }),
+		{
+			"id": npc_id,
+			"source": RUNTIME_CHARACTER_PATH,
+			"grid_position": { "x": 4, "y": 4 },
+			"facing": "down",
+		},
+	]
+	if not _write_json(RUNTIME_LOCATION_PATH, location_data):
+		return false
+
+	TimeManager.reset(1, 8, 0)
+	NpcScheduleSystem.reset_schedule_state()
+	var instance := _instantiate_runtime_location(root, location_data, RUNTIME_LOCATION_PATH)
+	if instance == null:
+		return false
+	var grid: LocationGrid = instance.get_location_grid() if instance.has_method("get_location_grid") else null
+	if grid == null:
+		_cleanup_instance(instance)
+		return _fail("v67.3 runtime arrival test did not expose a grid")
+	var character: CharacterEntity = grid.get_character_by_id(npc_id)
+	if character == null:
+		_cleanup_instance(instance)
+		return _fail("v67.3 runtime arrival NPC did not spawn")
+	var entry_cell := _anchor_cell(grid, "interior_entry")
+	var target_cell := _cell_from_dict((fixture.get("interior_target", {}) as Dictionary).get("grid_position", {}) as Dictionary)
+	if character.grid_position != entry_cell:
+		_cleanup_instance(instance)
+		return _fail("v67.3 runtime arrival spawned at %s instead of interior_entry %s" % [str(character.grid_position), str(entry_cell)])
+
+	_tick_location(instance, 18)
+	character = grid.get_character_by_id(npc_id)
+	var final_cell := character.grid_position if character != null else Vector2i(-1, -1)
+	_cleanup_instance(instance)
+	NpcScheduleSystem.reset_schedule_state()
+	if character == null:
+		return _fail("v67.3 runtime arrival NPC was removed after entering current location")
+	if final_cell != target_cell:
+		return _fail("v67.3 runtime arrival NPC did not walk from entry to target: %s != %s" % [str(final_cell), str(target_cell)])
+	return true
+
+
+func _runtime_departure_walks_to_exit_then_removes(root: Node, snapshot: Dictionary, fixture: Dictionary) -> bool:
+	var npc_id := "v67_3_runtime_departure"
+	var interior_id := str(fixture.get("interior_location_id", ""))
+	var exterior_id := str(fixture.get("exterior_location_id", ""))
+	var interior_target: Dictionary = fixture.get("interior_target", {}) as Dictionary
+	var exterior_target: Dictionary = fixture.get("exterior_target", {}) as Dictionary
+	var schedule := [
+		_same_location_entry(npc_id, "inside", "07:55", "07:59", interior_id, interior_target, "working inside"),
+		_cross_location_entry(npc_id, "depart", "08:00", "08:05", interior_id, interior_target, exterior_id, exterior_target, "interior_exit", str(exterior_target.get("anchor_id", "")), "leaving the building"),
+	]
+	if not _write_json(RUNTIME_CHARACTER_PATH, _runtime_character_definition(snapshot, npc_id, schedule)):
+		return false
+	var location_data := (fixture.get("interior_location", {}) as Dictionary).duplicate(true)
+	location_data["characters"] = [
+		_player_spawn_row({ "x": 1, "y": 1 }),
+		{
+			"id": npc_id,
+			"source": RUNTIME_CHARACTER_PATH,
+			"grid_position": { "x": 4, "y": 4 },
+			"facing": "down",
+		},
+	]
+	if not _write_json(RUNTIME_LOCATION_PATH, location_data):
+		return false
+
+	TimeManager.reset(1, 7, 59)
+	NpcScheduleSystem.reset_schedule_state()
+	var instance := _instantiate_runtime_location(root, location_data, RUNTIME_LOCATION_PATH)
+	if instance == null:
+		return false
+	var grid: LocationGrid = instance.get_location_grid() if instance.has_method("get_location_grid") else null
+	if grid == null:
+		_cleanup_instance(instance)
+		return _fail("v67.3 runtime departure test did not expose a grid")
+	var character: CharacterEntity = grid.get_character_by_id(npc_id)
+	if character == null:
+		_cleanup_instance(instance)
+		return _fail("v67.3 runtime departure NPC did not spawn before leaving")
+	var target_cell := _cell_from_dict(interior_target.get("grid_position", {}) as Dictionary)
+	if character.grid_position != target_cell:
+		_cleanup_instance(instance)
+		return _fail("v67.3 runtime departure NPC did not start at its current schedule target")
+
+	TimeManager.advance_minutes(1)
+	character = grid.get_character_by_id(npc_id)
+	if character == null:
+		_cleanup_instance(instance)
+		return _fail("v67.3 runtime departure removed NPC immediately instead of walking to exit")
+	_tick_location(instance, 18)
+	character = grid.get_character_by_id(npc_id)
+	_cleanup_instance(instance)
+	NpcScheduleSystem.reset_schedule_state()
+	if character != null:
+		return _fail("v67.3 runtime departure NPC was not removed after reaching the exit")
+	return true
+
+
+func _runtime_offscreen_settle_keeps_non_current_offscreen(root: Node, snapshot: Dictionary, fixture: Dictionary) -> bool:
+	var npc_id := "v67_3_runtime_offscreen"
+	var interior_id := str(fixture.get("interior_location_id", ""))
+	var exterior_id := str(fixture.get("exterior_location_id", ""))
+	var interior_target: Dictionary = fixture.get("interior_target", {}) as Dictionary
+	var exterior_target: Dictionary = fixture.get("exterior_target", {}) as Dictionary
+	var schedule := [
+		_same_location_entry(npc_id, "inside", "07:55", "07:59", interior_id, interior_target, "working inside"),
+		_cross_location_entry(npc_id, "depart", "08:00", "08:05", interior_id, interior_target, exterior_id, exterior_target, "interior_exit", str(exterior_target.get("anchor_id", "")), "leaving the building"),
+	]
+	if not _write_json(RUNTIME_CHARACTER_PATH, _runtime_character_definition(snapshot, npc_id, schedule)):
+		return false
+	var location_data := (fixture.get("interior_location", {}) as Dictionary).duplicate(true)
+	location_data["characters"] = [
+		_player_spawn_row({ "x": 1, "y": 1 }),
+		{
+			"id": npc_id,
+			"source": RUNTIME_CHARACTER_PATH,
+			"grid_position": { "x": 4, "y": 4 },
+			"facing": "down",
+		},
+	]
+	if not _write_json(RUNTIME_LOCATION_PATH, location_data):
+		return false
+
+	NpcScheduleSystem.reset_schedule_state()
+	TimeManager.reset(1, 8, 2)
+	NpcScheduleSystem.settle_offscreen_location(RUNTIME_LOCATION_PATH, _absolute_minutes(1, 7, 59), _absolute_minutes(1, 8, 2))
+	var exterior_summary: Dictionary = NpcScheduleSystem.get_offscreen_summary(exterior_id)
+	var settled := false
+	for state_value in (exterior_summary.get("characters", []) as Array):
+		var state: Dictionary = state_value as Dictionary
+		if str(state.get("character_id", "")) == npc_id and str(state.get("location_id", "")) == exterior_id:
+			settled = true
+	if not settled:
+		return _fail("v67.3 offscreen settle did not move NPC state to the target exterior location")
+
+	var instance := _instantiate_runtime_location(root, location_data, RUNTIME_LOCATION_PATH)
+	if instance == null:
+		return false
+	var grid: LocationGrid = instance.get_location_grid() if instance.has_method("get_location_grid") else null
+	if grid == null:
+		_cleanup_instance(instance)
+		return _fail("v67.3 offscreen source re-entry test did not expose a grid")
+	var character: CharacterEntity = grid.get_character_by_id(npc_id)
+	_cleanup_instance(instance)
+	NpcScheduleSystem.reset_schedule_state()
+	if character != null:
+		return _fail("v67.3 offscreen NPC reappeared in the source location after settling elsewhere")
 	return true
 
 
@@ -407,6 +697,209 @@ func _assignment_signature(snapshot: Dictionary) -> Array[Dictionary]:
 	return result
 
 
+func _runtime_fixture(snapshot: Dictionary) -> Dictionary:
+	var exterior_id := str(snapshot.get("exterior_location_id", ""))
+	var exterior_location: Dictionary = {}
+	for location_value in (snapshot.get("locations", []) as Array):
+		var location: Dictionary = location_value as Dictionary
+		if str(location.get("id", "")) == exterior_id:
+			exterior_location = location.duplicate(true)
+			break
+	if exterior_location.is_empty():
+		return {}
+
+	for manifest_value in (snapshot.get("generated_interiors", []) as Array):
+		var manifest: Dictionary = manifest_value as Dictionary
+		var interior_id := str(manifest.get("interior_location_id", ""))
+		var building_id := str(manifest.get("source_building_id", ""))
+		var interior_location := DefinitionLoader.resolve_location_by_id(interior_id)
+		if interior_location.is_empty():
+			continue
+		var interior_target := _first_interior_activity_target(manifest.get("schedule_targets", []) as Array)
+		if interior_target.is_empty():
+			continue
+		var exterior_target := _first_exterior_target_for_building(snapshot, building_id)
+		if exterior_target.is_empty():
+			continue
+		var anchors := _anchor_map(interior_location.get("anchors", []) as Array)
+		if not anchors.has("interior_entry") or not anchors.has("interior_exit"):
+			continue
+		return {
+			"exterior_location_id": exterior_id,
+			"exterior_location": exterior_location,
+			"interior_location_id": interior_id,
+			"interior_location": interior_location.duplicate(true),
+			"source_building_id": building_id,
+			"interior_target": interior_target,
+			"exterior_target": exterior_target,
+		}
+	return {}
+
+
+func _first_interior_activity_target(targets: Array) -> Dictionary:
+	for target_value in targets:
+		var target: Dictionary = target_value as Dictionary
+		var role := str(target.get("role", ""))
+		if role in ["interior_entry", "interior_exit"]:
+			continue
+		if (target.get("grid_position", {}) as Dictionary).is_empty():
+			continue
+		return target.duplicate(true)
+	return {}
+
+
+func _first_exterior_target_for_building(snapshot: Dictionary, building_id: String) -> Dictionary:
+	for preferred_role in ["building_entrance", "exterior_transition"]:
+		for target_value in (snapshot.get("schedule_targets", []) as Array):
+			var target: Dictionary = target_value as Dictionary
+			if str(target.get("source_building_id", "")) != building_id:
+				continue
+			if str(target.get("role", "")) != preferred_role:
+				continue
+			if (target.get("grid_position", {}) as Dictionary).is_empty():
+				continue
+			return target.duplicate(true)
+	return {}
+
+
+func _runtime_character_definition(snapshot: Dictionary, npc_id: String, schedule: Array) -> Dictionary:
+	var definitions: Array = snapshot.get("npc_definitions", []) as Array
+	var definition: Dictionary = (definitions[0] as Dictionary).duplicate(true) if not definitions.is_empty() else {}
+	definition["id"] = npc_id
+	definition["display_name"] = npc_id.capitalize().replace("_", " ")
+	definition["schedule"] = schedule.duplicate(true)
+	definition["generated"] = true
+	definition["is_player_controlled"] = false
+	definition["blocks_movement"] = true
+	return definition
+
+
+func _same_location_entry(npc_id: String, suffix: String, start_time: String, end_time: String, location_id: String, target: Dictionary, activity: String) -> Dictionary:
+	var anchor_id := str(target.get("anchor_id", ""))
+	var entry := {
+		"id": "%s__%s" % [npc_id, suffix],
+		"start": start_time,
+		"end": end_time,
+		"location_id": location_id,
+		"anchor_id": anchor_id,
+		"facing": str(target.get("facing", "down")),
+		"activity_type": "work",
+		"activity": activity,
+		"movement": "walk",
+		"source_location_id": location_id,
+		"source_anchor_id": anchor_id,
+		"target_location_id": location_id,
+		"target_anchor_id": anchor_id,
+		"transition_kind": "same_location",
+		"departure_location_id": location_id,
+		"departure_anchor_id": anchor_id,
+		"arrival_location_id": location_id,
+		"arrival_anchor_id": anchor_id,
+		"transition_anchor_by_location": {},
+	}
+	(entry.get("transition_anchor_by_location", {}) as Dictionary)[location_id] = anchor_id
+	if target.has("grid_position"):
+		entry["grid_position"] = (target.get("grid_position", {}) as Dictionary).duplicate(true)
+	if target.has("activity_cells"):
+		entry["activity_cells"] = (target.get("activity_cells", []) as Array).duplicate(true)
+	return entry
+
+
+func _cross_location_entry(
+	npc_id: String,
+	suffix: String,
+	start_time: String,
+	end_time: String,
+	source_location_id: String,
+	source_target: Dictionary,
+	target_location_id: String,
+	target: Dictionary,
+	source_transition_anchor_id: String,
+	target_transition_anchor_id: String,
+	activity: String
+) -> Dictionary:
+	var target_anchor_id := str(target.get("anchor_id", ""))
+	var source_anchor_id := str(source_target.get("anchor_id", ""))
+	var transition_anchors := {}
+	transition_anchors[source_location_id] = source_transition_anchor_id
+	transition_anchors[target_location_id] = target_transition_anchor_id
+	var entry := {
+		"id": "%s__%s" % [npc_id, suffix],
+		"start": start_time,
+		"end": end_time,
+		"location_id": target_location_id,
+		"anchor_id": target_anchor_id,
+		"facing": str(target.get("facing", "down")),
+		"activity_type": "travel",
+		"activity": activity,
+		"movement": "walk",
+		"source_location_id": source_location_id,
+		"source_anchor_id": source_anchor_id,
+		"target_location_id": target_location_id,
+		"target_anchor_id": target_anchor_id,
+		"transition_kind": "cross_location",
+		"departure_location_id": source_location_id,
+		"departure_anchor_id": source_transition_anchor_id,
+		"arrival_location_id": target_location_id,
+		"arrival_anchor_id": target_transition_anchor_id,
+		"transition_anchor_by_location": transition_anchors,
+	}
+	if target.has("grid_position"):
+		entry["grid_position"] = (target.get("grid_position", {}) as Dictionary).duplicate(true)
+	if target.has("activity_cells"):
+		entry["activity_cells"] = (target.get("activity_cells", []) as Array).duplicate(true)
+	if target.has("exterior_location_id"):
+		entry["exterior_location_id"] = str(target.get("exterior_location_id", ""))
+	if target.has("interior_location_id"):
+		entry["interior_location_id"] = str(target.get("interior_location_id", ""))
+	if target.has("exterior_anchor_id"):
+		entry["exterior_anchor_id"] = str(target.get("exterior_anchor_id", ""))
+	return entry
+
+
+func _player_spawn_row(cell: Dictionary) -> Dictionary:
+	return {
+		"id": "debug_player",
+		"source": "res://data/characters/debug_player.json",
+		"grid_position": cell.duplicate(true),
+		"facing": "down",
+		"is_player_controlled": true,
+	}
+
+
+func _instantiate_runtime_location(root: Node, location_data: Dictionary, path: String) -> Node:
+	var scene := load(BASIC_INTERIOR_SCENE) as PackedScene
+	if scene == null:
+		_fail("v67.3 runtime test could not load basic location shell")
+		return null
+	SceneLoader.consume_pending_location_context()
+	var instance := scene.instantiate()
+	instance.location_data_path = path
+	if instance.has_method("set_save_runtime_on_exit"):
+		instance.set_save_runtime_on_exit(false)
+	root.add_child(instance)
+	return instance
+
+
+func _tick_location(instance: Node, count: int) -> void:
+	if instance == null:
+		return
+	for _index in range(count):
+		if instance.has_method("_process"):
+			instance._process(0.30)
+
+
+func _anchor_cell(grid: LocationGrid, anchor_id: String) -> Vector2i:
+	if grid == null:
+		return Vector2i(-1, -1)
+	var anchor: Dictionary = grid.get_anchor(anchor_id)
+	return _cell_from_dict(anchor.get("grid_position", {}) as Dictionary)
+
+
+func _absolute_minutes(day: int, hour: int, minute: int) -> int:
+	return (maxi(day, 1) - 1) * TimeManager.MINUTES_PER_DAY + clampi(hour, 0, 23) * 60 + clampi(minute, 0, 59)
+
+
 func _write_json(path: String, payload: Dictionary) -> bool:
 	var file := FileAccess.open(path, FileAccess.WRITE)
 	if file == null:
@@ -414,11 +907,16 @@ func _write_json(path: String, payload: Dictionary) -> bool:
 	file.store_string(JSON.stringify(payload, "\t"))
 	file.close()
 	DefinitionLoader.clear_cache(path)
+	DefinitionLoader.clear_generated_runtime_cache()
 	return true
 
 
 func _cell_key_from_dict(value: Dictionary) -> String:
 	return "%d,%d" % [int(value.get("x", 0)), int(value.get("y", 0))]
+
+
+func _cell_from_dict(value: Dictionary) -> Vector2i:
+	return Vector2i(int(value.get("x", 0)), int(value.get("y", 0)))
 
 
 func _cell_key_from_vector(value: Vector2i) -> String:

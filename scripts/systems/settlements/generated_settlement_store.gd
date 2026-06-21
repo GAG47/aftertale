@@ -12,6 +12,15 @@ static func clear_runtime_cache() -> void:
 	pass
 
 
+static func clear_generated_data_for_active_context() -> void:
+	var root_path := _active_generated_root_path()
+	for child in ["settlements", "characters", "locations"]:
+		_remove_directory_recursive("%s/%s" % [root_path, child])
+	if SaveManager != null and SaveManager.has_method("clear_generated_settlement_index"):
+		SaveManager.clear_generated_settlement_index(false)
+	_clear_generated_runtime_cache()
+
+
 func has_snapshot(settlement_id: String) -> bool:
 	return FileAccess.file_exists(get_snapshot_path(settlement_id))
 
@@ -77,6 +86,15 @@ func delete_snapshot(settlement_id: String) -> void:
 	_remove_file_if_exists(indexed_path)
 	if indexed_path != expected_path:
 		_remove_file_if_exists(expected_path)
+
+
+func clear_generated_data_for_settlement(settlement_id: String) -> void:
+	if settlement_id.is_empty():
+		return
+	delete_snapshot(settlement_id)
+	if SaveManager != null and SaveManager.has_method("unregister_generated_settlement"):
+		SaveManager.unregister_generated_settlement(settlement_id, false)
+	_clear_generated_runtime_cache()
 
 
 func get_snapshot_path(settlement_id: String) -> String:
@@ -413,11 +431,32 @@ func _snapshot_has_location(snapshot: Dictionary, location_id: String) -> bool:
 
 
 func _generated_root_path() -> String:
+	return _active_generated_root_path()
+
+
+static func _active_generated_root_path() -> String:
 	if SaveManager != null and SaveManager.has_method("get_generated_root_path"):
 		var root_path := str(SaveManager.get_generated_root_path())
 		if not root_path.is_empty():
 			return root_path
 	return "user://saves/slot_1/worlds/default_world/generated"
+
+
+static func _clear_generated_runtime_cache() -> void:
+	if DefinitionLoader != null and DefinitionLoader.has_method("clear_generated_runtime_cache"):
+		DefinitionLoader.clear_generated_runtime_cache()
+
+
+static func _remove_directory_recursive(path: String) -> void:
+	var global_path := ProjectSettings.globalize_path(path)
+	var dir := DirAccess.open(global_path)
+	if dir == null:
+		return
+	for file_name in dir.get_files():
+		DirAccess.remove_absolute("%s/%s" % [global_path, file_name])
+	for directory_name in dir.get_directories():
+		_remove_directory_recursive("%s/%s" % [path, directory_name])
+	DirAccess.remove_absolute(global_path)
 
 
 func _register_with_save_manager(settlement_id: String, snapshot_path: String, snapshot: Dictionary) -> void:

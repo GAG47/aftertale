@@ -108,6 +108,16 @@ func settle_offscreen_location(location_data_path: String, from_absolute_minutes
 			"activity": str(active_entry.get("activity", "idle")),
 			"entry_id": str(active_entry.get("id", "")),
 			"movement": str(active_entry.get("movement", "walk")),
+			"transition_kind": str(active_entry.get("transition_kind", "same_location")),
+			"source_location_id": str(active_entry.get("source_location_id", location_id)),
+			"source_anchor_id": str(active_entry.get("source_anchor_id", "")),
+			"target_location_id": str(active_entry.get("target_location_id", scheduled_location_id)),
+			"target_anchor_id": str(active_entry.get("target_anchor_id", active_entry.get("anchor_id", ""))),
+			"departure_location_id": str(active_entry.get("departure_location_id", "")),
+			"departure_anchor_id": str(active_entry.get("departure_anchor_id", "")),
+			"arrival_location_id": str(active_entry.get("arrival_location_id", scheduled_location_id)),
+			"arrival_anchor_id": str(active_entry.get("arrival_anchor_id", "")),
+			"transition_anchor_by_location": (active_entry.get("transition_anchor_by_location", {}) as Dictionary).duplicate(true),
 		}
 		character_states.append(character_state)
 		if not states_by_location.has(scheduled_location_id):
