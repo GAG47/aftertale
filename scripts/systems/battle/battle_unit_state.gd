@@ -84,7 +84,7 @@ func apply_damage(amount: int) -> int:
 	defeated = hp <= 0
 	if _has_character():
 		character.set_combat_stats(hp, max_hp, defeated)
-		GameState.save_character_runtime(character)
+		_save_character_runtime()
 	return actual_damage
 
 
@@ -97,7 +97,7 @@ func apply_heal(amount: int) -> int:
 	var actual_heal: int = hp - before_hp
 	if _has_character():
 		character.set_combat_stats(hp, max_hp, defeated)
-		GameState.save_character_runtime(character)
+		_save_character_runtime()
 	return actual_heal
 
 
@@ -209,7 +209,19 @@ func _sync_magic_points_to_character() -> void:
 
 	character.attributes["mp"] = magic_points
 	character.attributes["max_mp"] = max_magic_points
-	GameState.save_character_runtime(character)
+	_save_character_runtime()
+
+
+func _save_character_runtime() -> void:
+	if not _has_character():
+		return
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null:
+		return
+	var game_state: Variant = tree.root.get_node_or_null("GameState")
+	if game_state == null:
+		return
+	game_state.save_character_runtime(character)
 
 
 func _get_status_text() -> String:

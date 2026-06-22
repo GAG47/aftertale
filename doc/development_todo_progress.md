@@ -5,7 +5,7 @@ This document tracks planned work after Phase 49. It is an index, not the full d
 ## Current Focus
 
 Phases 50 through 54 form the first complete battle-deepening slice. Phase 55
-restructured the full UI layer. Phases 56 through 60 move scene generation from
+restructured the full UI layer. Phases 56 through 61 move scene generation from
 a usable skeleton toward presentable generated places:
 
 - pipeline-based skill effects and battle resources;
@@ -23,8 +23,13 @@ a usable skeleton toward presentable generated places:
   slot materialization;
 - semantic town zones that select and discard parcel candidates before building
   placement;
-- road-first settlement generation that scans street frontage before placing
-  parcels and buildings.
+- open-auction settlement blueprint planning that commits road, plaza, parcel,
+  farm, training, gate, building bid, and decoration proposals before compiling
+  the existing v59 runtime location contract, with the default v60.3 path
+  rejecting compiler road recovery instead of hiding missing planner output.
+- cell-set parcels that can be irregular, while south-facing building cores are
+  fitted inside those parcel cells and yards/paths adapt to the final parcel
+  shape instead of forcing every old prefab exterior slot to materialize.
 
 ## Battle Deepening Roadmap
 
@@ -40,7 +45,8 @@ a usable skeleton toward presentable generated places:
 | v57 | Complete | `doc/phase_57_exterior_doors_and_interiors.md` | Stop exposing building interiors in the exterior village; enter buildings through interactive doors, then place exterior buildings through parcel contracts and placeholder prefab contracts. |
 | v58 | Complete | `doc/phase_58_prefab_exterior_presentation.md` | Move building prefabs into data, render parcel/frontage/foundation presentation layers, and materialize only prefab-declared exterior slots without global random decoration. |
 | v59 | Complete | `doc/phase_59_semantic_town_layout.md` | Interpret BSP leaves as district candidates, assign town roles from that graph, select building parcels by score, and expose F3 parcel debug presentation. |
-| v60 | Complete | `doc/phase_60_road_first_settlement_generation.md` | Replace the BSP-led village layout core with a road-first skeleton, frontage lot allocation, and street-facing prefab placement. |
+| v60 | Complete | `doc/phase_60_agent_settlement_blueprint_planner.md` | Replace the BSP-led village layout authority with an open-auction agent blueprint planner while preserving v59 parcels, prefabs, doors, interiors, anchors, and NPC schedule targets; v60.3 removes default compiler recovery, supports multi-side parcel access, and records planner-declared required goals. |
+| v61 | Complete | `doc/phase_61_adaptive_parcel_building_cores.md` | Replace rectangular prefab-lot assumptions with organically grown cell-set parcels, protect required settlement goals with priority-filtered auction arbitration, fit only south-facing building cores inside parcel cells, and report adaptation failures instead of hiding them. |
 
 ## Dependency Order
 
@@ -55,7 +61,8 @@ v50 skill effect data model
 -> v57 exterior doors and generated interiors
 -> v58 prefab exterior presentation and slot materialization
 -> v59 semantic town layout
--> v60 road-first settlement generation
+-> v60 agent settlement blueprint planning
+-> v61 adaptive parcel building cores
 ```
 
 ## Minimum Tactical Slice

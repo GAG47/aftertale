@@ -137,4 +137,3 @@ Completed checks:
 - Location data validation passes.
 - The implemented rule uses `LocationGrid` anchors and `NpcMovementAgent`; it does not create a separate movement path.
 - Character summaries expose the active interruption reason and priority for debugging.
-

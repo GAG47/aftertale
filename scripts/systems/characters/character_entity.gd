@@ -602,7 +602,10 @@ func get_facing_cell() -> Vector2i:
 
 
 func _read_item_definition(resource_path: String) -> Dictionary:
-	return DefinitionLoader.load_item(resource_path)
+	var loader: Variant = get_node_or_null("/root/DefinitionLoader")
+	if loader == null:
+		return {}
+	return loader.load_item(resource_path)
 
 
 func _apply_default_equipment(definition: Dictionary, spawn_data: Dictionary) -> void:

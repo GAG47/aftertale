@@ -19,13 +19,13 @@ doc/         设计文档、架构记录和工程说明。
 ```text
 assets/
   art/
-    characters/
-    tilesets/
-    objects/
-    ui/
+	characters/
+	tilesets/
+	objects/
+	ui/
   audio/
-    music/
-    sfx/
+	music/
+	sfx/
   fonts/
 
 data/
@@ -53,20 +53,20 @@ scenes/
   objects/
   combat/
   ui/
-    screens/
-    components/
+	screens/
+	components/
 
 scripts/
   core/
   systems/
-    actions/
-    characters/
-    scenes/
-    items/
-    dialogues/
-    quests/
-    time/
-    combat/
+	actions/
+	characters/
+	scenes/
+	items/
+	dialogues/
+	quests/
+	time/
+	combat/
   ui/
   debug/
 

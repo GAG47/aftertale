@@ -5,8 +5,8 @@
 Complete.
 
 Superseded as the active layout authority by Phase 60. Phase 59 remains the
-historical record of the BSP district-graph attempt; the current generator uses
-road-first frontage allocation instead of BSP leaves.
+historical record of the BSP district-graph attempt; the current default
+generator uses the v60 agent settlement blueprint planner instead of BSP leaves.
 
 ## Goal
 

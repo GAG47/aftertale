@@ -193,7 +193,10 @@ func get_facility_data() -> Dictionary:
 
 
 func _read_item_definition(resource_path: String) -> Dictionary:
-	return DefinitionLoader.load_item(resource_path)
+	var loader: Variant = get_node_or_null("/root/DefinitionLoader")
+	if loader == null:
+		return {}
+	return loader.load_item(resource_path)
 
 
 func _draw_shadow() -> void:

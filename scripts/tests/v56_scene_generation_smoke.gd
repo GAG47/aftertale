@@ -8,7 +8,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	var source_data: Dictionary = DefinitionLoader.load_location("res://data/locations/test_village.json")
+	var source_data: Dictionary = _load_json_resource("res://data/locations/test_village.json")
 	var generator: RefCounted = VillageRoadGeneratorScript.new()
 	var generated: Dictionary = generator.generate_location(source_data)
 	var grid: LocationGrid = LocationGrid.from_dictionary(generated)
@@ -151,7 +151,9 @@ func _run() -> void:
 			return
 		var declared_slots: Array = prefab_contract.get("exterior_slots", []) as Array
 		var materialized_slots: Array = building.get("materialized_exterior_slots", []) as Array
-		if materialized_slots.size() != declared_slots.size():
+		var core_placement: Dictionary = building.get("core_placement", {}) as Dictionary
+		var uses_adaptive_core := str(core_placement.get("model", "")) == "south_door_core_fitted_to_parcel_cells"
+		if not uses_adaptive_core and materialized_slots.size() != declared_slots.size():
 			_fail("v58 generated building did not materialize all declared exterior slots: %s" % building_id)
 			return
 
@@ -238,6 +240,16 @@ func _blocking_object_cells(generated: Dictionary) -> Dictionary:
 		var cell: Vector2i = _cell_from_dict(object_data.get("grid_position", {}) as Dictionary)
 		blockers[_cell_key(cell)] = str(object_data.get("id", ""))
 	return blockers
+
+
+func _load_json_resource(resource_path: String) -> Dictionary:
+	var file := FileAccess.open(resource_path, FileAccess.READ)
+	if file == null:
+		return {}
+	var parsed: Variant = JSON.parse_string(file.get_as_text())
+	if parsed is Dictionary:
+		return (parsed as Dictionary).duplicate(true)
+	return {}
 
 
 func _has_reachable_adjacent_cell(grid: LocationGrid, start_cell: Vector2i, target_cell: Vector2i, blockers: Dictionary) -> bool:

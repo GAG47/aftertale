@@ -7,6 +7,7 @@ const GENERATED_INTERIOR_SCENE_PATH := "res://scenes/locations/generated_buildin
 
 var _json_cache: Dictionary = {}
 var _resolved_locations_by_id: Dictionary = {}
+var _resolved_location_id_by_resource_path: Dictionary = {}
 var _generated_location_contexts_by_id: Dictionary = {}
 var _location_data_path_by_id: Dictionary = {}
 var _location_scene_path_by_id: Dictionary = {}
@@ -40,6 +41,11 @@ func load_location(resource_path: String) -> Dictionary:
 
 
 func load_resolved_location(resource_path: String, context: Dictionary = {}) -> Dictionary:
+	if context.is_empty() and _resolved_location_id_by_resource_path.has(resource_path):
+		var cached_location_id := str(_resolved_location_id_by_resource_path.get(resource_path, ""))
+		if _resolved_locations_by_id.has(cached_location_id):
+			return (_resolved_locations_by_id[cached_location_id] as Dictionary).duplicate(true)
+
 	var location_data: Dictionary = load_location(resource_path)
 	if location_data.is_empty():
 		return {}
@@ -54,15 +60,15 @@ func materialize_location(location_data: Dictionary, resource_path: String = "",
 		"village_road":
 			var generator: RefCounted = VillageRoadGenerator.new()
 			var generated: Dictionary = generator.generate_location(location_data)
-			_register_resolved_location(generated, resource_path, "")
+			_register_resolved_location(generated, resource_path, "", context.is_empty())
 			return generated.duplicate(true)
 		"building_interior":
 			var generator: RefCounted = BuildingInteriorGenerator.new()
 			var generated: Dictionary = generator.generate_location(location_data, context)
-			_register_resolved_location(generated, resource_path, GENERATED_INTERIOR_SCENE_PATH)
+			_register_resolved_location(generated, resource_path, GENERATED_INTERIOR_SCENE_PATH, context.is_empty())
 			return generated.duplicate(true)
 		_:
-			_register_resolved_location(location_data, resource_path, "")
+			_register_resolved_location(location_data, resource_path, "", context.is_empty())
 			return location_data.duplicate(true)
 
 
@@ -93,7 +99,7 @@ func get_location_data_path(location_id: String) -> String:
 	return str(_location_data_path_by_id.get(location_id, ""))
 
 
-func _register_resolved_location(location_data: Dictionary, resource_path: String, scene_path: String) -> void:
+func _register_resolved_location(location_data: Dictionary, resource_path: String, scene_path: String, cache_by_resource_path: bool = true) -> void:
 	var location_id := str(location_data.get("id", ""))
 	if location_id.is_empty():
 		return
@@ -101,6 +107,8 @@ func _register_resolved_location(location_data: Dictionary, resource_path: Strin
 	_resolved_locations_by_id[location_id] = location_data.duplicate(true)
 	if not resource_path.is_empty():
 		_location_data_path_by_id[location_id] = resource_path
+		if cache_by_resource_path:
+			_resolved_location_id_by_resource_path[resource_path] = location_id
 	if not scene_path.is_empty():
 		_location_scene_path_by_id[location_id] = scene_path
 
@@ -161,9 +169,16 @@ func clear_cache(resource_path: String = "") -> void:
 	if resource_path.is_empty():
 		_json_cache.clear()
 		_resolved_locations_by_id.clear()
+		_resolved_location_id_by_resource_path.clear()
 		_generated_location_contexts_by_id.clear()
 		_location_data_path_by_id.clear()
 		_location_scene_path_by_id.clear()
 		return
 
+	var cached_location_id := str(_resolved_location_id_by_resource_path.get(resource_path, ""))
 	_json_cache.erase(resource_path)
+	_resolved_location_id_by_resource_path.erase(resource_path)
+	if not cached_location_id.is_empty():
+		_resolved_locations_by_id.erase(cached_location_id)
+		_location_data_path_by_id.erase(cached_location_id)
+		_location_scene_path_by_id.erase(cached_location_id)

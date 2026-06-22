@@ -5,6 +5,7 @@ const DEFAULT_WIDTH := 36
 const DEFAULT_HEIGHT := 24
 const DEFAULT_TILE_SIZE := 32
 const DEFAULT_BUILDING_PREFAB_CATALOG := "res://data/generation/building_prefabs.json"
+const AgentSettlementPlannerScript := preload("res://scripts/systems/scenes/agent_settlement_planner.gd")
 const BuildingPrefabCatalogScript := preload("res://scripts/systems/scenes/building_prefab_catalog.gd")
 
 var _rng := RandomNumberGenerator.new()
@@ -17,13 +18,16 @@ var _anchor_cells: Dictionary = {}
 var _connector_cells: Dictionary = {}
 var _road_blockers: Dictionary = {}
 var _placement_log: Array[Dictionary] = []
+var _compiler_recovery_log: Array[Dictionary] = []
 var _parcels: Array[Dictionary] = []
 var _building_instances: Array[Dictionary] = []
 var _interior_manifests: Array[Dictionary] = []
 var _town_character_rows: Array[Dictionary] = []
+var _building_adaptation_failures: Array[Dictionary] = []
 var _building_prefabs: Array[Dictionary] = []
 var _building_prefab_catalog_path: String = DEFAULT_BUILDING_PREFAB_CATALOG
 var _generated: Dictionary = {}
+var _uses_legacy_layout: bool = false
 
 
 func generate_location(source_data: Dictionary) -> Dictionary:
@@ -38,10 +42,24 @@ func generate_location(source_data: Dictionary) -> Dictionary:
 	if _building_prefabs.is_empty():
 		push_error("VillageRoadGenerator has no building prefabs from catalog: %s" % _building_prefab_catalog_path)
 
-	var road_plan: Dictionary = _build_road_plan()
+	var planner_blueprint: Dictionary = {}
+	var road_plan: Dictionary = {}
+	var uses_legacy_layout := _layout_uses_legacy_road_first(generator_data)
+	_uses_legacy_layout = uses_legacy_layout
 	_generated = _base_location(source_data)
-	_apply_road_skeleton(road_plan)
-	var plan: Dictionary = _assign_town_plan(road_plan)
+	var generated_state: Dictionary = _generated.get("state", {}) as Dictionary
+	generated_state["generation"] = "legacy_village_road_first" if uses_legacy_layout else "agent_settlement_blueprint"
+	_generated["state"] = generated_state
+	var plan: Dictionary = {}
+	if uses_legacy_layout:
+		road_plan = _build_road_plan()
+		_apply_road_skeleton(road_plan)
+		plan = _assign_town_plan(road_plan)
+	else:
+		planner_blueprint = _run_agent_blueprint_planner(source_data, generator_data)
+		road_plan = _road_plan_from_agent_blueprint(planner_blueprint)
+		_apply_planner_roads(road_plan)
+		plan = _compile_agent_blueprint_plan(planner_blueprint)
 
 	_apply_plaza(plan.get("plaza", {}) as Dictionary)
 	_apply_farm(plan.get("farm", {}) as Dictionary)
@@ -59,18 +77,29 @@ func generate_location(source_data: Dictionary) -> Dictionary:
 			building.get("prefab", {}) as Dictionary,
 			building.get("placement", {}) as Dictionary
 		)
-	_connect_key_places()
+	if uses_legacy_layout:
+		_connect_key_places(true)
+	_apply_planned_decorations(plan.get("decoration_slots", []) as Array)
 	_add_common_decorations()
 	_add_generated_characters()
 	_refresh_interior_character_contexts()
 	_generated["tiles"] = _stringify_tiles()
 	_generated["generation_summary"] = {
-		"type": "village_road_first",
+		"type": "legacy_village_road_first" if uses_legacy_layout else "agent_settlement_blueprint",
 		"seed": int(generator_data.get("seed", 5601)),
+		"default_layout_authority": "legacy_road_first" if uses_legacy_layout else "agent_settlement_planner",
+		"uses_bsp_layout": false,
 		"road_cell_count": (road_plan.get("road_cells", []) as Array).size(),
 		"frontage_candidate_count": (plan.get("frontage_candidates", []) as Array).size(),
+		"planner": planner_blueprint.get("planning_summary", {}) if not planner_blueprint.is_empty() else {},
 		"anchor_count": (_generated.get("anchors", []) as Array).size(),
 		"object_count": (_generated.get("objects", []) as Array).size(),
+		"compiler_recovery_count": _compiler_recovery_log.size(),
+		"compiler_recovery_log": _compiler_recovery_log.duplicate(true),
+		"parcel_shape_model": "cell_set_organic_growth_lot" if not uses_legacy_layout else "rectangular_legacy_lot",
+		"building_placement_model": "south_door_core_fitted_to_parcel_cells" if not uses_legacy_layout else "legacy_frontage_prefab_fit",
+		"building_adaptation_failure_count": _building_adaptation_failures.size(),
+		"building_adaptation_failures": _building_adaptation_failures.duplicate(true),
 		"placement_log": _placement_log.duplicate(true),
 	}
 	var contract_errors: Array[String] = validate_location_contract(_generated)
@@ -93,6 +122,20 @@ func validate_location_contract(location_data: Dictionary) -> Array[String]:
 		return errors
 	if not _contract_is_open_cell(grid, plaza_cell, blockers):
 		errors.append("plaza entrance is blocked")
+	errors.append_array(_contract_validate_road_network(grid))
+	var generation_summary: Dictionary = location_data.get("generation_summary", {}) as Dictionary
+	var is_agent_settlement := str(generation_summary.get("type", "")) == "agent_settlement_blueprint"
+	if is_agent_settlement and int(generation_summary.get("compiler_recovery_count", 0)) > 0:
+		errors.append("agent settlement used compiler path recovery: %s" % str(generation_summary.get("compiler_recovery_log", [])))
+	if is_agent_settlement:
+		if str(generation_summary.get("parcel_shape_model", "")) != "cell_set_organic_growth_lot":
+			errors.append("agent settlement must expose organic cell-set parcel shape model")
+		if str(generation_summary.get("building_placement_model", "")) != "south_door_core_fitted_to_parcel_cells":
+			errors.append("agent settlement must fit south-door building cores into parcel cells")
+		for failure_value in (generation_summary.get("building_adaptation_failures", []) as Array):
+			var failure: Dictionary = failure_value as Dictionary
+			if bool(failure.get("required", false)):
+				errors.append("required building core adaptation failed: %s" % str(failure))
 
 	var town_zone_ids: Dictionary = {}
 	for zone_value in (location_data.get("town_zones", []) as Array):
@@ -104,11 +147,15 @@ func validate_location_contract(location_data: Dictionary) -> Array[String]:
 		town_zone_ids[zone_id] = true
 	if town_zone_ids.is_empty():
 		errors.append("generated village missing semantic town zones")
-	for required_zone in ["plaza", "residential", "market", "farm", "training", "gate"]:
+	var required_zone_ids := _contract_required_zone_ids(location_data)
+	if _contract_is_agent_settlement(location_data) and required_zone_ids.is_empty():
+		errors.append("agent planner summary missing required_zone_ids")
+	for required_zone in required_zone_ids:
 		if not town_zone_ids.has(required_zone):
 			errors.append("generated village missing required town zone: %s" % required_zone)
 
 	var parcel_ids: Dictionary = {}
+	var parcel_cell_keys_by_id: Dictionary = {}
 	for parcel_value in (location_data.get("parcels", []) as Array):
 		var parcel: Dictionary = parcel_value as Dictionary
 		var parcel_id := str(parcel.get("id", ""))
@@ -118,6 +165,9 @@ func validate_location_contract(location_data: Dictionary) -> Array[String]:
 		parcel_ids[parcel_id] = true
 		if str(parcel.get("door_side", "")) != "south":
 			errors.append("ordinary parcel door_side must be south: %s" % parcel_id)
+		var access_side := str(parcel.get("access_side", ""))
+		if access_side.is_empty() or not ["north", "east", "south", "west"].has(access_side):
+			errors.append("parcel missing valid access_side: %s" % parcel_id)
 		if (parcel.get("door_slot", {}) as Dictionary).is_empty():
 			errors.append("parcel missing door_slot: %s" % parcel_id)
 		if (parcel.get("road_anchor", {}) as Dictionary).is_empty():
@@ -127,6 +177,19 @@ func validate_location_contract(location_data: Dictionary) -> Array[String]:
 			errors.append("parcel missing semantic_zone_id: %s" % parcel_id)
 		elif not town_zone_ids.has(semantic_zone_id):
 			errors.append("parcel references missing semantic town zone: %s / %s" % [parcel_id, semantic_zone_id])
+		var parcel_cells: Array = parcel.get("cells", []) as Array
+		var parcel_cell_keys := _parcel_cell_key_set(parcel, not is_agent_settlement)
+		parcel_cell_keys_by_id[parcel_id] = parcel_cell_keys
+		if is_agent_settlement:
+			if parcel_cells.is_empty():
+				errors.append("agent parcel missing cell set: %s" % parcel_id)
+			if int(parcel.get("cell_count", -1)) != parcel_cells.size():
+				errors.append("agent parcel cell_count does not match cells: %s" % parcel_id)
+			if not str(parcel.get("shape_model", "")).begins_with("cell_set"):
+				errors.append("agent parcel missing cell-set shape model: %s" % parcel_id)
+			var access_cell := _cell_from_dict(parcel.get("access_cell", {}) as Dictionary)
+			if access_cell == Vector2i(-1, -1) or not parcel_cell_keys.has(_cell_key(access_cell)):
+				errors.append("agent parcel access cell is outside parcel cells: %s" % parcel_id)
 
 	var prefab_ids: Dictionary = {}
 	for prefab_value in (location_data.get("building_prefabs", []) as Array):
@@ -186,13 +249,45 @@ func validate_location_contract(location_data: Dictionary) -> Array[String]:
 			errors.append("building missing prefab-only exterior slot contract: %s" % building_id)
 		var declared_slots: Array = prefab_contract.get("exterior_slots", []) as Array
 		var materialized_slots: Array = building.get("materialized_exterior_slots", []) as Array
-		if materialized_slots.size() != declared_slots.size():
+		var core_placement: Dictionary = building.get("core_placement", {}) as Dictionary
+		var uses_adaptive_core := str(core_placement.get("model", "")) == "south_door_core_fitted_to_parcel_cells"
+		if not uses_adaptive_core and materialized_slots.size() != declared_slots.size():
 			errors.append("building did not materialize all declared exterior slots: %s" % building_id)
+		if is_agent_settlement:
+			if not uses_adaptive_core:
+				errors.append("agent building missing adaptive core placement record: %s" % building_id)
+			if str(core_placement.get("door_policy", "")) != "south_only":
+				errors.append("agent building core does not enforce south-only doors: %s" % building_id)
+			var parcel_cell_keys: Dictionary = parcel_cell_keys_by_id.get(parcel_id, {}) as Dictionary
+			if parcel_cell_keys.is_empty():
+				errors.append("agent building parcel has no cell keys: %s / %s" % [building_id, parcel_id])
+			else:
+				var bounds: Dictionary = building.get("bounds", {}) as Dictionary
+				if not _rect_inside_cell_set(bounds, parcel_cell_keys):
+					errors.append("agent building core footprint is outside parcel cells: %s" % building_id)
+				var door := _cell_from_dict(building.get("door", {}) as Dictionary)
+				var doorstep := _cell_from_dict(building.get("doorstep", {}) as Dictionary)
+				if door.y != int(bounds.get("y", 0)) + int(bounds.get("h", 0)) - 1:
+					errors.append("agent building door is not on south edge: %s" % building_id)
+				if not parcel_cell_keys.has(_cell_key(door)):
+					errors.append("agent building door is outside parcel cells: %s" % building_id)
+				if not parcel_cell_keys.has(_cell_key(doorstep)):
+					errors.append("agent building doorstep is outside parcel cells: %s" % building_id)
+				for path_value in (building.get("yard_path", []) as Array):
+					var path_cell := _cell_from_dict(path_value as Dictionary)
+					if not parcel_cell_keys.has(_cell_key(path_cell)):
+						errors.append("agent building yard path leaves parcel cells: %s at %s" % [building_id, path_cell])
+				for yard_value in (building.get("yard_cells", []) as Array):
+					var yard_cell := _cell_from_dict(yard_value as Dictionary)
+					if not parcel_cell_keys.has(_cell_key(yard_cell)):
+						errors.append("agent building yard cell leaves parcel cells: %s at %s" % [building_id, yard_cell])
 
 	var building_count := (location_data.get("buildings", []) as Array).size()
 	for overlay_type in floor_overlay_counts.keys():
 		if int(floor_overlay_counts.get(overlay_type, 0)) < building_count:
 			errors.append("missing parcel presentation overlay type: %s" % str(overlay_type))
+	errors.append_array(_contract_validate_required_buildings(location_data))
+	errors.append_array(_contract_validate_interiors_and_transitions(location_data, grid, blockers, plaza_cell))
 
 	var required_anchor_ids: Array[String] = [
 		"plaza_social_spot",
@@ -247,8 +342,16 @@ func validate_location_contract(location_data: Dictionary) -> Array[String]:
 			var anchor_id: String = str(entry.get("anchor_id", ""))
 			if anchor_id.is_empty():
 				errors.append("schedule entry missing anchor_id: %s / %s" % [str(character.get("id", "")), str(entry.get("id", ""))])
-			elif scheduled_location_id == str(location_data.get("id", "")) and grid.get_anchor(anchor_id).is_empty():
-				errors.append("schedule references missing anchor: %s" % anchor_id)
+			elif scheduled_location_id == str(location_data.get("id", "")):
+				var schedule_anchor: Dictionary = grid.get_anchor(anchor_id)
+				if schedule_anchor.is_empty():
+					errors.append("schedule references missing anchor: %s" % anchor_id)
+				else:
+					var schedule_anchor_cell: Vector2i = _cell_from_dict(schedule_anchor.get("grid_position", {}) as Dictionary)
+					if not _contract_is_open_cell(grid, schedule_anchor_cell, blockers):
+						errors.append("schedule anchor is blocked: %s at %s" % [anchor_id, schedule_anchor_cell])
+					elif not _contract_has_path(grid, plaza_cell, schedule_anchor_cell, blockers):
+						errors.append("schedule anchor is unreachable: %s at %s" % [anchor_id, schedule_anchor_cell])
 			elif scheduled_location_id != str(location_data.get("id", "")):
 				var anchors_by_location: Dictionary = entry.get("transition_anchor_by_location", {}) as Dictionary
 				var transition_anchor_id := str(anchors_by_location.get(str(location_data.get("id", "")), ""))
@@ -256,8 +359,12 @@ func validate_location_contract(location_data: Dictionary) -> Array[String]:
 					errors.append("cross-scene schedule missing transition anchor for source location: %s / %s" % [str(character.get("id", "")), str(entry.get("id", ""))])
 				elif grid.get_anchor(transition_anchor_id).is_empty():
 					errors.append("cross-scene schedule references missing transition anchor: %s" % transition_anchor_id)
+				if not _contract_schedule_interior_anchor_is_valid(location_data, scheduled_location_id, anchor_id):
+					errors.append("cross-scene schedule references invalid interior anchor: %s / %s" % [scheduled_location_id, anchor_id])
 			if entry.has("grid_position"):
 				errors.append("schedule entry should not hand-author grid_position: %s / %s" % [str(character.get("id", "")), str(entry.get("id", ""))])
+
+	errors.append_array(_contract_validate_decoration_slots(location_data, required_anchor_ids))
 
 	return errors
 
@@ -284,6 +391,7 @@ func _base_location(source_data: Dictionary) -> Dictionary:
 		"characters": [],
 		"town_zones": [],
 		"parcels": [],
+		"building_requests": [],
 		"buildings": [],
 		"building_prefab_catalog": _building_prefab_catalog_path,
 		"building_prefabs": _building_prefabs.duplicate(true),
@@ -292,7 +400,7 @@ func _base_location(source_data: Dictionary) -> Dictionary:
 		"state": {
 			"danger_level": 0,
 			"owner_faction": "field_neutral",
-			"generation": "village_road_first",
+			"generation": "agent_settlement_blueprint",
 		},
 	}
 
@@ -320,16 +428,105 @@ func _reset_tiles() -> void:
 	_connector_cells.clear()
 	_road_blockers.clear()
 	_placement_log.clear()
+	_compiler_recovery_log.clear()
 	_parcels.clear()
 	_building_instances.clear()
 	_interior_manifests.clear()
 	_town_character_rows.clear()
+	_building_adaptation_failures.clear()
 	_building_prefabs.clear()
 	for y in range(_height):
 		var row: Array = []
 		for _x in range(_width):
 			row.append("g")
 		_tiles.append(row)
+
+
+func _layout_uses_legacy_road_first(generator_data: Dictionary) -> bool:
+	return str(generator_data.get("layout_planner", "agent_settlement_planner")) == "legacy_road_first"
+
+
+func _run_agent_blueprint_planner(source_data: Dictionary, generator_data: Dictionary) -> Dictionary:
+	var planner: RefCounted = AgentSettlementPlannerScript.new()
+	return planner.plan({
+		"source_location_id": str(source_data.get("id", "test_village")),
+		"seed": int(generator_data.get("seed", 5601)),
+		"width": _width,
+		"height": _height,
+		"planning_steps": int(generator_data.get("planning_steps", 72)),
+		"building_requests": _building_requests(),
+	})
+
+
+func _road_plan_from_agent_blueprint(blueprint: Dictionary) -> Dictionary:
+	return {
+		"main_path": [],
+		"branch_paths": [],
+		"road_cells": (blueprint.get("road_cells", []) as Array).duplicate(),
+		"plaza": (blueprint.get("plaza", {}) as Dictionary).duplicate(true),
+		"farm": (blueprint.get("farm", {}) as Dictionary).duplicate(true),
+		"training": (blueprint.get("training", {}) as Dictionary).duplicate(true),
+		"wild_gate": (blueprint.get("wild_gate", {}) as Dictionary).duplicate(true),
+	}
+
+
+func _compile_agent_blueprint_plan(blueprint: Dictionary) -> Dictionary:
+	var plaza_rect: Dictionary = blueprint.get("plaza", {}) as Dictionary
+	var farm_rect: Dictionary = blueprint.get("farm", {}) as Dictionary
+	var training_rect: Dictionary = blueprint.get("training", {}) as Dictionary
+	var wild_gate_rect: Dictionary = blueprint.get("wild_gate", {}) as Dictionary
+	var buildings: Array[Dictionary] = []
+	var building_requests: Array[Dictionary] = []
+	var parcel_index := 0
+	for request_value in (blueprint.get("building_requests", []) as Array):
+		var planned_request: Dictionary = request_value as Dictionary
+		var spec: Dictionary = planned_request.get("request", {}) as Dictionary
+		var lot: Dictionary = planned_request.get("lot", {}) as Dictionary
+		if spec.is_empty() or lot.is_empty():
+			continue
+		parcel_index += 1
+		var parcel := _parcel_from_frontage_lot(lot, spec, "parcel_%03d" % parcel_index)
+		var placement := _choose_prefab_placement(parcel, spec)
+		if placement.is_empty():
+			_add_placement_log(str(spec.get("id", "")), lot, "skipped: agent parcel did not fit any prefab placement")
+			_record_building_adaptation_failure(spec, lot, "no south-door building core fits parcel cell set")
+			continue
+		var prefab: Dictionary = placement.get("prefab", {}) as Dictionary
+		buildings.append({
+			"spec": spec.duplicate(true),
+			"lot": lot.duplicate(true),
+			"parcel": parcel,
+			"prefab": prefab,
+			"placement": placement,
+		})
+		building_requests.append({
+			"id": str(spec.get("id", "")),
+			"role": str(spec.get("role", "")),
+			"zone_type": str(spec.get("zone_type", "")),
+			"parcel_id": str(parcel.get("id", "")),
+			"semantic_zone_id": str(parcel.get("semantic_zone_id", "")),
+			"prefab_id": str(prefab.get("id", "")),
+			"source": "agent_building_role",
+		})
+
+	_generated["building_requests"] = building_requests
+	_generated["town_zones"] = _town_zone_rows_from_road_plan(
+		plaza_rect,
+		farm_rect,
+		training_rect,
+		wild_gate_rect,
+		buildings,
+		"agent_blueprint_assignment"
+	)
+	return {
+		"plaza": plaza_rect,
+		"wild_gate": wild_gate_rect,
+		"farm": farm_rect,
+		"training": training_rect,
+		"buildings": buildings,
+		"frontage_candidates": (blueprint.get("frontage_candidates", []) as Array).duplicate(true),
+		"decoration_slots": (blueprint.get("decoration_slots", []) as Array).duplicate(true),
+	}
 
 
 func _build_road_plan() -> Dictionary:
@@ -435,6 +632,14 @@ func _apply_road_skeleton(road_plan: Dictionary) -> void:
 	}, "road-first skeleton is generated before zones, parcels, buildings, and anchors")
 
 
+func _apply_planner_roads(road_plan: Dictionary) -> void:
+	for cell_value in (road_plan.get("road_cells", []) as Array):
+		_set_path_tile(cell_value as Vector2i)
+	_add_placement_log("planner_road_commits", {
+		"road_cell_count": (road_plan.get("road_cells", []) as Array).size(),
+	}, "agent-committed road cells materialized without compiler path recovery")
+
+
 func _assign_town_plan(road_plan: Dictionary) -> Dictionary:
 	var plaza_rect: Dictionary = road_plan.get("plaza", {}) as Dictionary
 	var farm_rect: Dictionary = road_plan.get("farm", {}) as Dictionary
@@ -507,7 +712,8 @@ func _town_zone_rows_from_road_plan(
 	farm_rect: Dictionary,
 	training_rect: Dictionary,
 	wild_gate_rect: Dictionary,
-	buildings: Array[Dictionary]
+	buildings: Array[Dictionary],
+	source: String = "road_frontage_assignment"
 ) -> Array[Dictionary]:
 	var bounds_by_zone: Dictionary = {
 		"plaza": plaza_rect.duplicate(true),
@@ -544,7 +750,7 @@ func _town_zone_rows_from_road_plan(
 			"id": str(zone_id),
 			"type": str(type_by_zone.get(str(zone_id), "road_frontage_zone")),
 			"bounds": (bounds_by_zone.get(zone_id, {}) as Dictionary).duplicate(true),
-			"source": "road_frontage_assignment",
+			"source": source,
 		})
 	return rows
 
@@ -785,14 +991,27 @@ func _parcel_from_frontage_lot(lot: Dictionary, request: Dictionary, parcel_id: 
 		"w": max(1, int(bounds.get("w", 0)) - margin * 2),
 		"h": max(1, int(bounds.get("h", 0))),
 	}
+	var parcel_cells: Array[Dictionary] = (lot.get("cells", []) as Array).duplicate(true)
+	if parcel_cells.is_empty():
+		if _uses_legacy_layout:
+			parcel_cells = _rect_cell_dicts(bounds)
+	var buildable_cells := _cells_inside_rect(parcel_cells, buildable_area)
 	return {
 		"id": parcel_id,
 		"district_id": str(lot.get("semantic_zone_id", request.get("preference", "village"))),
 		"semantic_zone_id": str(lot.get("semantic_zone_id", "")),
 		"bounds": bounds,
+		"shape_model": str(lot.get("shape_model", "rectangular_legacy_lot" if _uses_legacy_layout else "cell_set_missing_lot")),
+		"growth_model": str(lot.get("growth_model", "legacy_rectangular_frontage" if _uses_legacy_layout else "")),
+		"cells": parcel_cells,
+		"cell_count": parcel_cells.size(),
+		"organic_target_cell_count": int(lot.get("organic_target_cell_count", parcel_cells.size())),
 		"buildable_area": buildable_area,
+		"buildable_cells": buildable_cells,
 		"frontage_cell": (lot.get("frontage_cell", {}) as Dictionary).duplicate(true),
-		"frontage_side": "south",
+		"access_cell": (lot.get("access_cell", lot.get("frontage_cell", {})) as Dictionary).duplicate(true),
+		"access_side": str(lot.get("access_side", lot.get("frontage_side", "south"))),
+		"frontage_side": str(lot.get("frontage_side", lot.get("access_side", "south"))),
 		"door_side": "south",
 		"allowed_archetypes": (request.get("allowed_archetypes", []) as Array).duplicate(),
 		"yard_policy": str(request.get("yard_policy", "clear_frontage")),
@@ -839,45 +1058,60 @@ func _placement_for_prefab(parcel: Dictionary, request: Dictionary, prefab: Dict
 	if w > int(buildable.get("w", 0)) or h + clearance > int(buildable.get("h", 0)):
 		return {}
 
-	var frontage_cell := _cell_from_dict(parcel.get("frontage_cell", {}) as Dictionary)
-	var x: int = int(buildable.get("x", 0)) + int((int(buildable.get("w", 0)) - w) / 2)
-	var y: int = int(buildable.get("y", 0)) + maxi(0, int((int(buildable.get("h", 0)) - h - clearance) / 2))
-	if frontage_cell != Vector2i(-1, -1):
-		var door_offset := int(prefab.get("door_offset", int(w / 2)))
-		x = frontage_cell.x - door_offset
-		y = frontage_cell.y - clearance - h
-		if x < int(buildable.get("x", 0)):
-			return {}
-		if x + w > int(buildable.get("x", 0)) + int(buildable.get("w", 0)):
-			return {}
-		if y < int(buildable.get("y", 0)):
-			return {}
-		if y + h + clearance > int(buildable.get("y", 0)) + int(buildable.get("h", 0)):
-			return {}
-
-	var rect: Dictionary = { "x": x, "y": y, "w": w, "h": h }
-	var door_info: Dictionary = _south_door_for_prefab(rect, prefab)
-	if not _building_frontage_is_valid(door_info):
+	var entry_cell := _cell_from_dict(parcel.get("access_cell", parcel.get("frontage_cell", {})) as Dictionary)
+	var parcel_cell_keys := _parcel_cell_key_set(parcel, _uses_legacy_layout)
+	if parcel_cell_keys.is_empty() or not parcel_cell_keys.has(_cell_key(entry_cell)):
 		return {}
-
-	var door: Vector2i = door_info.get("door", Vector2i.ZERO) as Vector2i
-	var step: Vector2i = door_info.get("step", Vector2i.ZERO) as Vector2i
-	var yard_bounds: Dictionary = {
-		"x": x,
-		"y": y + h,
-		"w": w,
-		"h": clearance,
-	}
-	return {
-		"prefab": prefab.duplicate(true),
-		"building_bounds": rect,
-		"door": _dict_cell(door),
-		"doorstep": _dict_cell(step),
-		"door_facing": "down",
-		"front_clearance": clearance,
-		"yard_policy": yard_policy,
-		"yard_bounds": yard_bounds,
-	}
+	var best: Dictionary = {}
+	var best_score := -INF
+	var min_x: int = int(buildable.get("x", 0))
+	var max_x: int = int(buildable.get("x", 0)) + int(buildable.get("w", 0)) - w
+	var min_y: int = int(buildable.get("y", 0))
+	var max_y: int = int(buildable.get("y", 0)) + int(buildable.get("h", 0)) - h - clearance
+	for y in range(min_y, max_y + 1):
+		for x in range(min_x, max_x + 1):
+			var rect: Dictionary = { "x": x, "y": y, "w": w, "h": h }
+			if not _rect_inside_cell_set(rect, parcel_cell_keys):
+				continue
+			if _cell_in_rect(entry_cell, rect):
+				continue
+			var door_info: Dictionary = _south_door_for_prefab(rect, prefab)
+			if not _building_frontage_is_valid(door_info):
+				continue
+			var door: Vector2i = door_info.get("door", Vector2i.ZERO) as Vector2i
+			var step: Vector2i = door_info.get("step", Vector2i.ZERO) as Vector2i
+			if not parcel_cell_keys.has(_cell_key(step)):
+				continue
+			var yard_path := _yard_path_between(entry_cell, step, parcel, rect)
+			if yard_path.is_empty():
+				continue
+			var yard_cells := _adaptive_yard_cells(parcel, rect, yard_path)
+			var score := 20.0 - float(yard_path.size()) * 0.8
+			score += minf(6.0, float(yard_cells.size()) * 0.35)
+			score -= absf(float(x) - (float(min_x + max_x) * 0.5)) * 0.25
+			score -= absf(float(y) - (float(min_y + max_y) * 0.5)) * 0.18
+			if score <= best_score:
+				continue
+			best_score = score
+			best = {
+				"prefab": prefab.duplicate(true),
+				"building_bounds": rect,
+				"door": _dict_cell(door),
+				"doorstep": _dict_cell(step),
+				"door_facing": "down",
+				"front_clearance": clearance,
+				"yard_policy": yard_policy,
+				"yard_bounds": { "x": x, "y": y + h, "w": w, "h": clearance },
+				"yard_cells": _dict_path(yard_cells),
+				"parcel_entry": _dict_cell(entry_cell),
+				"yard_path": _dict_path(yard_path),
+				"core_placement": {
+					"model": "south_door_core_fitted_to_parcel_cells",
+					"door_policy": "south_only",
+					"source": "building_core_search",
+				},
+			}
+	return best
 
 
 func _score_prefab_placement(parcel: Dictionary, request: Dictionary, prefab: Dictionary, placement: Dictionary) -> float:
@@ -931,6 +1165,8 @@ func _inner_rect(rect: Dictionary, desired_w: int, desired_h: int) -> Dictionary
 
 
 func _apply_plaza(rect: Dictionary) -> void:
+	if rect.is_empty():
+		return
 	_paint_rect(rect, "s")
 	_add_zone("plaza_zone", "plaza", "Village Plaza", rect)
 	var center := _rect_center_cell(rect)
@@ -973,6 +1209,7 @@ func _apply_building_spec(spec: Dictionary, lot: Dictionary, instance_number: in
 		rect = _inner_rect(lot, 4, 3)
 	var door: Vector2i = _cell_from_dict(placement.get("door", {}) as Dictionary)
 	var door_step: Vector2i = _cell_from_dict(placement.get("doorstep", {}) as Dictionary)
+	var parcel_entry: Vector2i = _cell_from_dict(placement.get("parcel_entry", parcel.get("access_cell", {}) as Dictionary))
 	var door_facing: String = str(placement.get("door_facing", "down"))
 	var return_entrance_id := "%s.return" % instance_id
 	var exterior_door_anchor_id := "%s.exterior_door" % instance_id
@@ -987,8 +1224,10 @@ func _apply_building_spec(spec: Dictionary, lot: Dictionary, instance_number: in
 	parcel["building_prefab_id"] = str(prefab.get("id", ""))
 	parcel["building_footprint"] = rect.duplicate(true)
 	parcel["door_slot"] = _dict_cell(door)
-	parcel["road_anchor"] = _dict_cell(door_step)
+	parcel["road_anchor"] = _dict_cell(parcel_entry if parcel_entry != Vector2i(-1, -1) else door_step)
 	parcel["yard_bounds"] = (placement.get("yard_bounds", {}) as Dictionary).duplicate(true)
+	parcel["yard_cells"] = (placement.get("yard_cells", []) as Array).duplicate(true)
+	parcel["core_placement"] = (placement.get("core_placement", {}) as Dictionary).duplicate(true)
 	_parcels.append(parcel.duplicate(true))
 	(_generated.get("parcels", []) as Array).append(parcel.duplicate(true))
 	_add_parcel_surface_overlays(parcel, placement)
@@ -1020,6 +1259,8 @@ func _apply_building_spec(spec: Dictionary, lot: Dictionary, instance_number: in
 	_add_structure("door", door, { "presentation_layer": "game" })
 	_add_roof("%s.roof" % instance_id, _roof_palette_for_prefab(prefab), _roof_bounds_for_prefab(rect), rect, str(prefab.get("id", "")), archetype_id)
 	_connector_cells[instance_id] = door_step
+	_apply_yard_path(placement.get("yard_path", []) as Array)
+	var adaptive_yard_slots := _apply_adaptive_yard(parcel, placement, rect, door, door_step, instance_id, yard_policy)
 	_set_path_tile(door_step)
 	_reserve_cell(door_step)
 	_add_entrance(return_entrance_id, door_step, door_facing)
@@ -1038,11 +1279,16 @@ func _apply_building_spec(spec: Dictionary, lot: Dictionary, instance_number: in
 		"bounds": rect.duplicate(true),
 		"door": _dict_cell(door),
 		"doorstep": _dict_cell(door_step),
+		"parcel_entry": _dict_cell(parcel_entry),
+		"yard_path": (placement.get("yard_path", []) as Array).duplicate(true),
 		"door_facing": door_facing,
 		"door_side": "south",
 		"front_clearance": int(placement.get("front_clearance", 1)),
 		"yard_policy": yard_policy,
 		"yard_bounds": (placement.get("yard_bounds", {}) as Dictionary).duplicate(true),
+		"yard_cells": (placement.get("yard_cells", []) as Array).duplicate(true),
+		"core_placement": (placement.get("core_placement", {}) as Dictionary).duplicate(true),
+		"adaptive_yard_slots": adaptive_yard_slots,
 		"visual": prefab_visual.duplicate(true),
 		"prefab_contract": prefab.duplicate(true),
 		"exterior_door_anchor_id": exterior_door_anchor_id,
@@ -1181,8 +1427,13 @@ func _resolve_prefab_exterior_slot(
 		return {}
 
 	var placement_layer := str(slot.get("placement_layer", "yard"))
-	if placement_layer == "yard" and not _cell_in_rect(cell, yard_bounds):
-		return {}
+	if placement_layer == "yard":
+		var yard_cell_keys := _cell_key_set_from_dicts(building_instance.get("yard_cells", []) as Array)
+		if not yard_cell_keys.is_empty():
+			if not yard_cell_keys.has(_cell_key(cell)):
+				return {}
+		elif not _cell_in_rect(cell, yard_bounds):
+			return {}
 	if placement_layer != "facade" and _cell_in_rect(cell, building_bounds):
 		return {}
 
@@ -1206,7 +1457,17 @@ func _exterior_slot_draw_data(slot: Dictionary) -> Dictionary:
 
 func _add_parcel_surface_overlays(parcel: Dictionary, placement: Dictionary) -> void:
 	var bounds: Dictionary = parcel.get("bounds", {}) as Dictionary
-	if not bounds.is_empty():
+	var parcel_cells: Array = parcel.get("cells", []) as Array
+	if not parcel_cells.is_empty():
+		for cell_value in parcel_cells:
+			_add_floor_overlay("parcel_surface", _cell_rect(_cell_from_dict(cell_value as Dictionary)), {
+				"parcel_id": str(parcel.get("id", "")),
+				"yard_policy": str(parcel.get("yard_policy", "clear_frontage")),
+				"zone_type": str(parcel.get("district_id", "")),
+				"shape_model": str(parcel.get("shape_model", "")),
+				"presentation_layer": "debug",
+			})
+	elif not bounds.is_empty():
 		_add_floor_overlay("parcel_surface", bounds, {
 			"parcel_id": str(parcel.get("id", "")),
 			"yard_policy": str(parcel.get("yard_policy", "clear_frontage")),
@@ -1214,13 +1475,31 @@ func _add_parcel_surface_overlays(parcel: Dictionary, placement: Dictionary) -> 
 			"presentation_layer": "debug",
 		})
 
+	var yard_cells: Array = placement.get("yard_cells", []) as Array
 	var yard_bounds: Dictionary = placement.get("yard_bounds", {}) as Dictionary
-	if not yard_bounds.is_empty():
+	if not yard_cells.is_empty():
+		for cell_value in yard_cells:
+			_add_floor_overlay("front_clearance", _cell_rect(_cell_from_dict(cell_value as Dictionary)), {
+				"parcel_id": str(parcel.get("id", "")),
+				"yard_policy": str(placement.get("yard_policy", parcel.get("yard_policy", "clear_frontage"))),
+				"presentation_layer": "debug",
+			})
+	elif not yard_bounds.is_empty():
 		_add_floor_overlay("front_clearance", yard_bounds, {
 			"parcel_id": str(parcel.get("id", "")),
 			"yard_policy": str(placement.get("yard_policy", parcel.get("yard_policy", "clear_frontage"))),
 			"presentation_layer": "debug",
 		})
+
+	var yard_path: Array = placement.get("yard_path", []) as Array
+	if not yard_path.is_empty():
+		for cell_value in yard_path:
+			_add_floor_overlay("front_path", _cell_rect(_cell_from_dict(cell_value as Dictionary)), {
+				"parcel_id": str(parcel.get("id", "")),
+				"yard_policy": str(placement.get("yard_policy", parcel.get("yard_policy", "clear_frontage"))),
+				"presentation_layer": "game",
+			})
+	elif not yard_bounds.is_empty():
 		_add_floor_overlay("front_path", yard_bounds, {
 			"parcel_id": str(parcel.get("id", "")),
 			"yard_policy": str(placement.get("yard_policy", parcel.get("yard_policy", "clear_frontage"))),
@@ -1268,13 +1547,199 @@ func _building_frontage_is_valid(door_info: Dictionary) -> bool:
 	return true
 
 
+func _rect_cell_dicts(rect: Dictionary) -> Array[Dictionary]:
+	var cells: Array[Dictionary] = []
+	for y in range(int(rect.get("y", 0)), int(rect.get("y", 0)) + int(rect.get("h", 0))):
+		for x in range(int(rect.get("x", 0)), int(rect.get("x", 0)) + int(rect.get("w", 0))):
+			cells.append(_dict_cell(Vector2i(x, y)))
+	return cells
+
+
+func _cells_inside_rect(cells: Array, rect: Dictionary) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for cell_value in cells:
+		var cell := _cell_from_dict(cell_value as Dictionary)
+		if _cell_in_rect(cell, rect):
+			result.append(_dict_cell(cell))
+	return result
+
+
+func _parcel_cell_key_set(parcel: Dictionary, allow_bounds_fallback: bool = true) -> Dictionary:
+	var result: Dictionary = {}
+	var cells: Array = parcel.get("cells", []) as Array
+	if cells.is_empty():
+		if not allow_bounds_fallback:
+			return result
+		cells = _rect_cell_dicts(parcel.get("bounds", {}) as Dictionary)
+	for cell_value in cells:
+		var cell := _cell_from_dict(cell_value as Dictionary)
+		if cell == Vector2i(-1, -1):
+			continue
+		result[_cell_key(cell)] = true
+	return result
+
+
+func _rect_inside_cell_set(rect: Dictionary, cell_keys: Dictionary) -> bool:
+	for y in range(int(rect.get("y", 0)), int(rect.get("y", 0)) + int(rect.get("h", 0))):
+		for x in range(int(rect.get("x", 0)), int(rect.get("x", 0)) + int(rect.get("w", 0))):
+			if not cell_keys.has(_cell_key(Vector2i(x, y))):
+				return false
+	return true
+
+
+func _adaptive_yard_cells(parcel: Dictionary, building_bounds: Dictionary, yard_path: Array[Vector2i]) -> Array[Vector2i]:
+	var path_keys: Dictionary = {}
+	for path_cell in yard_path:
+		path_keys[_cell_key(path_cell)] = true
+	var result: Array[Vector2i] = []
+	for cell_value in (parcel.get("cells", []) as Array):
+		var cell := _cell_from_dict(cell_value as Dictionary)
+		if cell == Vector2i(-1, -1):
+			continue
+		if _cell_in_rect(cell, building_bounds):
+			continue
+		if path_keys.has(_cell_key(cell)):
+			continue
+		result.append(cell)
+	return result
+
+
+func _yard_path_between(entry_cell: Vector2i, door_step: Vector2i, parcel_data: Dictionary, building_bounds: Dictionary) -> Array[Vector2i]:
+	var empty: Array[Vector2i] = []
+	if entry_cell == Vector2i(-1, -1) or door_step == Vector2i(-1, -1):
+		return empty
+	var parcel_cell_keys := _parcel_cell_key_set(parcel_data, _uses_legacy_layout)
+	if parcel_cell_keys.is_empty():
+		return empty
+	if not parcel_cell_keys.has(_cell_key(entry_cell)) or not parcel_cell_keys.has(_cell_key(door_step)):
+		return empty
+	if _cell_in_rect(entry_cell, building_bounds):
+		return empty
+	var frontier: Array[Vector2i] = [entry_cell]
+	var came_from: Dictionary = {}
+	var visited: Dictionary = { _cell_key(entry_cell): true }
+	while not frontier.is_empty():
+		var current: Vector2i = frontier.pop_front() as Vector2i
+		if current == door_step:
+			return _rebuild_yard_path(came_from, entry_cell, door_step)
+		for direction in [Vector2i.UP, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT]:
+			var next_cell: Vector2i = current + direction
+			var key := _cell_key(next_cell)
+			if visited.has(key):
+				continue
+			if not parcel_cell_keys.has(key):
+				continue
+			if _cell_in_rect(next_cell, building_bounds) and next_cell != door_step:
+				continue
+			visited[key] = true
+			came_from[key] = current
+			frontier.append(next_cell)
+	return empty
+
+
+func _rebuild_yard_path(came_from: Dictionary, from_cell: Vector2i, to_cell: Vector2i) -> Array[Vector2i]:
+	var path: Array[Vector2i] = [to_cell]
+	var cursor := to_cell
+	while cursor != from_cell:
+		var cursor_key := _cell_key(cursor)
+		if not came_from.has(cursor_key):
+			return []
+		cursor = came_from.get(cursor_key, from_cell) as Vector2i
+		path.push_front(cursor)
+	return path
+
+
+func _dict_path(path: Array[Vector2i]) -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for cell in path:
+		result.append(_dict_cell(cell))
+	return result
+
+
+func _apply_yard_path(path: Array) -> void:
+	for cell_value in path:
+		var cell := _cell_from_dict(cell_value as Dictionary)
+		if cell == Vector2i(-1, -1):
+			continue
+		_set_path_tile(cell)
+
+
+func _apply_adaptive_yard(
+	parcel: Dictionary,
+	placement: Dictionary,
+	building_bounds: Dictionary,
+	door: Vector2i,
+	door_step: Vector2i,
+	building_instance_id: String,
+	yard_policy: String
+) -> Array[Dictionary]:
+	var slots: Array[Dictionary] = []
+	var path_keys: Dictionary = {}
+	for path_value in (placement.get("yard_path", []) as Array):
+		path_keys[_cell_key(_cell_from_dict(path_value as Dictionary))] = true
+	var limit := 3 if yard_policy != "clear_frontage" else 1
+	for cell_value in (placement.get("yard_cells", []) as Array):
+		if slots.size() >= limit:
+			break
+		var cell := _cell_from_dict(cell_value as Dictionary)
+		var key := _cell_key(cell)
+		if cell == Vector2i(-1, -1) or cell == door or cell == door_step:
+			continue
+		if _cell_in_rect(cell, building_bounds) or path_keys.has(key):
+			continue
+		if _reserved_cells.has(key) or _objects_by_cell.has(key):
+			continue
+		if _tile_at(cell) == "p":
+			continue
+		var decoration_type := _adaptive_yard_decoration_type(yard_policy, slots.size())
+		var slot := {
+			"id": "%s.yard_%02d" % [building_instance_id, slots.size() + 1],
+			"type": decoration_type,
+			"grid_position": _dict_cell(cell),
+			"source": "parcel_adaptive_yard",
+			"yard_policy": yard_policy,
+			"blocks_movement": false,
+		}
+		_add_floor_decoration(decoration_type, cell, {
+			"presentation_source": "parcel_adaptive_yard",
+			"building_instance_id": building_instance_id,
+			"parcel_id": str(parcel.get("id", "")),
+			"yard_policy": yard_policy,
+			"blocks_movement": false,
+		})
+		slots.append(slot)
+	return slots
+
+
+func _adaptive_yard_decoration_type(yard_policy: String, index: int) -> String:
+	match yard_policy:
+		"farmyard":
+			return "flower_patch" if index % 2 == 0 else "farm_tool"
+		"workshop_service_yard":
+			return "stone" if index % 2 == 0 else "bucket"
+		"small_residential_yard":
+			return "flower_pot" if index % 2 == 0 else "flower_patch"
+		_:
+			return "grass_clump"
+
+
 func _apply_farm(area: Dictionary) -> void:
-	var rect: Dictionary = _inner_rect(area, max(7, int(area.get("w", 0)) - 2), max(5, int(area.get("h", 0)) - 2))
+	if area.is_empty():
+		return
+	var rect: Dictionary = area.duplicate(true)
 	_paint_rect(rect, "f")
 	_mark_rect_road_blocker(rect)
 	_add_zone("farm_zone", "farm", "Farm Plots", rect)
 	var work_cell := _rect_center_cell(rect)
-	var access_cell := _farm_access_cell(rect)
+	var access_cell := _cell_from_dict(area.get("access_cell", {}) as Dictionary)
+	if access_cell == Vector2i(-1, -1):
+		if not _uses_legacy_layout:
+			_compiler_recovery_log.append({
+				"area": area.duplicate(true),
+				"reason": "agent farm area missing planner access_cell",
+			})
+			return
+		access_cell = _farm_access_cell(rect)
 	_road_blockers.erase(_cell_key(access_cell))
 	_connector_cells["farm"] = access_cell
 	_set_path_tile(access_cell)
@@ -1300,14 +1765,25 @@ func _apply_farm(area: Dictionary) -> void:
 
 
 func _apply_training_yard(area: Dictionary) -> void:
-	var rect: Dictionary = _inner_rect(area, max(7, int(area.get("w", 0)) - 2), max(5, int(area.get("h", 0)) - 2))
+	if area.is_empty():
+		return
+	var rect: Dictionary = area.duplicate(true)
 	_paint_rect(rect, "t")
 	_add_zone("training_zone", "training", "Training Yard", rect)
 	var guard_cell := _rect_center_cell(rect) + Vector2i(-2, 0)
 	var dummy_a := _rect_center_cell(rect) + Vector2i(2, -1)
 	var dummy_b := _rect_center_cell(rect) + Vector2i(2, 1)
-	var access_cell := _edge_cell_toward(rect, _get_entrance_cell("plaza"))
+	var access_cell := _cell_from_dict(area.get("access_cell", {}) as Dictionary)
+	if access_cell == Vector2i(-1, -1):
+		if not _uses_legacy_layout:
+			_compiler_recovery_log.append({
+				"area": area.duplicate(true),
+				"reason": "agent training area missing planner access_cell",
+			})
+			return
+		access_cell = _edge_cell_toward(rect, _get_entrance_cell("plaza"))
 	_connector_cells["training"] = access_cell
+	_set_path_tile(access_cell)
 	_add_anchor("training_yard_guard_post", "training", guard_cell, "left", [guard_cell, guard_cell + Vector2i(1, 0)])
 	_add_structure("weapon_rack", guard_cell + Vector2i(0, -2), { "blocks_movement": true })
 	_add_structure("target", dummy_a + Vector2i(1, -1), { "blocks_movement": true })
@@ -1317,10 +1793,23 @@ func _apply_training_yard(area: Dictionary) -> void:
 
 
 func _apply_wild_gate(area: Dictionary) -> void:
-	var y := clampi(int(_rect_center(area).y), 2, _height - 3)
+	if area.is_empty():
+		return
+	var access_cell := _cell_from_dict(area.get("access_cell", {}) as Dictionary)
+	if access_cell == Vector2i(-1, -1):
+		if not _uses_legacy_layout:
+			_compiler_recovery_log.append({
+				"area": area.duplicate(true),
+				"reason": "agent gate area missing planner access_cell",
+			})
+			return
+		access_cell = Vector2i(_width - 3, clampi(int(_rect_center(area).y), 2, _height - 3))
+	var y := clampi(access_cell.y, 2, _height - 3)
 	var exit_cell := Vector2i(_width - 1, y)
 	_set_tile(exit_cell, "e")
-	var gate_anchor := exit_cell + Vector2i(-2, 0)
+	var gate_anchor := access_cell
+	for x in range(mini(gate_anchor.x, exit_cell.x), maxi(gate_anchor.x, exit_cell.x)):
+		_set_path_tile(Vector2i(x, y))
 	_add_zone("wilderness_gate_zone", "wild_entrance", "Wild Gate", {
 		"x": max(1, _width - 6),
 		"y": max(1, y - 1),
@@ -1331,11 +1820,14 @@ func _apply_wild_gate(area: Dictionary) -> void:
 	_add_anchor("wild_gate_guard_post", "guard_post", gate_anchor + Vector2i(-1, 0), "right", [gate_anchor + Vector2i(-1, 0), gate_anchor])
 	_connector_cells["wild_gate"] = gate_anchor
 	_add_exit("wild_gate", exit_cell, "res://scenes/locations/test_clearing.tscn", "west_gate")
-	_add_structure("signpost", gate_anchor + Vector2i(1, 0), { "blocks_movement": true })
+	var sign_cell := gate_anchor + Vector2i(0, 1)
+	if not _in_bounds(sign_cell):
+		sign_cell = gate_anchor + Vector2i(0, -1)
+	_add_structure("signpost", sign_cell, { "blocks_movement": true })
 	_add_object({
 		"id": "village_wild_gate_sign",
 		"display_name": "Wild Gate Sign",
-		"grid_position": _dict_cell(gate_anchor + Vector2i(1, 0)),
+		"grid_position": _dict_cell(sign_cell),
 		"blocks_movement": true,
 		"kind": "inspectable",
 		"is_inspectable": true,
@@ -1343,17 +1835,33 @@ func _apply_wild_gate(area: Dictionary) -> void:
 	})
 
 
-func _connect_key_places() -> void:
+func _connect_key_places(allow_compiler_recovery: bool = false) -> void:
 	var plaza_cell := _get_entrance_cell("plaza")
 	for connector_value in _connector_cells.values():
 		var connector: Vector2i = connector_value as Vector2i
 		if connector != Vector2i(-1, -1):
-			_route_and_carve_path(plaza_cell, connector)
+			_route_and_carve_path(plaza_cell, connector, allow_compiler_recovery, "connector")
 
 	for exit_data in (_generated.get("exits", []) as Array):
 		var exit_cell: Vector2i = _cell_from_dict((exit_data as Dictionary).get("grid_position", {}) as Dictionary)
-		_route_and_carve_path(plaza_cell, exit_cell)
+		_route_and_carve_path(plaza_cell, exit_cell, allow_compiler_recovery, "exit")
 		_set_tile(exit_cell, "e")
+
+
+func _apply_planned_decorations(decoration_slots: Array) -> void:
+	for slot_value in decoration_slots:
+		var slot: Dictionary = slot_value as Dictionary
+		var cell := _cell_from_dict(slot.get("grid_position", {}) as Dictionary)
+		if not _in_bounds(cell):
+			continue
+		if _reserved_cells.has(_cell_key(cell)) or _road_blockers.has(_cell_key(cell)):
+			continue
+		if _tile_at(cell) == "p":
+			continue
+		_add_floor_decoration(str(slot.get("type", "grass_clump")), cell, {
+			"presentation_source": "agent_decoration_slot",
+			"blocks_movement": false,
+		})
 
 
 func _add_common_decorations() -> void:
@@ -1527,10 +2035,23 @@ func _paint_rect(rect: Dictionary, key: String) -> void:
 			_set_tile(Vector2i(x, y), key)
 
 
-func _route_and_carve_path(from_cell: Vector2i, to_cell: Vector2i) -> void:
+func _route_and_carve_path(from_cell: Vector2i, to_cell: Vector2i, allow_compiler_recovery: bool = false, reason: String = "") -> void:
 	var path: Array[Vector2i] = _find_road_path(from_cell, to_cell)
 	if path.is_empty():
+		if not allow_compiler_recovery:
+			_compiler_recovery_log.append({
+				"from": _dict_cell(from_cell),
+				"to": _dict_cell(to_cell),
+				"reason": "planner road connection missing: %s" % reason,
+			})
+			return
 		path = _fallback_edge_path(from_cell, to_cell)
+		_compiler_recovery_log.append({
+			"from": _dict_cell(from_cell),
+			"to": _dict_cell(to_cell),
+			"reason": "legacy fallback edge path: %s" % reason,
+			"path_length": path.size(),
+		})
 	for cell in path:
 		_set_path_tile(cell)
 
@@ -1819,6 +2340,16 @@ func _add_placement_log(subject: String, candidate: Dictionary, reason: String) 
 	})
 
 
+func _record_building_adaptation_failure(request: Dictionary, lot: Dictionary, reason: String) -> void:
+	_building_adaptation_failures.append({
+		"request_id": str(request.get("id", "")),
+		"role": str(request.get("role", "")),
+		"required": ["residential", "shop"].has(str(request.get("id", ""))),
+		"lot": lot.duplicate(true),
+		"reason": reason,
+	})
+
+
 func _mark_rect_road_blocker(rect: Dictionary) -> void:
 	for y in range(int(rect.get("y", 0)), int(rect.get("y", 0)) + int(rect.get("h", 0))):
 		for x in range(int(rect.get("x", 0)), int(rect.get("x", 0)) + int(rect.get("w", 0))):
@@ -1866,6 +2397,10 @@ func _cell_from_dict(value: Dictionary) -> Vector2i:
 
 func _dict_cell(cell: Vector2i) -> Dictionary:
 	return { "x": cell.x, "y": cell.y }
+
+
+func _cell_rect(cell: Vector2i) -> Dictionary:
+	return { "x": cell.x, "y": cell.y, "w": 1, "h": 1 }
 
 
 func _cell_in_rect(cell: Vector2i, rect: Dictionary) -> bool:
@@ -1917,6 +2452,16 @@ func _union_rect(a: Dictionary, b: Dictionary) -> Dictionary:
 
 func _cell_key(cell: Vector2i) -> String:
 	return "%d,%d" % [cell.x, cell.y]
+
+
+func _cell_key_set_from_dicts(cells: Array) -> Dictionary:
+	var result: Dictionary = {}
+	for cell_value in cells:
+		var cell := _cell_from_dict(cell_value as Dictionary)
+		if cell == Vector2i(-1, -1):
+			continue
+		result[_cell_key(cell)] = true
+	return result
 
 
 func _in_bounds(cell: Vector2i) -> bool:
@@ -1986,3 +2531,229 @@ func _contract_entrance_cell(location_data: Dictionary, entrance_id: String) -> 
 		if str(entrance.get("id", "")) == entrance_id:
 			return _cell_from_dict(entrance.get("grid_position", {}) as Dictionary)
 	return Vector2i(-1, -1)
+
+
+func _contract_validate_road_network(grid: LocationGrid) -> Array[String]:
+	var errors: Array[String] = []
+	var network_cells: Array[Vector2i] = []
+	var network_keys: Dictionary = {}
+	for y in range(grid.height):
+		for x in range(grid.width):
+			var cell := Vector2i(x, y)
+			var terrain_key := grid.terrain_key_at(cell)
+			if terrain_key != "p" and terrain_key != "s" and terrain_key != "e":
+				continue
+			network_cells.append(cell)
+			network_keys[_cell_key(cell)] = true
+	if network_cells.is_empty():
+		errors.append("road network has no road, plaza, or exit cells")
+		return errors
+
+	var frontier: Array[Vector2i] = [network_cells[0]]
+	var visited: Dictionary = { _cell_key(network_cells[0]): true }
+	while not frontier.is_empty():
+		var current: Vector2i = frontier.pop_front() as Vector2i
+		for direction in [Vector2i.UP, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT]:
+			var next_cell: Vector2i = current + direction
+			var key := _cell_key(next_cell)
+			if visited.has(key) or not network_keys.has(key):
+				continue
+			visited[key] = true
+			frontier.append(next_cell)
+
+	if visited.size() != network_cells.size():
+		errors.append("road network is not connected: %d of %d cells reachable" % [visited.size(), network_cells.size()])
+	return errors
+
+
+func _contract_is_agent_settlement(location_data: Dictionary) -> bool:
+	var summary: Dictionary = location_data.get("generation_summary", {}) as Dictionary
+	return str(summary.get("type", "")) == "agent_settlement_blueprint"
+
+
+func _contract_required_zone_ids(location_data: Dictionary) -> Array[String]:
+	var summary: Dictionary = location_data.get("generation_summary", {}) as Dictionary
+	var planner: Dictionary = summary.get("planner", {}) as Dictionary
+	var values: Array = planner.get("required_zone_ids", []) as Array
+	if values.is_empty():
+		if _contract_is_agent_settlement(location_data):
+			return []
+		return ["plaza", "residential", "market", "farm", "training", "gate"]
+	var result: Array[String] = []
+	for value in values:
+		result.append(str(value))
+	return result
+
+
+func _contract_required_request_ids(location_data: Dictionary) -> Array[String]:
+	var summary: Dictionary = location_data.get("generation_summary", {}) as Dictionary
+	var planner: Dictionary = summary.get("planner", {}) as Dictionary
+	var values: Array = planner.get("required_request_ids", []) as Array
+	if values.is_empty():
+		if _contract_is_agent_settlement(location_data):
+			return []
+		return ["residential", "shop"]
+	var result: Array[String] = []
+	for value in values:
+		result.append(str(value))
+	return result
+
+
+func _contract_validate_required_buildings(location_data: Dictionary) -> Array[String]:
+	var errors: Array[String] = []
+	var role_counts: Dictionary = {}
+	var archetype_counts: Dictionary = {}
+	for building_value in (location_data.get("buildings", []) as Array):
+		var building: Dictionary = building_value as Dictionary
+		var role := str(building.get("role", ""))
+		var archetype_id := str(building.get("archetype_id", ""))
+		role_counts[role] = int(role_counts.get(role, 0)) + 1
+		archetype_counts[archetype_id] = int(archetype_counts.get(archetype_id, 0)) + 1
+
+	var required_requests := _contract_required_request_ids(location_data)
+	if _contract_is_agent_settlement(location_data) and required_requests.is_empty():
+		errors.append("agent planner summary missing required_request_ids")
+		return errors
+	if required_requests.has("residential") and int(role_counts.get("home", 0)) < 1:
+		errors.append("required residential building missing")
+	if required_requests.has("shop") and int(archetype_counts.get("shop", 0)) < 1:
+		errors.append("required merchant shop building missing")
+
+	var request_ids: Dictionary = {}
+	for request_value in (location_data.get("building_requests", []) as Array):
+		var request: Dictionary = request_value as Dictionary
+		var request_id := str(request.get("id", ""))
+		if request_id.is_empty():
+			errors.append("building request missing id")
+			continue
+		request_ids[request_id] = true
+		if str(request.get("parcel_id", "")).is_empty():
+			errors.append("building request missing parcel_id: %s" % request_id)
+		if str(request.get("prefab_id", "")).is_empty():
+			errors.append("building request missing prefab_id: %s" % request_id)
+	for required_request in required_requests:
+		if not request_ids.has(required_request):
+			errors.append("required building request missing: %s" % required_request)
+	return errors
+
+
+func _contract_validate_interiors_and_transitions(
+	location_data: Dictionary,
+	grid: LocationGrid,
+	blockers: Dictionary,
+	plaza_cell: Vector2i
+) -> Array[String]:
+	var errors: Array[String] = []
+	var exterior_location_id := str(location_data.get("id", ""))
+	var interior_ids: Dictionary = {}
+	for interior_value in (location_data.get("interiors", []) as Array):
+		var interior: Dictionary = interior_value as Dictionary
+		var interior_id := str(interior.get("location_id", ""))
+		if interior_id.is_empty():
+			errors.append("interior manifest missing location_id")
+			continue
+		if interior_ids.has(interior_id):
+			errors.append("duplicate interior location id: %s" % interior_id)
+		interior_ids[interior_id] = true
+
+	var building_ids: Dictionary = {}
+	for building_value in (location_data.get("buildings", []) as Array):
+		var building: Dictionary = building_value as Dictionary
+		var building_id := str(building.get("id", ""))
+		var interior_id := str(building.get("interior_location_id", ""))
+		if building_id.is_empty():
+			errors.append("building missing id")
+		else:
+			building_ids[building_id] = true
+		if interior_id.is_empty() or not interior_ids.has(interior_id):
+			errors.append("building references missing interior manifest: %s / %s" % [building_id, interior_id])
+		var bounds: Dictionary = building.get("bounds", {}) as Dictionary
+		if not _contract_rect_in_bounds(grid, bounds):
+			errors.append("building footprint out of bounds: %s" % building_id)
+		if _contract_rect_overlaps_road(grid, bounds):
+			errors.append("building footprint overlaps road incorrectly: %s" % building_id)
+		var doorstep := _cell_from_dict(building.get("doorstep", {}) as Dictionary)
+		if not _contract_is_open_cell(grid, doorstep, blockers):
+			errors.append("building door frontage is not walkable: %s at %s" % [building_id, doorstep])
+		elif not _contract_has_path(grid, plaza_cell, doorstep, blockers):
+			errors.append("building door frontage is unreachable: %s at %s" % [building_id, doorstep])
+
+	for transition_value in (location_data.get("transitions", []) as Array):
+		var transition: Dictionary = transition_value as Dictionary
+		var from_location_id := str(transition.get("from_location_id", ""))
+		var to_location_id := str(transition.get("to_location_id", ""))
+		var from_anchor_id := str(transition.get("from_anchor_id", ""))
+		var to_anchor_id := str(transition.get("to_anchor_id", ""))
+		var building_instance_id := str(transition.get("building_instance_id", ""))
+		if not building_ids.has(building_instance_id):
+			errors.append("transition references missing building instance: %s" % building_instance_id)
+		if not _contract_location_id_is_known(from_location_id, exterior_location_id, interior_ids):
+			errors.append("transition from_location_id is unknown: %s" % from_location_id)
+		if not _contract_location_id_is_known(to_location_id, exterior_location_id, interior_ids):
+			errors.append("transition to_location_id is unknown: %s" % to_location_id)
+		if from_location_id == exterior_location_id and grid.get_anchor(from_anchor_id).is_empty():
+			errors.append("transition references missing exterior from anchor: %s" % from_anchor_id)
+		if to_location_id == exterior_location_id and grid.get_entrance(to_anchor_id).is_empty() and grid.get_anchor(to_anchor_id).is_empty():
+			errors.append("transition references missing exterior to anchor or entrance: %s" % to_anchor_id)
+		if from_location_id != exterior_location_id and from_anchor_id != "exit":
+			errors.append("interior transition must leave through exit anchor: %s" % from_anchor_id)
+		if to_location_id != exterior_location_id and to_anchor_id != "entry":
+			errors.append("interior transition must enter through entry anchor: %s" % to_anchor_id)
+	return errors
+
+
+func _contract_schedule_interior_anchor_is_valid(location_data: Dictionary, scheduled_location_id: String, anchor_id: String) -> bool:
+	for building_value in (location_data.get("buildings", []) as Array):
+		var building: Dictionary = building_value as Dictionary
+		if str(building.get("interior_location_id", "")) != scheduled_location_id:
+			continue
+		var slots: Dictionary = building.get("interior_slots", {}) as Dictionary
+		if slots.has(anchor_id):
+			return true
+		for slot_value in slots.values():
+			if str(slot_value) == anchor_id:
+				return true
+		return false
+	return false
+
+
+func _contract_validate_decoration_slots(location_data: Dictionary, required_anchor_ids: Array[String]) -> Array[String]:
+	var errors: Array[String] = []
+	var anchor_cells: Dictionary = {}
+	for anchor_value in (location_data.get("anchors", []) as Array):
+		var anchor: Dictionary = anchor_value as Dictionary
+		var anchor_id := str(anchor.get("id", ""))
+		if not required_anchor_ids.has(anchor_id):
+			continue
+		var anchor_cell := _cell_from_dict(anchor.get("grid_position", {}) as Dictionary)
+		anchor_cells[_cell_key(anchor_cell)] = anchor_id
+
+	for decoration_value in (location_data.get("floor_decorations", []) as Array):
+		var decoration: Dictionary = decoration_value as Dictionary
+		var cell := _cell_from_dict(decoration.get("grid_position", {}) as Dictionary)
+		var key := _cell_key(cell)
+		if anchor_cells.has(key):
+			errors.append("decoration overlaps critical anchor: %s at %s" % [str(anchor_cells.get(key, "")), cell])
+	return errors
+
+
+func _contract_rect_in_bounds(grid: LocationGrid, rect: Dictionary) -> bool:
+	if rect.is_empty():
+		return false
+	var x: int = int(rect.get("x", 0))
+	var y: int = int(rect.get("y", 0))
+	var w: int = int(rect.get("w", 0))
+	var h: int = int(rect.get("h", 0))
+	return grid.in_bounds(Vector2i(x, y)) and grid.in_bounds(Vector2i(x + w - 1, y + h - 1))
+
+
+func _contract_rect_overlaps_road(grid: LocationGrid, rect: Dictionary) -> bool:
+	for y in range(int(rect.get("y", 0)), int(rect.get("y", 0)) + int(rect.get("h", 0))):
+		for x in range(int(rect.get("x", 0)), int(rect.get("x", 0)) + int(rect.get("w", 0))):
+			if grid.terrain_key_at(Vector2i(x, y)) == "p":
+				return true
+	return false
+
+
+func _contract_location_id_is_known(location_id: String, exterior_location_id: String, interior_ids: Dictionary) -> bool:
+	return location_id == exterior_location_id or interior_ids.has(location_id)
