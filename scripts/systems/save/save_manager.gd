@@ -27,6 +27,7 @@ func save_game(save_path: String = DEFAULT_SAVE_PATH) -> ActionResult:
 		"version": SAVE_VERSION,
 		"saved_at": Time.get_datetime_string_from_system(false, true),
 		"scene": _build_scene_state(active_scene),
+		"world": _world_save_state(),
 		"game_state": GameState.get_save_state(),
 		"time": TimeManager.get_save_state(),
 		"quests": QuestSystem.get_save_state(),
@@ -83,6 +84,9 @@ func load_game(save_path: String = DEFAULT_SAVE_PATH) -> ActionResult:
 	DialogueRunner.clear_dialogue_state()
 	BattleSystem.clear_battle_state()
 	GameState.apply_save_state(save_data.get("game_state", {}) as Dictionary)
+	var world_service: Variant = _world_transition_service()
+	if world_service != null:
+		world_service.apply_save_state(save_data.get("world", {}) as Dictionary)
 	TimeManager.apply_save_state(save_data.get("time", {}) as Dictionary)
 	QuestSystem.apply_save_state(save_data.get("quests", {}) as Dictionary)
 	PartySystem.apply_save_state(save_data.get("party", {}) as Dictionary)
@@ -93,6 +97,10 @@ func load_game(save_path: String = DEFAULT_SAVE_PATH) -> ActionResult:
 
 	var scene_state: Dictionary = save_data.get("scene", {}) as Dictionary
 	var scene_path: String = str(scene_state.get("scene_path", ""))
+	var saved_location_id := str(scene_state.get("location_id", ""))
+	var prepared_location: Dictionary = world_service.prepare_scene_load_for_location(saved_location_id) if world_service != null else {}
+	if not prepared_location.is_empty():
+		scene_path = str(prepared_location.get("scene_path", scene_path))
 	if scene_path.is_empty():
 		return _fail_load(save_path, "存档缺少场景路径。")
 
@@ -167,6 +175,17 @@ func _get_active_scene() -> Node:
 		return null
 
 	return SceneLoader.current_scene
+
+
+func _world_save_state() -> Dictionary:
+	var world_service: Variant = _world_transition_service()
+	if world_service == null:
+		return {}
+	return world_service.get_save_state()
+
+
+func _world_transition_service() -> Variant:
+	return get_node_or_null("/root/WorldTransitionService")
 
 
 func _fail_save(save_path: String, reason: String) -> ActionResult:

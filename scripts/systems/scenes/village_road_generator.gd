@@ -1212,6 +1212,11 @@ func _apply_building_spec(spec: Dictionary, lot: Dictionary, instance_number: in
 	var parcel_entry: Vector2i = _cell_from_dict(placement.get("parcel_entry", parcel.get("access_cell", {}) as Dictionary))
 	var door_facing: String = str(placement.get("door_facing", "down"))
 	var return_entrance_id := "%s.return" % instance_id
+	var exterior_return_spawn_id := "%s.outside" % instance_id
+	var interior_slots := _interior_slots_for_archetype(archetype_id)
+	var interior_entry_entrance_id := str(interior_slots.get("entry", "entry"))
+	var interior_entry_spawn_id := "%s.entry" % instance_id
+	var interior_exit_anchor_id := str(interior_slots.get("exit", "exit"))
 	var exterior_door_anchor_id := "%s.exterior_door" % instance_id
 	var parcel_id := str(parcel.get("id", "parcel_%03d" % instance_number))
 	var yard_policy := str(placement.get("yard_policy", parcel.get("yard_policy", "clear_frontage")))
@@ -1293,7 +1298,13 @@ func _apply_building_spec(spec: Dictionary, lot: Dictionary, instance_number: in
 		"prefab_contract": prefab.duplicate(true),
 		"exterior_door_anchor_id": exterior_door_anchor_id,
 		"return_entrance_id": return_entrance_id,
-		"interior_slots": _interior_slots_for_archetype(archetype_id),
+		"exterior_return_spawn_id": exterior_return_spawn_id,
+		"interior_entry_entrance_id": interior_entry_entrance_id,
+		"interior_entry_spawn_id": interior_entry_spawn_id,
+		"interior_exit_anchor_id": interior_exit_anchor_id,
+		"world_enter_exit_id": "%s.enter" % interior_location_id,
+		"world_leave_exit_id": "%s.leave" % interior_location_id,
+		"interior_slots": interior_slots,
 	}
 	building_instance["materialized_exterior_slots"] = _materialize_prefab_exterior_slots(building_instance, prefab, rect, door, door_step)
 	_building_instances.append(building_instance)
@@ -1306,17 +1317,35 @@ func _apply_building_spec(spec: Dictionary, lot: Dictionary, instance_number: in
 		"archetype_id": archetype_id,
 		"display_name": display_name,
 		"characters": [],
+		"entry_entrance_id": interior_entry_entrance_id,
+		"entry_spawn_id": interior_entry_spawn_id,
+		"entry_facing": "up",
+		"exit_anchor_id": interior_exit_anchor_id,
+		"return_entrance_id": return_entrance_id,
+		"return_spawn_id": exterior_return_spawn_id,
+		"world_leave_exit_id": str(building_instance.get("world_leave_exit_id", "")),
 	}
 	var interior_manifest := {
 		"location_id": interior_location_id,
 		"building_instance_id": instance_id,
 		"source_scene_path": "res://scenes/locations/generated_building_interior.tscn",
+		"entry_entrance_id": interior_entry_entrance_id,
+		"entry_spawn_id": interior_entry_spawn_id,
+		"entry_facing": "up",
+		"exit_anchor_id": interior_exit_anchor_id,
+		"return_entrance_id": return_entrance_id,
+		"return_spawn_id": exterior_return_spawn_id,
+		"return_facing": door_facing,
 		"generation_context": interior_context,
 	}
 	_interior_manifests.append(interior_manifest)
 	(_generated.get("interiors", []) as Array).append(interior_manifest.duplicate(true))
-	_add_transition_edge(exterior_location_id, exterior_door_anchor_id, interior_location_id, "entry", instance_id)
-	_add_transition_edge(interior_location_id, "exit", exterior_location_id, return_entrance_id, instance_id)
+	_add_transition_edge(exterior_location_id, exterior_door_anchor_id, interior_location_id, interior_entry_entrance_id, instance_id, {
+		"target_spawn_id": interior_entry_spawn_id,
+	})
+	_add_transition_edge(interior_location_id, interior_exit_anchor_id, exterior_location_id, return_entrance_id, instance_id, {
+		"target_spawn_id": exterior_return_spawn_id,
+	})
 	_add_building_door_object(building_instance, door)
 
 
@@ -1333,8 +1362,9 @@ func _add_building_door_object(building_instance: Dictionary, door: Vector2i) ->
 		"is_usable": true,
 		"facility_type": "scene_transition",
 		"target_scene_path": "res://scenes/locations/generated_building_interior.tscn",
-		"target_entrance_id": "entry",
+		"target_entrance_id": str(building_instance.get("interior_entry_entrance_id", "")),
 		"return_entrance_id": str(building_instance.get("return_entrance_id", "")),
+		"world_exit_id": str(building_instance.get("world_enter_exit_id", "")),
 		"inspect_text": "A generated exterior door. Interact to enter the building interior.",
 		"transition_context": {
 			"location_id": str(building_instance.get("interior_location_id", "")),
@@ -1343,6 +1373,12 @@ func _add_building_door_object(building_instance: Dictionary, door: Vector2i) ->
 			"archetype_id": str(building_instance.get("archetype_id", "")),
 			"display_name": display_name,
 			"characters": _town_character_rows.duplicate(true),
+			"entry_entrance_id": str(building_instance.get("interior_entry_entrance_id", "")),
+			"entry_spawn_id": str(building_instance.get("interior_entry_spawn_id", "")),
+			"exit_anchor_id": str(building_instance.get("interior_exit_anchor_id", "")),
+			"return_entrance_id": str(building_instance.get("return_entrance_id", "")),
+			"return_spawn_id": str(building_instance.get("exterior_return_spawn_id", "")),
+			"world_leave_exit_id": str(building_instance.get("world_leave_exit_id", "")),
 		},
 	})
 
@@ -1363,14 +1399,23 @@ func _interior_slots_for_archetype(archetype_id: String) -> Dictionary:
 			return { "primary": "bed", "entry": "entry", "exit": "exit" }
 
 
-func _add_transition_edge(from_location_id: String, from_anchor_id: String, to_location_id: String, to_anchor_id: String, building_instance_id: String) -> void:
-	(_generated.get("transitions", []) as Array).append({
+func _add_transition_edge(
+	from_location_id: String,
+	from_anchor_id: String,
+	to_location_id: String,
+	to_anchor_id: String,
+	building_instance_id: String,
+	extra: Dictionary = {}
+) -> void:
+	var row := {
 		"from_location_id": from_location_id,
 		"from_anchor_id": from_anchor_id,
 		"to_location_id": to_location_id,
 		"to_anchor_id": to_anchor_id,
 		"building_instance_id": building_instance_id,
-	})
+	}
+	row.merge(extra, true)
+	(_generated.get("transitions", []) as Array).append(row)
 
 
 func _materialize_prefab_exterior_slots(

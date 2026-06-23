@@ -98,11 +98,19 @@ func settle_offscreen_location(location_data_path: String, from_absolute_minutes
 		if scheduled_location_id != location_id:
 			scheduled_location_data = _read_location_data_by_id(scheduled_location_id)
 		var target: Dictionary = _resolve_schedule_target(active_entry, scheduled_location_data)
+		var target_position: Dictionary = target.get("grid_position", active_entry.get("grid_position", {})) as Dictionary
+		if target_position.is_empty():
+			push_warning("Skipping offscreen schedule state without grid_position: %s -> %s/%s" % [
+				str(spawn_data.get("id", character_definition.get("id", ""))),
+				scheduled_location_id,
+				str(active_entry.get("anchor_id", "")),
+			])
+			continue
 		var character_state := {
 			"character_id": str(spawn_data.get("id", character_definition.get("id", ""))),
 			"location_id": scheduled_location_id,
 			"anchor_id": str(active_entry.get("anchor_id", "")),
-			"grid_position": target.get("grid_position", active_entry.get("grid_position", {})),
+			"grid_position": target_position,
 			"facing": str(target.get("facing", active_entry.get("facing", character_definition.get("facing", "down")))),
 			"activity_type": str(active_entry.get("activity_type", "idle")),
 			"activity": str(active_entry.get("activity", "idle")),

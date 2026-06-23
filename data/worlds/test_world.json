@@ -1,0 +1,82 @@
+{
+  "world_id": "test_world",
+  "world_seed": 6401,
+  "start_location_id": "test_village",
+  "start_spawn_id": "village_start",
+  "locations": [
+    {
+      "location_id": "test_village",
+      "display_name": "Generated Test Village",
+      "location_kind": "static",
+      "source_type": "static_scene",
+      "scene_path": "res://scenes/locations/test_village.tscn",
+      "data_path": "res://data/locations/test_village.json",
+      "metadata": {
+        "fixture_role": "v64_world_start"
+      }
+    },
+    {
+      "location_id": "test_wild_plain",
+      "display_name": "Generated Wild Plain",
+      "location_kind": "generated_wild",
+      "source_type": "generated",
+      "scene_path": "res://scenes/locations/test_wild_plain.tscn",
+      "data_path": "res://data/locations/test_wild_plain.json",
+      "generator_id": "wild_terrain",
+      "generator_profile_id": "plain",
+      "seed": 6201,
+      "size": { "width": 64, "height": 64 },
+      "metadata": {
+        "fixture_role": "v64_generated_wild"
+      }
+    }
+  ],
+  "spawns": [
+    {
+      "location_id": "test_village",
+      "spawn_id": "village_start",
+      "entrance_id": "plaza",
+      "facing": "down",
+      "tags": ["start", "plaza"]
+    },
+    {
+      "location_id": "test_village",
+      "spawn_id": "east_entry",
+      "entrance_id": "from_wild",
+      "facing": "left",
+      "tags": ["from_wild", "east_gate"]
+    },
+    {
+      "location_id": "test_wild_plain",
+      "spawn_id": "west_entry",
+      "entrance_id": "wild_spawn",
+      "facing": "right",
+      "tags": ["from_village", "west_entry"]
+    }
+  ],
+  "exits": [
+    {
+      "exit_id": "wild_gate",
+      "from_location_id": "test_village",
+      "from_anchor_id": "wild_gate",
+      "target_location_id": "test_wild_plain",
+      "target_spawn_id": "west_entry",
+      "transition_type": "walk",
+      "enabled": true,
+      "metadata": {
+        "fixture_link": "village_to_wild"
+      }
+    },
+    {
+      "exit_id": "return_to_village",
+      "from_location_id": "test_wild_plain",
+      "target_location_id": "test_village",
+      "target_spawn_id": "east_entry",
+      "transition_type": "walk",
+      "enabled": true,
+      "metadata": {
+        "fixture_link": "wild_to_village"
+      }
+    }
+  ]
+}

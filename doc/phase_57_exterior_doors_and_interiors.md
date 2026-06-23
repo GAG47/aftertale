@@ -27,8 +27,9 @@ For each building, the village generator creates:
 - a visible door structure;
 - a blocking `LocationObject` on the door cell;
 - a return entrance on the exterior doorstep;
-- a stable building instance id such as `b001`;
-- a concrete interior location id such as `test_village__interior_b001`;
+- a stable generated building instance id;
+- a concrete interior location id derived from the generated exterior location
+  and building instance id;
 - an exterior door anchor owned by that building instance;
 - transition context carrying the building instance, archetype id, and interior
   location id.

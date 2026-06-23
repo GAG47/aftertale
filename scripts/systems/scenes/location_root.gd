@@ -920,6 +920,16 @@ func _build_spawn_data(spawn_data: Dictionary, definition: Dictionary) -> Dictio
 
 
 func _spawn_character(definition: Dictionary, resolved_spawn_data: Dictionary) -> CharacterEntity:
+	if not _spawn_data_has_grid_position(resolved_spawn_data):
+		if _is_player_spawn(resolved_spawn_data, definition):
+			_apply_entrance_to_spawn_data(resolved_spawn_data)
+		if not _spawn_data_has_grid_position(resolved_spawn_data):
+			push_warning("Skipping character spawn without grid_position: %s in %s" % [
+				str(resolved_spawn_data.get("id", definition.get("id", ""))),
+				grid.location_id if grid != null else "",
+			])
+			return null
+
 	var character: CharacterEntity = CharacterEntity.new()
 	character.z_index = 0
 	characters_root.add_child(character)
@@ -1101,7 +1111,9 @@ func _apply_matching_offscreen_state_to_spawn_data(spawn_data: Dictionary, offsc
 
 func _apply_offscreen_state_to_spawn_data(spawn_data: Dictionary, offscreen_state: Dictionary) -> void:
 	if offscreen_state.has("grid_position"):
-		spawn_data["grid_position"] = (offscreen_state.get("grid_position", {}) as Dictionary).duplicate(true)
+		var offscreen_position: Dictionary = offscreen_state.get("grid_position", {}) as Dictionary
+		if not offscreen_position.is_empty():
+			spawn_data["grid_position"] = offscreen_position.duplicate(true)
 	if offscreen_state.has("facing"):
 		spawn_data["facing"] = str(offscreen_state.get("facing", "down"))
 
@@ -1413,6 +1425,11 @@ func _is_player_spawn(spawn_data: Dictionary, definition: Dictionary) -> bool:
 	return bool(spawn_data.get("is_player_controlled", definition.get("is_player_controlled", false)))
 
 
+func _spawn_data_has_grid_position(spawn_data: Dictionary) -> bool:
+	var position_data: Dictionary = spawn_data.get("grid_position", {}) as Dictionary
+	return position_data.has("x") and position_data.has("y")
+
+
 func _on_move_requested(direction: Vector2i) -> void:
 	if GameState.current_mode == GameState.GameMode.COMBAT:
 		if not BattleSystem.is_move_mode():
@@ -1446,12 +1463,25 @@ func _on_move_requested(direction: Vector2i) -> void:
 		_step_party_followers_after_player_move(result)
 
 
-func request_exit_transition(exit_data: Dictionary) -> void:
+func request_exit_transition(exit_data: Dictionary) -> bool:
 	exit_requested.emit(exit_data)
-	SceneLoader.load_location(
-		str(exit_data.get("target_scene_path", "")),
-		str(exit_data.get("target_entrance_id", ""))
-	)
+	var world_service: Variant = _world_transition_service()
+	if world_service != null and world_service.is_world_active():
+		var transition_result: Dictionary = world_service.transition_by_exit_data(exit_data)
+		if bool(transition_result.get("success", false)):
+			return true
+		if not bool(transition_result.get("success", false)):
+			push_warning("World transition failed for exit %s: %s" % [
+				str(exit_data.get("id", "")),
+				str(transition_result.get("error", "unknown error")),
+			])
+	var target_scene_path := str(exit_data.get("target_scene_path", ""))
+	if target_scene_path == "__return__":
+		return SceneLoader.load_pending_return_location() == OK
+	if target_scene_path.is_empty():
+		return false
+	SceneLoader.load_location(target_scene_path, str(exit_data.get("target_entrance_id", "")))
+	return true
 
 
 func remove_location_object(object_id: String) -> bool:
@@ -1919,6 +1949,17 @@ func _submit_object_interaction(target_object: LocationObject, target_cell: Vect
 
 func _submit_scene_transition_object(target_object: LocationObject) -> void:
 	var transition_data: Dictionary = target_object.get_transition_data()
+	var world_exit_id := str(transition_data.get("world_exit_id", ""))
+	var world_service: Variant = _world_transition_service()
+	if world_service != null and world_service.is_world_active() and not world_exit_id.is_empty():
+		if request_exit_transition({
+			"id": world_exit_id,
+			"world_exit_id": world_exit_id,
+			"transition_type": "door",
+			"target_scene_path": str(transition_data.get("target_scene_path", "")),
+			"target_entrance_id": str(transition_data.get("target_entrance_id", "")),
+		}):
+			return
 	var target_scene_path := str(transition_data.get("target_scene_path", ""))
 	var target_entrance_id := str(transition_data.get("target_entrance_id", ""))
 	if target_scene_path == "__return__":
@@ -1996,7 +2037,14 @@ func _submit_save_facility(_target_object: LocationObject) -> void:
 
 
 func _read_location_data() -> Dictionary:
+	var pending_location_data: Dictionary = SceneLoader.consume_pending_location_data()
+	if not pending_location_data.is_empty():
+		return pending_location_data
 	return DefinitionLoader.load_resolved_location(location_data_path, SceneLoader.consume_pending_location_context())
+
+
+func _world_transition_service() -> Variant:
+	return get_node_or_null("/root/WorldTransitionService")
 
 
 func _read_json_resource(resource_path: String) -> Dictionary:

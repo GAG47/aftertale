@@ -41,6 +41,10 @@ func load_location(resource_path: String) -> Dictionary:
 	return load_json_resource(resource_path, "location definition")
 
 
+func load_world(resource_path: String) -> Dictionary:
+	return load_json_resource(resource_path, "world definition")
+
+
 func load_resolved_location(resource_path: String, context: Dictionary = {}) -> Dictionary:
 	if context.is_empty() and _resolved_location_id_by_resource_path.has(resource_path):
 		var cached_location_id := str(_resolved_location_id_by_resource_path.get(resource_path, ""))

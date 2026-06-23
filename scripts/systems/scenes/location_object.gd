@@ -25,6 +25,7 @@ extends Node2D
 @export var target_scene_path: String = ""
 @export var target_entrance_id: String = ""
 @export var return_entrance_id: String = ""
+@export var world_exit_id: String = ""
 
 var location_root: Node
 var item_definition: Dictionary = {}
@@ -67,6 +68,7 @@ func configure(data: Dictionary, parent_location: Node) -> void:
 	target_scene_path = str(data.get("target_scene_path", ""))
 	target_entrance_id = str(data.get("target_entrance_id", ""))
 	return_entrance_id = str(data.get("return_entrance_id", ""))
+	world_exit_id = str(data.get("world_exit_id", data.get("exit_id", "")))
 	transition_context = (data.get("transition_context", {}) as Dictionary).duplicate(true)
 	recipe_ids.clear()
 	var recipe_rows: Array = data.get("recipe_ids", []) as Array
@@ -153,6 +155,7 @@ func get_summary() -> Dictionary:
 		"target_scene_path": target_scene_path,
 		"target_entrance_id": target_entrance_id,
 		"return_entrance_id": return_entrance_id,
+		"world_exit_id": world_exit_id,
 	}
 
 
@@ -161,7 +164,7 @@ func is_facility() -> bool:
 
 
 func is_scene_transition() -> bool:
-	return facility_type == "scene_transition" or not target_scene_path.is_empty()
+	return facility_type == "scene_transition" or not target_scene_path.is_empty() or not world_exit_id.is_empty()
 
 
 func get_transition_data() -> Dictionary:
@@ -171,6 +174,7 @@ func get_transition_data() -> Dictionary:
 		"target_scene_path": target_scene_path,
 		"target_entrance_id": target_entrance_id,
 		"return_entrance_id": return_entrance_id,
+		"world_exit_id": world_exit_id,
 		"context": transition_context.duplicate(true),
 	}
 

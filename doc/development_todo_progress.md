@@ -39,6 +39,12 @@ a usable skeleton toward presentable generated places:
 - continuous wild landform semantics that keep lowland, wetland, woodland,
   open meadow, upland, hillside, and rocky ridge areas readable as connected
   terrain instead of random tile noise.
+- a world/location network that treats locations as graph nodes and exits as
+  data-driven edges, with generated wild locations materialized on demand and
+  reused from runtime/save metadata.
+- interior child locations that hang off parent exterior locations in the world
+  graph, with doors represented as world transition edges instead of separate
+  scene-path door logic.
 
 ## Battle Deepening Roadmap
 
@@ -58,6 +64,8 @@ a usable skeleton toward presentable generated places:
 | v61 | Complete | `doc/phase_61_adaptive_parcel_building_cores.md` | Replace rectangular prefab-lot assumptions with organically grown cell-set parcels, protect required settlement goals with priority-filtered auction arbitration, fit only south-facing building cores inside parcel cells, and report adaptation failures instead of hiding them. |
 | v62 | Complete | `doc/phase_62_wild_terrain_generation.md` | Add an independent natural-layer-driven wild terrain generator that emits reusable blueprint maps, water/wetland biomes, sampled natural objects, spawn and exit candidates, and a generated runtime wild location without settlement coupling or required semantic object patches. |
 | v63 | Complete | `doc/phase_63_semantic_elevation.md` | Promote wild height maps into semantic lowland, highland, slope, ridge, and v63.2 landform layers that influence terrain, movement cost, resource placement, runtime presentation, and F3 debug summaries without introducing true multi-level terrain. |
+| v64 | Complete | `doc/phase_64_world_location_network.md` | Add a data-driven world/location graph, spawn and exit specs, runtime generated-location registry, generic transition service, and test world connecting the village to an on-demand generated wild location without hard-coding a two-scene loop. |
+| v64.1 | Complete | `doc/phase_64_1_interior_world_nodes.md` | Add enterable interiors as child world location nodes, door enter/leave edges, parent/child graph queries, and generated building-interior registry support driven by generated manifests without promoting furniture or anchors to world nodes. |
 
 ## Dependency Order
 
@@ -76,6 +84,8 @@ v50 skill effect data model
 -> v61 adaptive parcel building cores
 -> v62 wild terrain generation
 -> v63 semantic wild elevation and continuous landforms
+-> v64 world location network and generic transitions
+-> v64.1 interior child nodes and door transition edges
 ```
 
 ## Minimum Tactical Slice

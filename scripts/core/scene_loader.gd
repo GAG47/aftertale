@@ -12,6 +12,7 @@ var current_scene_path: String = ""
 var pending_entrance_id: String = ""
 var save_runtime_on_next_unload: bool = true
 var pending_location_context: Dictionary = {}
+var pending_location_data: Dictionary = {}
 var pending_return_location: Dictionary = {}
 var camera_zoom: float = DEFAULT_CAMERA_ZOOM
 
@@ -53,6 +54,16 @@ func load_location(scene_path: String, entrance_id: String = "") -> Error:
 
 func set_pending_location_context(context: Dictionary) -> void:
 	pending_location_context = context.duplicate(true)
+
+
+func set_pending_location_data(location_data: Dictionary) -> void:
+	pending_location_data = location_data.duplicate(true)
+
+
+func consume_pending_location_data() -> Dictionary:
+	var location_data := pending_location_data.duplicate(true)
+	pending_location_data.clear()
+	return location_data
 
 
 func consume_pending_location_context() -> Dictionary:

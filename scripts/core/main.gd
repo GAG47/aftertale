@@ -1,5 +1,7 @@
 extends Node
 
+const DEFAULT_WORLD_PATH := "res://data/worlds/test_world.json"
+
 @onready var world_root: Node = $WorldRoot
 @onready var ui_root: UIRoot = $UILayer/UIRoot
 
@@ -29,7 +31,23 @@ func _start_new_game() -> void:
 	TimeManager.reset()
 	TimeManager.set_paused(false)
 
+	var world_service: Variant = _world_transition_service()
+	var world_result: Dictionary = world_service.load_world(DEFAULT_WORLD_PATH) if world_service != null else {
+		"success": false,
+		"error": "WorldTransitionService autoload is unavailable.",
+	}
+	if bool(world_result.get("success", false)):
+		var start_result: Dictionary = world_service.start_world(true)
+		if bool(start_result.get("success", false)):
+			return
+		push_warning("World start failed, falling back to direct test village load: %s" % str(start_result.get("error", "")))
+	else:
+		push_warning("World load failed, falling back to direct test village load: %s" % str(world_result.get("error", "")))
 	SceneLoader.load_location("res://scenes/locations/test_village.tscn", "plaza")
+
+
+func _world_transition_service() -> Variant:
+	return get_node_or_null("/root/WorldTransitionService")
 
 
 func _on_debug_toggle_requested() -> void:
