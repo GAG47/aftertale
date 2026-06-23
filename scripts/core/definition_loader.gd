@@ -2,6 +2,7 @@ extends Node
 
 const VillageRoadGenerator := preload("res://scripts/systems/scenes/village_road_generator.gd")
 const BuildingInteriorGenerator := preload("res://scripts/systems/scenes/building_interior_generator.gd")
+const WildLocationCompiler := preload("res://scripts/systems/terrain/wild_location_compiler.gd")
 const GENERATED_INTERIOR_DATA_PATH := "res://data/locations/generated_building_interior.json"
 const GENERATED_INTERIOR_SCENE_PATH := "res://scenes/locations/generated_building_interior.tscn"
 
@@ -66,6 +67,11 @@ func materialize_location(location_data: Dictionary, resource_path: String = "",
 			var generator: RefCounted = BuildingInteriorGenerator.new()
 			var generated: Dictionary = generator.generate_location(location_data, context)
 			_register_resolved_location(generated, resource_path, GENERATED_INTERIOR_SCENE_PATH, context.is_empty())
+			return generated.duplicate(true)
+		"wild_terrain":
+			var generator: RefCounted = WildLocationCompiler.new()
+			var generated: Dictionary = generator.generate_location(location_data, context)
+			_register_resolved_location(generated, resource_path, "", context.is_empty())
 			return generated.duplicate(true)
 		_:
 			_register_resolved_location(location_data, resource_path, "", context.is_empty())

@@ -8,6 +8,7 @@ signal facility_requested(facility_data: Dictionary)
 const NpcMovementAgentScript := preload("res://scripts/systems/schedules/npc_movement_agent.gd")
 const NpcActivityAgentScript := preload("res://scripts/systems/schedules/npc_activity_agent.gd")
 const NpcAutonomyAgentScript := preload("res://scripts/systems/schedules/npc_autonomy_agent.gd")
+const WildTerrainDebugOverlayScript := preload("res://scripts/systems/terrain/wild_terrain_debug_overlay.gd")
 const CAMERA_ZOOM_MIN := 0.75
 const CAMERA_ZOOM_MAX := 3.0
 const CAMERA_ZOOM_STEP := 0.15
@@ -32,6 +33,7 @@ var crops_root: Node2D
 var battle_overlay: BattleGridOverlay
 var battle_feedback_root: Node2D
 var interaction_overlay: InteractionTargetOverlay
+var wild_terrain_debug_overlay: Node2D
 var current_grid_position: Vector2i = Vector2i.ZERO
 var controlled_character: CharacterEntity
 var _location_data_cache: Dictionary = {}
@@ -58,6 +60,7 @@ func _ready() -> void:
 	_setup_battle_overlay()
 	_setup_battle_feedback_root()
 	_setup_interaction_overlay()
+	_setup_wild_terrain_debug_overlay()
 	_setup_crops_root()
 	refresh_crop_markers()
 	_spawn_characters_from_data()
@@ -216,6 +219,8 @@ func set_debug_presentation_visible(value: bool) -> void:
 			continue
 		if renderer.has_method("set_debug_layers_visible"):
 			renderer.set_debug_layers_visible(value)
+	if wild_terrain_debug_overlay != null and is_instance_valid(wild_terrain_debug_overlay):
+		wild_terrain_debug_overlay.set_debug_layers_visible(value)
 
 
 func is_cell_plantable(cell: Vector2i) -> bool:
@@ -266,6 +271,7 @@ func get_location_summary() -> Dictionary:
 		"characters": _get_character_summaries(),
 		"crop_count": CropSystem.get_location_crops(grid.location_id).size(),
 		"crops": CropSystem.get_location_crops(grid.location_id),
+		"generation_summary": (_location_data_cache.get("generation_summary", {}) as Dictionary).duplicate(true),
 		"shops": (_location_data_cache.get("shops", []) as Array).duplicate(true),
 	}
 
@@ -758,6 +764,19 @@ func _setup_interaction_overlay() -> void:
 	add_child(interaction_overlay)
 	move_child(interaction_overlay, tile_renderer.get_index() + 1)
 	interaction_overlay.configure(grid)
+
+
+func _setup_wild_terrain_debug_overlay() -> void:
+	var terrain_blueprint: Dictionary = _location_data_cache.get("wild_terrain_blueprint", {}) as Dictionary
+	if terrain_blueprint.is_empty():
+		return
+
+	wild_terrain_debug_overlay = WildTerrainDebugOverlayScript.new()
+	wild_terrain_debug_overlay.name = "WildTerrainDebugOverlay"
+	wild_terrain_debug_overlay.z_index = -45
+	add_child(wild_terrain_debug_overlay)
+	move_child(wild_terrain_debug_overlay, tile_renderer.get_index() + 1)
+	wild_terrain_debug_overlay.configure(grid, terrain_blueprint)
 
 
 func _spawn_characters_from_data() -> void:

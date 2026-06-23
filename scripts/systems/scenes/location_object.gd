@@ -102,6 +102,8 @@ func _draw() -> void:
 	var item_id: String = str(item_definition.get("id", ""))
 	if item_id == "debug_apple":
 		_draw_apple_icon()
+	elif item_id == "debug_herb":
+		_draw_herb_icon()
 	elif item_id == "debug_seed":
 		_draw_seed_pouch_icon()
 	elif item_id == "debug_stick":
@@ -231,6 +233,16 @@ func _draw_seed_pouch_icon() -> void:
 	draw_circle(Vector2(-2.5, 1.0), 1.5, Color(0.93, 0.82, 0.42))
 	draw_circle(Vector2(2.5, 2.5), 1.5, Color(0.93, 0.82, 0.42))
 	draw_circle(Vector2(0.5, 5.0), 1.3, Color(0.93, 0.82, 0.42))
+
+
+func _draw_herb_icon() -> void:
+	for index in range(5):
+		var x := -7.0 + float(index) * 3.5
+		var top := -8.0 - float(index % 2) * 2.0
+		draw_line(Vector2(x, 8.0), Vector2(x + 1.5, top), Color(0.16, 0.48, 0.22), 2.0)
+		draw_line(Vector2(x + 1.5, top + 4.0), Vector2(x + 5.0, top + 1.0), Color(0.30, 0.72, 0.34), 1.5)
+	draw_circle(Vector2(5.0, -7.5), 2.1, Color(0.78, 0.90, 0.38))
+	_draw_soft_outline(9.0)
 
 
 func _draw_stick_icon() -> void:

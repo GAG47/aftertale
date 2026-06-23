@@ -61,6 +61,7 @@ func _refresh() -> void:
 	var npc_schedule_line := "NPC日程：无"
 	var relation_line := "关系：无"
 	var battle_line := "战斗：未进行"
+	var generation_line := "生成：无"
 	if not location_summary.is_empty():
 		location_line = "地点：%s" % location_summary.get("display_name", "未知")
 		grid_line = "格子：%dx%d @ %dpx" % [
@@ -75,6 +76,21 @@ func _refresh() -> void:
 		character_line = "角色：%d" % [
 			location_summary.get("character_count", 0),
 		]
+		var generation_summary: Dictionary = location_summary.get("generation_summary", {}) as Dictionary
+		if not generation_summary.is_empty():
+			generation_line = "生成：%s seed=%s 通行=%.3f 水=%.3f 湿地=%.3f 林=%.3f 石=%.3f 低=%.3f 高=%.3f 坡=%.3f 脊=%.3f" % [
+				str(generation_summary.get("profile", "unknown")),
+				str(generation_summary.get("seed", "")),
+				float(generation_summary.get("passable_ratio", 0.0)),
+				float(generation_summary.get("water_ratio", 0.0)),
+				float(generation_summary.get("wetland_ratio", 0.0)),
+				float(generation_summary.get("forest_ratio", 0.0)),
+				float(generation_summary.get("rock_ratio", 0.0)),
+				float(generation_summary.get("lowland_ratio", 0.0)),
+				float(generation_summary.get("highland_ratio", 0.0)),
+				float(generation_summary.get("slope_ratio", 0.0)),
+				float(generation_summary.get("ridge_ratio", 0.0)),
+			]
 
 		var controlled_character: Dictionary = location_summary.get("controlled_character", {}) as Dictionary
 		if not controlled_character.is_empty():
@@ -203,6 +219,7 @@ func _refresh() -> void:
 		grid_line,
 		object_line,
 		character_line,
+		generation_line,
 		controlled_line,
 		controlled_flags_line,
 		inventory_line,

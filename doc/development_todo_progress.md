@@ -5,7 +5,7 @@ This document tracks planned work after Phase 49. It is an index, not the full d
 ## Current Focus
 
 Phases 50 through 54 form the first complete battle-deepening slice. Phase 55
-restructured the full UI layer. Phases 56 through 61 move scene generation from
+restructured the full UI layer. Phases 56 through 62 move scene generation from
 a usable skeleton toward presentable generated places:
 
 - pipeline-based skill effects and battle resources;
@@ -30,6 +30,15 @@ a usable skeleton toward presentable generated places:
 - cell-set parcels that can be irregular, while south-facing building cores are
   fitted inside those parcel cells and yards/paths adapt to the final parcel
   shape instead of forcing every old prefab exterior slot to materialize.
+- independent wild terrain generation driven by natural layers, sampled natural
+  objects, and runtime spawn/exit candidate selection without settlement
+  coupling.
+- semantic wild elevation that turns generated height into lowland, highland,
+  slope, and ridge facts affecting terrain, movement cost, resources, and
+  presentation without true multi-level pathfinding.
+- continuous wild landform semantics that keep lowland, wetland, woodland,
+  open meadow, upland, hillside, and rocky ridge areas readable as connected
+  terrain instead of random tile noise.
 
 ## Battle Deepening Roadmap
 
@@ -47,6 +56,8 @@ a usable skeleton toward presentable generated places:
 | v59 | Complete | `doc/phase_59_semantic_town_layout.md` | Interpret BSP leaves as district candidates, assign town roles from that graph, select building parcels by score, and expose F3 parcel debug presentation. |
 | v60 | Complete | `doc/phase_60_agent_settlement_blueprint_planner.md` | Replace the BSP-led village layout authority with an open-auction agent blueprint planner while preserving v59 parcels, prefabs, doors, interiors, anchors, and NPC schedule targets; v60.3 removes default compiler recovery, supports multi-side parcel access, and records planner-declared required goals. |
 | v61 | Complete | `doc/phase_61_adaptive_parcel_building_cores.md` | Replace rectangular prefab-lot assumptions with organically grown cell-set parcels, protect required settlement goals with priority-filtered auction arbitration, fit only south-facing building cores inside parcel cells, and report adaptation failures instead of hiding them. |
+| v62 | Complete | `doc/phase_62_wild_terrain_generation.md` | Add an independent natural-layer-driven wild terrain generator that emits reusable blueprint maps, water/wetland biomes, sampled natural objects, spawn and exit candidates, and a generated runtime wild location without settlement coupling or required semantic object patches. |
+| v63 | Complete | `doc/phase_63_semantic_elevation.md` | Promote wild height maps into semantic lowland, highland, slope, ridge, and v63.2 landform layers that influence terrain, movement cost, resource placement, runtime presentation, and F3 debug summaries without introducing true multi-level terrain. |
 
 ## Dependency Order
 
@@ -63,6 +74,8 @@ v50 skill effect data model
 -> v59 semantic town layout
 -> v60 agent settlement blueprint planning
 -> v61 adaptive parcel building cores
+-> v62 wild terrain generation
+-> v63 semantic wild elevation and continuous landforms
 ```
 
 ## Minimum Tactical Slice

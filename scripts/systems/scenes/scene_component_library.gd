@@ -13,6 +13,24 @@ static func draw_ground_tile(canvas: CanvasItem, grid: LocationGrid, cell: Vecto
 	match terrain_id:
 		"grass":
 			_draw_grass_floor(canvas, grid, cell, rect, color)
+		"lowland_grass":
+			_draw_lowland_grass_floor(canvas, grid, cell, rect, color)
+		"highland_grass":
+			_draw_highland_grass_floor(canvas, grid, cell, rect, color)
+		"slope_grass":
+			_draw_slope_grass_floor(canvas, grid, cell, rect, color)
+		"dirt":
+			_draw_dirt_floor(canvas, grid, cell, rect, color)
+		"mud":
+			_draw_mud_floor(canvas, grid, cell, rect, color)
+		"wet_grass":
+			_draw_wet_grass_floor(canvas, grid, cell, rect, color)
+		"forest_floor":
+			_draw_forest_floor(canvas, grid, cell, rect, color)
+		"stone", "rocky_ground":
+			_draw_stone_floor(canvas, grid, cell, rect, color)
+		"shallow_water", "deep_water":
+			_draw_water_floor(canvas, grid, cell, rect, color, terrain_id == "deep_water")
 		"path":
 			_draw_path_floor(canvas, grid, cell, rect, color)
 		"plaza":
@@ -74,6 +92,14 @@ static func draw_floor_overlay(canvas: CanvasItem, grid: LocationGrid, overlay: 
 			_draw_foundation(canvas, rect)
 		"steps":
 			_draw_steps(canvas, rect)
+		"elevation_lowland":
+			_draw_elevation_lowland(canvas, rect)
+		"elevation_highland":
+			_draw_elevation_highland(canvas, rect)
+		"elevation_slope":
+			_draw_elevation_slope(canvas, rect, overlay)
+		"elevation_ridge":
+			_draw_elevation_ridge(canvas, rect, overlay)
 		_:
 			_draw_marker(canvas, rect, Color(0.58, 0.54, 0.45, 0.55))
 
@@ -83,10 +109,18 @@ static func draw_floor_decoration(canvas: CanvasItem, grid: LocationGrid, decora
 	match str(decoration.get("type", "")):
 		"flower_patch":
 			_draw_flower_patch(canvas, rect, str(decoration.get("palette", "spring")))
+		"herb_patch":
+			_draw_herb_patch(canvas, rect)
+		"berry_bush":
+			_draw_berry_bush(canvas, rect)
+		"fallen_branch":
+			_draw_fallen_branch(canvas, rect)
 		"grass_clump":
 			_draw_grass_clump(canvas, rect)
 		"stone":
 			_draw_small_stone(canvas, rect)
+		"scree":
+			_draw_scree(canvas, rect)
 		"road_pebbles":
 			_draw_road_pebbles(canvas, rect)
 		"flower_pot":
@@ -162,6 +196,12 @@ static func draw_structure(canvas: CanvasItem, grid: LocationGrid, structure: Di
 			_draw_weapon_rack(canvas, rect)
 		"wood_stump":
 			_draw_wood_stump(canvas, rect)
+		"tree":
+			_draw_tree(canvas, rect)
+		"large_rock":
+			_draw_large_rock(canvas, rect)
+		"ore_vein":
+			_draw_ore_vein(canvas, rect)
 		_:
 			_draw_marker(canvas, rect, Color(0.85, 0.70, 0.36))
 
@@ -190,6 +230,33 @@ static func _draw_grass_floor(canvas: CanvasItem, grid: LocationGrid, cell: Vect
 		canvas.draw_line(point, point + Vector2(2.0, -4.0), blade_color, 1.0)
 
 
+static func _draw_lowland_grass_floor(canvas: CanvasItem, grid: LocationGrid, cell: Vector2i, rect: Rect2, color: Color) -> void:
+	_draw_grass_floor(canvas, grid, cell, rect, color)
+	canvas.draw_rect(rect.grow(-3.0), Color(0.08, 0.22, 0.18, 0.08), true)
+	canvas.draw_rect(rect.grow(-8.0), Color(0.12, 0.32, 0.28, 0.10), false, 1.0)
+
+
+static func _draw_highland_grass_floor(canvas: CanvasItem, grid: LocationGrid, cell: Vector2i, rect: Rect2, color: Color) -> void:
+	_draw_grass_floor(canvas, grid, cell, rect, color)
+	canvas.draw_rect(rect.grow(-4.0), Color(0.94, 0.80, 0.38, 0.09), true)
+	var contour_color := Color(0.20, 0.16, 0.07, 0.16)
+	var highlight_color := Color(1.0, 0.95, 0.62, 0.16)
+	canvas.draw_line(rect.position + Vector2(5.0, 8.0), Vector2(rect.end.x - 5.0, rect.position.y + 6.0), highlight_color, 1.0)
+	if _pattern_value(cell, 0, 97) % 2 == 0:
+		canvas.draw_line(rect.position + Vector2(6.0, 20.0), Vector2(rect.end.x - 6.0, rect.position.y + 18.0), contour_color, 1.0)
+
+
+static func _draw_slope_grass_floor(canvas: CanvasItem, grid: LocationGrid, cell: Vector2i, rect: Rect2, color: Color) -> void:
+	_draw_grass_floor(canvas, grid, cell, rect, color)
+	canvas.draw_rect(rect.grow(-4.0), Color(0.42, 0.32, 0.13, 0.08), true)
+	var band_color := Color(0.16, 0.11, 0.05, 0.24)
+	var lift_color := Color(1.0, 0.86, 0.48, 0.12)
+	for index in range(2):
+		var y := rect.position.y + 10.0 + float(index) * 8.0
+		canvas.draw_line(Vector2(rect.position.x + 5.0, y + 4.0), Vector2(rect.end.x - 5.0, y), band_color, 1.1)
+	canvas.draw_line(rect.position + Vector2(5.0, 5.0), Vector2(rect.end.x - 6.0, rect.position.y + 4.0), lift_color, 1.0)
+
+
 static func _draw_path_floor(canvas: CanvasItem, grid: LocationGrid, cell: Vector2i, rect: Rect2, color: Color) -> void:
 	canvas.draw_rect(rect.grow(-3.0), Color(0.65, 0.52, 0.33, 0.16), true)
 	var pebble_color := Color(0.36, 0.28, 0.18, 0.22)
@@ -200,6 +267,71 @@ static func _draw_path_floor(canvas: CanvasItem, grid: LocationGrid, cell: Vecto
 		)
 		canvas.draw_circle(point, 1.2, pebble_color)
 	canvas.draw_rect(rect.grow(-8.0), Color(1.0, 0.92, 0.68, 0.07), false, 1.0)
+
+
+static func _draw_dirt_floor(canvas: CanvasItem, grid: LocationGrid, cell: Vector2i, rect: Rect2, color: Color) -> void:
+	_draw_soft_noise(canvas, grid, cell, rect, color)
+	var scratch_color := Color(0.30, 0.24, 0.13, 0.10)
+	for index in range(2):
+		var point: Vector2 = rect.position + Vector2(
+			7.0 + float(_pattern_value(cell, index, 37) % max(1, grid.tile_size - 14)),
+			8.0 + float(_pattern_value(cell, index, 41) % max(1, grid.tile_size - 16))
+		)
+		canvas.draw_line(point, point + Vector2(5.0, 1.5), scratch_color, 1.0)
+	if _pattern_value(cell, 0, 43) % 3 == 0:
+		var tuft := rect.position + Vector2(10.0 + float(_pattern_value(cell, 1, 47) % max(1, grid.tile_size - 20)), 21.0)
+		canvas.draw_line(tuft, tuft + Vector2(2.0, -5.0), Color(0.34, 0.43, 0.22, 0.20), 1.0)
+
+
+static func _draw_mud_floor(canvas: CanvasItem, grid: LocationGrid, cell: Vector2i, rect: Rect2, color: Color) -> void:
+	_draw_soft_noise(canvas, grid, cell, rect, color)
+	var pool_color := Color(0.18, 0.16, 0.12, 0.18)
+	for index in range(2):
+		var center: Vector2 = rect.position + Vector2(
+			9.0 + float(_pattern_value(cell, index, 43) % max(1, grid.tile_size - 18)),
+			10.0 + float(_pattern_value(cell, index, 47) % max(1, grid.tile_size - 18))
+		)
+		canvas.draw_circle(center, 3.0, pool_color)
+
+
+static func _draw_wet_grass_floor(canvas: CanvasItem, grid: LocationGrid, cell: Vector2i, rect: Rect2, color: Color) -> void:
+	_draw_grass_floor(canvas, grid, cell, rect, color)
+	canvas.draw_rect(rect.grow(-7.0), Color(0.16, 0.34, 0.35, 0.09), false, 1.0)
+
+
+static func _draw_forest_floor(canvas: CanvasItem, grid: LocationGrid, cell: Vector2i, rect: Rect2, color: Color) -> void:
+	_draw_soft_noise(canvas, grid, cell, rect, color)
+	var leaf_color := Color(0.19, 0.30, 0.13, 0.28)
+	for index in range(4):
+		var point: Vector2 = rect.position + Vector2(
+			6.0 + float(_pattern_value(cell, index, 53) % max(1, grid.tile_size - 12)),
+			7.0 + float(_pattern_value(cell, index, 59) % max(1, grid.tile_size - 14))
+		)
+		canvas.draw_circle(point, 1.8, leaf_color)
+
+
+static func _draw_stone_floor(canvas: CanvasItem, grid: LocationGrid, cell: Vector2i, rect: Rect2, color: Color) -> void:
+	_draw_soft_noise(canvas, grid, cell, rect, color)
+	var crack_color := Color(0.13, 0.13, 0.12, 0.22)
+	canvas.draw_line(rect.position + Vector2(8.0, 9.0), rect.position + Vector2(23.0, 18.0), crack_color, 1.0)
+	if _pattern_value(cell, 0, 67) % 2 == 0:
+		canvas.draw_line(rect.position + Vector2(18.0, 7.0), rect.position + Vector2(12.0, 24.0), crack_color, 1.0)
+
+
+static func _draw_water_floor(
+	canvas: CanvasItem,
+	grid: LocationGrid,
+	cell: Vector2i,
+	rect: Rect2,
+	color: Color,
+	deep: bool
+) -> void:
+	canvas.draw_rect(rect, color, true)
+	var wave_color := Color(0.78, 0.92, 1.0, 0.18 if deep else 0.26)
+	for index in range(2):
+		var y: float = rect.position.y + 10.0 + float(index * 9)
+		var x_offset: float = float(_pattern_value(cell, index, 71) % max(1, int(grid.tile_size / 3)))
+		canvas.draw_line(Vector2(rect.position.x + 5.0 + x_offset, y), Vector2(rect.end.x - 6.0, y + 1.5), wave_color, 1.2)
 
 
 static func _draw_plaza_floor(canvas: CanvasItem, cell: Vector2i, rect: Rect2) -> void:
@@ -295,6 +427,42 @@ static func _draw_front_path(canvas: CanvasItem, rect: Rect2, yard_policy: Strin
 static func _draw_building_foundation(canvas: CanvasItem, rect: Rect2) -> void:
 	canvas.draw_rect(rect.grow(-1.0), Color(0.38, 0.37, 0.33, 0.26), true)
 	canvas.draw_rect(rect.grow(-1.0), Color(0.12, 0.11, 0.10, 0.18), false, 1.0)
+
+
+static func _draw_elevation_lowland(canvas: CanvasItem, rect: Rect2) -> void:
+	canvas.draw_rect(rect.grow(-3.0), Color(0.16, 0.38, 0.30, 0.070), true)
+	canvas.draw_rect(rect.grow(-8.0), Color(0.08, 0.20, 0.17, 0.060), false, 1.0)
+
+
+static func _draw_elevation_highland(canvas: CanvasItem, rect: Rect2) -> void:
+	canvas.draw_rect(rect.grow(-3.0), Color(0.88, 0.77, 0.42, 0.075), true)
+	canvas.draw_line(rect.position + Vector2(5.0, 5.0), Vector2(rect.end.x - 7.0, rect.position.y + 4.0), Color(1.0, 0.92, 0.62, 0.140), 1.0)
+
+
+static func _draw_elevation_slope(canvas: CanvasItem, rect: Rect2, overlay: Dictionary) -> void:
+	var edges: Array = overlay.get("drop_edges", []) as Array
+	if edges.is_empty():
+		canvas.draw_line(rect.position + Vector2(8.0, 18.0), rect.position + Vector2(23.0, 21.0), Color(0.18, 0.12, 0.06, 0.160), 1.0)
+		return
+	canvas.draw_rect(rect.grow(-4.0), Color(0.50, 0.40, 0.22, 0.050), true)
+	_draw_drop_edges(canvas, rect, edges, Color(0.18, 0.12, 0.06, 0.320), 1.5)
+
+
+static func _draw_elevation_ridge(canvas: CanvasItem, rect: Rect2, overlay: Dictionary) -> void:
+	canvas.draw_rect(rect.grow(-4.0), Color(0.58, 0.56, 0.48, 0.065), true)
+	canvas.draw_line(rect.position + Vector2(8.0, 10.0), rect.end - Vector2(9.0, 14.0), Color(0.16, 0.14, 0.11, 0.180), 1.0)
+	_draw_drop_edges(canvas, rect, overlay.get("drop_edges", []) as Array, Color(0.10, 0.08, 0.06, 0.360), 1.8)
+
+
+static func _draw_drop_edges(canvas: CanvasItem, rect: Rect2, edges: Array, color: Color, width: float) -> void:
+	if edges.has("north"):
+		canvas.draw_line(rect.position + Vector2(2.0, 2.0), Vector2(rect.end.x - 2.0, rect.position.y + 2.0), color, width)
+	if edges.has("south"):
+		canvas.draw_line(Vector2(rect.position.x + 2.0, rect.end.y - 2.0), rect.end - Vector2(2.0, 2.0), color, width)
+	if edges.has("west"):
+		canvas.draw_line(rect.position + Vector2(2.0, 2.0), Vector2(rect.position.x + 2.0, rect.end.y - 2.0), color, width)
+	if edges.has("east"):
+		canvas.draw_line(Vector2(rect.end.x - 2.0, rect.position.y + 2.0), rect.end - Vector2(2.0, 2.0), color, width)
 
 
 static func _draw_soft_noise(canvas: CanvasItem, grid: LocationGrid, cell: Vector2i, rect: Rect2, color: Color) -> void:
@@ -749,6 +917,42 @@ static func _draw_wood_stump(canvas: CanvasItem, rect: Rect2) -> void:
 	canvas.draw_arc(center, 4.0, 0.0, TAU, 14, Color(0.30, 0.18, 0.08, 0.35), 1.0)
 
 
+static func _draw_tree(canvas: CanvasItem, rect: Rect2) -> void:
+	var center: Vector2 = rect.get_center()
+	canvas.draw_circle(center + Vector2(0.0, 7.0), 9.0, Color(0.0, 0.0, 0.0, 0.12))
+	canvas.draw_rect(Rect2(center + Vector2(-3.0, 2.0), Vector2(6.0, 11.0)), Color(0.40, 0.23, 0.10), true)
+	canvas.draw_circle(center + Vector2(-6.0, -5.0), 10.0, Color(0.22, 0.45, 0.20))
+	canvas.draw_circle(center + Vector2(5.0, -6.0), 11.0, Color(0.18, 0.39, 0.18))
+	canvas.draw_circle(center + Vector2(0.0, -13.0), 9.0, Color(0.28, 0.52, 0.24))
+	canvas.draw_arc(center + Vector2(0.0, -7.0), 14.0, 0.0, TAU, 20, Color(0.07, 0.13, 0.06, 0.42), 1.1)
+
+
+static func _draw_large_rock(canvas: CanvasItem, rect: Rect2) -> void:
+	var center: Vector2 = rect.get_center()
+	var points := PackedVector2Array([
+		center + Vector2(-10.0, 4.0),
+		center + Vector2(-6.0, -7.0),
+		center + Vector2(4.0, -10.0),
+		center + Vector2(11.0, -2.0),
+		center + Vector2(7.0, 8.0),
+		center + Vector2(-4.0, 9.0),
+	])
+	canvas.draw_polygon(points, _solid_colors(points.size(), Color(0.45, 0.46, 0.43)))
+	var outline := PackedVector2Array()
+	for point in points:
+		outline.append(point)
+	outline.append(points[0])
+	canvas.draw_polyline(outline, LINE_COLOR, 1.1)
+	canvas.draw_line(center + Vector2(-4.0, -5.0), center + Vector2(5.0, -7.0), Color(1.0, 1.0, 1.0, 0.14), 1.0)
+
+
+static func _draw_ore_vein(canvas: CanvasItem, rect: Rect2) -> void:
+	_draw_large_rock(canvas, rect)
+	var center: Vector2 = rect.get_center()
+	canvas.draw_line(center + Vector2(-5.0, 2.0), center + Vector2(6.0, -5.0), Color(0.58, 0.78, 0.82, 0.75), 1.8)
+	canvas.draw_line(center + Vector2(-1.0, 6.0), center + Vector2(8.0, 1.0), Color(0.78, 0.90, 0.88, 0.65), 1.2)
+
+
 static func _draw_flower_patch(canvas: CanvasItem, rect: Rect2, palette: String) -> void:
 	var flower_color := Color(0.96, 0.82, 0.30)
 	if palette == "purple":
@@ -759,6 +963,29 @@ static func _draw_flower_patch(canvas: CanvasItem, rect: Rect2, palette: String)
 		var center: Vector2 = rect.position + Vector2(8.0 + float(index * 5), 12.0 + float(index % 2) * 5.0)
 		canvas.draw_line(center + Vector2(0.0, 5.0), center, Color(0.28, 0.55, 0.24, 0.65), 1.2)
 		canvas.draw_circle(center, 2.0, flower_color)
+
+
+static func _draw_herb_patch(canvas: CanvasItem, rect: Rect2) -> void:
+	var center: Vector2 = rect.get_center()
+	for index in range(5):
+		var offset := Vector2(-8.0 + float(index * 4), 5.0 - float(index % 2) * 2.0)
+		canvas.draw_line(center + offset, center + offset + Vector2(1.5, -8.0), Color(0.18, 0.55, 0.28, 0.76), 1.4)
+	canvas.draw_circle(center + Vector2(4.0, -5.0), 2.0, Color(0.76, 0.88, 0.42, 0.85))
+
+
+static func _draw_berry_bush(canvas: CanvasItem, rect: Rect2) -> void:
+	var center: Vector2 = rect.get_center()
+	canvas.draw_circle(center, 8.0, Color(0.20, 0.43, 0.18, 0.78))
+	canvas.draw_circle(center + Vector2(-4.0, -2.0), 2.0, Color(0.75, 0.12, 0.16, 0.88))
+	canvas.draw_circle(center + Vector2(4.0, 2.0), 2.0, Color(0.80, 0.18, 0.18, 0.88))
+	canvas.draw_circle(center + Vector2(1.0, -5.0), 1.7, Color(0.92, 0.30, 0.22, 0.86))
+
+
+static func _draw_fallen_branch(canvas: CanvasItem, rect: Rect2) -> void:
+	var center: Vector2 = rect.get_center()
+	canvas.draw_line(center + Vector2(-9.0, 6.0), center + Vector2(8.0, -5.0), Color(0.42, 0.24, 0.10, 0.88), 3.0)
+	canvas.draw_line(center + Vector2(-2.0, 1.0), center + Vector2(-8.0, -3.0), Color(0.34, 0.18, 0.07, 0.78), 1.7)
+	canvas.draw_line(center + Vector2(2.0, -1.0), center + Vector2(8.0, 3.0), Color(0.34, 0.18, 0.07, 0.78), 1.7)
 
 
 static func _draw_grass_clump(canvas: CanvasItem, rect: Rect2) -> void:
@@ -772,6 +999,14 @@ static func _draw_small_stone(canvas: CanvasItem, rect: Rect2) -> void:
 	var center: Vector2 = rect.get_center()
 	canvas.draw_circle(center, 5.0, Color(0.50, 0.50, 0.46, 0.72))
 	canvas.draw_line(center + Vector2(-3.0, -2.0), center + Vector2(3.0, -4.0), Color(1.0, 1.0, 1.0, 0.14), 1.0)
+
+
+static func _draw_scree(canvas: CanvasItem, rect: Rect2) -> void:
+	for index in range(3):
+		var offset := Vector2(8.0 + float(index * 6), 10.0 + float((index * 7) % 12))
+		var center := rect.position + offset
+		canvas.draw_circle(center, 1.3 + float(index % 2) * 0.4, Color(0.42, 0.41, 0.37, 0.42))
+		canvas.draw_line(center + Vector2(-1.0, -0.7), center + Vector2(1.0, -1.0), Color(1.0, 1.0, 1.0, 0.08), 1.0)
 
 
 static func _draw_road_pebbles(canvas: CanvasItem, rect: Rect2) -> void:

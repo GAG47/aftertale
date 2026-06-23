@@ -1819,7 +1819,7 @@ func _apply_wild_gate(area: Dictionary) -> void:
 	_add_entrance("from_wild", gate_anchor, "left")
 	_add_anchor("wild_gate_guard_post", "guard_post", gate_anchor + Vector2i(-1, 0), "right", [gate_anchor + Vector2i(-1, 0), gate_anchor])
 	_connector_cells["wild_gate"] = gate_anchor
-	_add_exit("wild_gate", exit_cell, "res://scenes/locations/test_clearing.tscn", "west_gate")
+	_add_exit("wild_gate", exit_cell, "res://scenes/locations/test_wild_plain.tscn", "wild_spawn")
 	var sign_cell := gate_anchor + Vector2i(0, 1)
 	if not _in_bounds(sign_cell):
 		sign_cell = gate_anchor + Vector2i(0, -1)

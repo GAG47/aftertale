@@ -1,0 +1,23 @@
+{
+  "id": "test_wild_plain",
+  "display_name": "Generated Wild Plain",
+  "tile_size": 32,
+  "generator": {
+    "type": "wild_terrain",
+    "seed": 6201,
+    "size": { "width": 64, "height": 64 },
+    "terrain_profile_id": "plain",
+    "optional_spawn_hint": {
+      "side": "west"
+    },
+    "optional_exit_hints": [
+      {
+        "id": "return_to_village",
+        "side": "west",
+        "facing": "left",
+        "target_scene_path": "res://scenes/locations/test_village.tscn",
+        "target_entrance_id": "from_wild"
+      }
+    ]
+  }
+}

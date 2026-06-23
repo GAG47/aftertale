@@ -377,6 +377,19 @@ foreach ($file in Get-ChildItem -LiteralPath $locationDir -Filter "*.json") {
         continue
     }
 
+    if ($json.generator -and [string]$json.generator.type -eq "wild_terrain") {
+        if (-not $json.generator.size -or [int]$json.generator.size.width -le 0 -or [int]$json.generator.size.height -le 0) {
+            $errors.Add("Invalid wild terrain size: $($file.Name)")
+        }
+        if (-not $json.generator.seed) {
+            $errors.Add("Wild terrain location missing seed: $($file.Name)")
+        }
+        if (-not $json.generator.terrain_profile_id) {
+            $errors.Add("Wild terrain location missing terrain_profile_id: $($file.Name)")
+        }
+        continue
+    }
+
     if (-not $json.size -or [int]$json.size.width -le 0 -or [int]$json.size.height -le 0) {
         $errors.Add("Invalid size: $($file.Name)")
         continue
