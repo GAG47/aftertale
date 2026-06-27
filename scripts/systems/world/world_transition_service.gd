@@ -257,7 +257,7 @@ func _enter_location(target_location_id: String, target_spawn_id: String, base_s
 			return _fail("SceneLoader failed to load location scene: %s" % scene_path, summary)
 
 	_runtime.current_location_id = target_location_id
-	GameState.set_scene_context(scene_path, target_location_id)
+	GameState.set_scene_context(target_location_id, target_location_id)
 
 	summary["success"] = true
 	summary["world_id"] = _graph.world_id

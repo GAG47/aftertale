@@ -1,0 +1,25 @@
+{
+  "profile_id": "temperate_frontier",
+  "node_count_range": [5, 8],
+  "start_location_policy": "static_test_village",
+  "available_location_kinds": ["generated_wild"],
+  "available_wild_profiles": ["plain", "forest_edge", "riverbank", "foothill"],
+  "location_kind_weights": {
+    "generated_wild": 1.0
+  },
+  "wild_profile_weights": {
+    "plain": 0.35,
+    "forest_edge": 0.30,
+    "riverbank": 0.20,
+    "foothill": 0.15
+  },
+  "connection_density": 1.25,
+  "branchiness": 0.45,
+  "size_ranges": {
+    "generated_wild": [
+      [48, 48],
+      [56, 48],
+      [64, 48]
+    ]
+  }
+}

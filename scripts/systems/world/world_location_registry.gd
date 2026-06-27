@@ -204,10 +204,49 @@ func _wild_source_data(graph: Variant, spec: Dictionary) -> Dictionary:
 		generator_data["terrain_profile_id"] = str(spec.get("generator_profile_id", "plain"))
 	if spec.has("size"):
 		generator_data["size"] = (spec.get("size", {}) as Dictionary).duplicate(true)
+	var exit_hints := _wild_exit_hints_from_graph(graph, str(spec.get("location_id", "")))
+	if not exit_hints.is_empty():
+		generator_data["optional_exit_hints"] = exit_hints
 	source_data["generator"] = generator_data
 	source_data["id"] = str(spec.get("location_id", source_data.get("id", "")))
 	source_data["display_name"] = str(spec.get("display_name", source_data.get("display_name", source_data.get("id", ""))))
 	return source_data
+
+
+func _wild_exit_hints_from_graph(graph: Variant, location_id: String) -> Array[Dictionary]:
+	var hints: Array[Dictionary] = []
+	if graph == null or location_id.is_empty():
+		return hints
+	for edge_value in graph.get_edges_from(location_id):
+		var edge: Dictionary = edge_value as Dictionary
+		var metadata: Dictionary = edge.get("metadata", {}) as Dictionary
+		var hint := {
+			"id": str(edge.get("exit_id", "")),
+			"world_exit_id": str(edge.get("exit_id", "")),
+			"side": str(metadata.get("side", metadata.get("from_side", ""))),
+			"facing": str(metadata.get("facing", "")),
+			"target_scene_path": "__world__",
+			"target_entrance_id": str(edge.get("target_spawn_id", "")),
+		}
+		var entry_entrance_id := _wild_entry_entrance_for_paired_edge(graph, location_id, edge)
+		if not entry_entrance_id.is_empty():
+			hint["entry_entrance_id"] = entry_entrance_id
+		hints.append(hint)
+	return hints
+
+
+func _wild_entry_entrance_for_paired_edge(graph: Variant, location_id: String, edge: Dictionary) -> String:
+	var paired_exit_id := str(edge.get("paired_exit_id", ""))
+	if paired_exit_id.is_empty():
+		return ""
+	var paired_edge: Dictionary = graph.get_exit_spec("", paired_exit_id)
+	if paired_edge.is_empty():
+		return ""
+	if str(paired_edge.get("target_location_id", "")) != location_id:
+		return ""
+	var target_spawn_id := str(paired_edge.get("target_spawn_id", ""))
+	var spawn_spec: Dictionary = graph.get_spawn_spec(location_id, target_spawn_id)
+	return str(spawn_spec.get("entrance_id", ""))
 
 
 func _wild_generation_context(spec: Dictionary) -> Dictionary:

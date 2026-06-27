@@ -64,7 +64,9 @@
       "transition_type": "walk",
       "enabled": true,
       "metadata": {
-        "fixture_link": "village_to_wild"
+        "fixture_link": "village_to_wild",
+        "side": "east",
+        "facing": "right"
       }
     },
     {
@@ -75,7 +77,9 @@
       "transition_type": "walk",
       "enabled": true,
       "metadata": {
-        "fixture_link": "wild_to_village"
+        "fixture_link": "wild_to_village",
+        "side": "west",
+        "facing": "left"
       }
     }
   ]

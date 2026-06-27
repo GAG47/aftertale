@@ -1,6 +1,11 @@
 extends Node
 
-const DEFAULT_WORLD_PATH := "res://data/worlds/test_world.json"
+const WorldGraphGeneratorScript := preload("res://scripts/systems/world/world_graph_generator.gd")
+
+const FALLBACK_WORLD_PATH := "res://data/worlds/test_world.json"
+const DEFAULT_WORLD_ID := "generated_default_world"
+const DEFAULT_WORLD_SEED := 6501
+const DEFAULT_REGION_PROFILE_ID := "temperate_frontier"
 
 @onready var world_root: Node = $WorldRoot
 @onready var ui_root: UIRoot = $UILayer/UIRoot
@@ -32,7 +37,7 @@ func _start_new_game() -> void:
 	TimeManager.set_paused(false)
 
 	var world_service: Variant = _world_transition_service()
-	var world_result: Dictionary = world_service.load_world(DEFAULT_WORLD_PATH) if world_service != null else {
+	var world_result: Dictionary = _load_default_world(world_service) if world_service != null else {
 		"success": false,
 		"error": "WorldTransitionService autoload is unavailable.",
 	}
@@ -44,6 +49,20 @@ func _start_new_game() -> void:
 	else:
 		push_warning("World load failed, falling back to direct test village load: %s" % str(world_result.get("error", "")))
 	SceneLoader.load_location("res://scenes/locations/test_village.tscn", "plaza")
+
+
+func _load_default_world(world_service: Variant) -> Dictionary:
+	var generator: RefCounted = WorldGraphGeneratorScript.new()
+	var world_data: Dictionary = generator.generate_world_data({
+		"world_id": DEFAULT_WORLD_ID,
+		"world_seed": DEFAULT_WORLD_SEED,
+		"region_profile_id": DEFAULT_REGION_PROFILE_ID,
+	})
+	var result: Dictionary = world_service.load_world_from_data(world_data)
+	if bool(result.get("success", false)):
+		return result
+	push_warning("Generated default world load failed, falling back to fixture world: %s" % str(result.get("error", "")))
+	return world_service.load_world(FALLBACK_WORLD_PATH)
 
 
 func _world_transition_service() -> Variant:

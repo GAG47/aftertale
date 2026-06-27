@@ -194,19 +194,27 @@ func _compile_exits(location_data: Dictionary, blueprint: RefCounted) -> void:
 	for exit_value in blueprint.exit_candidates:
 		var exit_data: Dictionary = exit_value as Dictionary
 		var target_scene_path := str(exit_data.get("target_scene_path", ""))
-		if target_scene_path.is_empty():
+		var world_exit_id := str(exit_data.get("world_exit_id", ""))
+		if target_scene_path.is_empty() and world_exit_id.is_empty():
 			continue
 		var cell := _cell_from_dict(exit_data.get("grid_position", {}) as Dictionary)
 		if not blueprint.in_bounds(cell):
 			continue
 		rows[cell.y] = _replace_char(rows[cell.y], cell.x, "e")
-		(location_data.get("exits", []) as Array).append({
+		var row := {
 			"id": str(exit_data.get("id", "wild_exit")),
 			"grid_position": _dict_cell(cell),
 			"target_scene_path": target_scene_path,
 			"target_entrance_id": str(exit_data.get("target_entrance_id", "")),
-		})
+		}
+		if not world_exit_id.is_empty():
+			row["world_exit_id"] = world_exit_id
+		(location_data.get("exits", []) as Array).append(row)
 		_add_anchor(location_data, str(exit_data.get("id", "wild_exit")), "exit", cell, str(exit_data.get("facing", "left")))
+		var entry_entrance_id := str(exit_data.get("entry_entrance_id", ""))
+		if not entry_entrance_id.is_empty() and not _has_entrance(location_data, entry_entrance_id):
+			_add_entrance(location_data, entry_entrance_id, cell, _opposite_facing(str(exit_data.get("facing", "left"))))
+			_add_anchor(location_data, entry_entrance_id, "spawn", cell, _opposite_facing(str(exit_data.get("facing", "left"))))
 	location_data["tiles"] = rows
 
 
@@ -314,6 +322,28 @@ func _add_anchor(location_data: Dictionary, anchor_id: String, kind: String, cel
 		"grid_position": _dict_cell(cell),
 		"facing": facing,
 	})
+
+
+func _has_entrance(location_data: Dictionary, entrance_id: String) -> bool:
+	for entrance_value in (location_data.get("entrances", []) as Array):
+		var entrance: Dictionary = entrance_value as Dictionary
+		if str(entrance.get("id", "")) == entrance_id:
+			return true
+	return false
+
+
+func _opposite_facing(facing: String) -> String:
+	match facing:
+		"left":
+			return "right"
+		"right":
+			return "left"
+		"up":
+			return "down"
+		"down":
+			return "up"
+		_:
+			return "down"
 
 
 func _tile_char(tile_id: String) -> String:

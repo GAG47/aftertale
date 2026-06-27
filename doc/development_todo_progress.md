@@ -66,6 +66,7 @@ a usable skeleton toward presentable generated places:
 | v63 | Complete | `doc/phase_63_semantic_elevation.md` | Promote wild height maps into semantic lowland, highland, slope, ridge, and v63.2 landform layers that influence terrain, movement cost, resource placement, runtime presentation, and F3 debug summaries without introducing true multi-level terrain. |
 | v64 | Complete | `doc/phase_64_world_location_network.md` | Add a data-driven world/location graph, spawn and exit specs, runtime generated-location registry, generic transition service, and test world connecting the village to an on-demand generated wild location without hard-coding a two-scene loop. |
 | v64.1 | Complete | `doc/phase_64_1_interior_world_nodes.md` | Add enterable interiors as child world location nodes, door enter/leave edges, parent/child graph queries, and generated building-interior registry support driven by generated manifests without promoting furniture or anchors to world nodes. |
+| v65 | Complete | `doc/phase_65_world_graph_generator.md` | Add a seed-driven local world graph generator with region profiles, generated location node specs, spawn points, paired transition edges, graph compilation, debug summaries, and generated-wild materialization through the existing world transition service. |
 
 ## Dependency Order
 
@@ -86,6 +87,7 @@ v50 skill effect data model
 -> v63 semantic wild elevation and continuous landforms
 -> v64 world location network and generic transitions
 -> v64.1 interior child nodes and door transition edges
+-> v65 local world graph generation
 ```
 
 ## Minimum Tactical Slice

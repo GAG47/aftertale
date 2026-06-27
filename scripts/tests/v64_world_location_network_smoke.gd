@@ -74,6 +74,9 @@ func _run() -> void:
 	if first_location_data.is_empty():
 		_fail("v64 generated_wild was not registered in runtime state")
 		return
+	if not _exit_is_near_side(first_location_data, "return_to_village", "west"):
+		_fail("v64 return_to_village exit should be generated near the west side")
+		return
 	var first_fingerprint := _location_fingerprint(first_location_data)
 
 	var return_result: Dictionary = world_service.transition_by_exit_id("return_to_village", false)
@@ -158,6 +161,32 @@ func _location_fingerprint(location_data: Dictionary) -> String:
 			str(exit_data.get("target_entrance_id", "")),
 		])
 	return "|".join(parts)
+
+
+func _exit_is_near_side(location_data: Dictionary, exit_id: String, side: String) -> bool:
+	for exit_value in (location_data.get("exits", []) as Array):
+		var exit_data: Dictionary = exit_value as Dictionary
+		if str(exit_data.get("id", "")) != exit_id:
+			continue
+		var cell: Dictionary = exit_data.get("grid_position", {}) as Dictionary
+		var size: Dictionary = location_data.get("size", {}) as Dictionary
+		var x := int(cell.get("x", 0))
+		var y := int(cell.get("y", 0))
+		var width := int(size.get("width", 1))
+		var height := int(size.get("height", 1))
+		var edge_band := maxi(3, int(ceil(float(maxi(width, height)) * 0.20)))
+		match side:
+			"west", "left":
+				return x <= edge_band
+			"east", "right":
+				return x >= width - 1 - edge_band
+			"north", "up":
+				return y <= edge_band
+			"south", "down":
+				return y >= height - 1 - edge_band
+			_:
+				return true
+	return false
 
 
 func _fail(message: String) -> void:

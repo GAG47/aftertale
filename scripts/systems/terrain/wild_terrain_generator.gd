@@ -693,6 +693,8 @@ func _select_exit_candidates() -> Array[Dictionary]:
 				"grid_position": _dict_cell(cell),
 				"facing": str(hint.get("facing", _facing_for_side(str(hint.get("side", ""))))),
 				"side": str(hint.get("side", "")),
+				"world_exit_id": str(hint.get("world_exit_id", "")),
+				"entry_entrance_id": str(hint.get("entry_entrance_id", "")),
 				"target_scene_path": str(hint.get("target_scene_path", "")),
 				"target_entrance_id": str(hint.get("target_entrance_id", "")),
 				"selection_score": float(candidate.get("score", 0.0)),
