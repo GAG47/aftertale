@@ -13,10 +13,14 @@ static func load_profile(profile_id_or_path: String) -> Dictionary:
 	if not resource_path.begins_with("res://"):
 		resource_path = PROFILE_PATH_PATTERN % profile_id
 
-	var data := _load_json_resource(resource_path)
 	var profile := _default_profile()
+	profile["_profile_source_path"] = resource_path
+	var data := _load_json_resource(resource_path)
+	profile["_profile_found"] = not data.is_empty()
 	if not data.is_empty():
 		_deep_merge(profile, data)
+	else:
+		profile["_profile_load_error"] = "world generation profile not found or empty: %s" % resource_path
 	if not profile.has("profile_id"):
 		profile["profile_id"] = profile_id
 	return profile
@@ -36,9 +40,22 @@ static func _default_profile() -> Dictionary:
 	return {
 		"profile_id": DEFAULT_PROFILE_ID,
 		"node_count_range": [4, 6],
-		"start_location_policy": "static_test_village",
+		"start_location_policy": "generated_wild",
+		"region_map": {
+			"size": { "width": 18, "height": 12 },
+		},
 		"available_location_kinds": ["generated_wild"],
 		"available_wild_profiles": ["plain", "forest_edge", "riverbank", "foothill"],
+		"unplaceable_region_biomes": ["sea"],
+		"biome_profile_map": {
+			"coast": ["riverbank"],
+			"plain": ["plain"],
+			"forest": ["forest_edge"],
+			"riverbank": ["riverbank"],
+			"foothill": ["foothill"],
+			"rocky": ["foothill"],
+			"sea": [],
+		},
 		"location_kind_weights": {
 			"generated_wild": 1.0,
 		},

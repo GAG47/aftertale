@@ -2,9 +2,27 @@ class_name WorldLocationRegistry
 extends RefCounted
 
 const WildLocationCompilerScript := preload("res://scripts/systems/terrain/wild_location_compiler.gd")
-const DEFAULT_WILD_SCENE_PATH := "res://scenes/locations/test_wild_plain.tscn"
+const DEFAULT_WILD_SCENE_PATH := "res://scenes/locations/generated_wild_location.tscn"
 const DEFAULT_INTERIOR_SCENE_PATH := "res://scenes/locations/generated_building_interior.tscn"
 const DEFAULT_INTERIOR_DATA_PATH := "res://data/locations/generated_building_interior.json"
+const LOCATION_IDENTITY_KEYS := {
+	"id": true,
+	"location_id": true,
+	"exterior_location_id": true,
+	"parent_location_id": true,
+	"from_location_id": true,
+	"to_location_id": true,
+	"target_location_id": true,
+	"interior_location_id": true,
+	"world_enter_exit_id": true,
+	"world_leave_exit_id": true,
+	"world_exit_id": true,
+	"exit_id": true,
+	"scheduled_location_id": true,
+}
+const LOCATION_IDENTITY_MAP_KEYS := {
+	"transition_anchor_by_location": true,
+}
 
 
 func resolve_location(graph: Variant, runtime: Variant, location_id: String) -> Dictionary:
@@ -49,7 +67,10 @@ func resolve_location(graph: Variant, runtime: Variant, location_id: String) -> 
 		_:
 			return _failure("unsupported location source_type: %s" % source_type)
 
-	if str(location_data.get("id", "")) != location_id:
+	var source_location_id := str(location_data.get("id", ""))
+	if not source_location_id.is_empty() and source_location_id != location_id:
+		location_data = _rebind_location_identity(location_data, source_location_id, location_id)
+	elif str(location_data.get("id", "")) != location_id:
 		location_data["id"] = location_id
 	if not spec.get("display_name", "").is_empty():
 		location_data["display_name"] = str(spec.get("display_name", location_id))
@@ -65,6 +86,12 @@ func resolve_location(graph: Variant, runtime: Variant, location_id: String) -> 
 		"scene_path": _scene_path_for_spec(spec),
 		"data_path": str(spec.get("data_path", "")),
 	}
+	if spec.has("region_position"):
+		metadata["region_position"] = (spec.get("region_position", {}) as Dictionary).duplicate(true)
+	if spec.has("region_biome"):
+		metadata["region_biome"] = str(spec.get("region_biome", ""))
+	if spec.has("region_patch"):
+		metadata["region_patch"] = (spec.get("region_patch", {}) as Dictionary).duplicate(true)
 	runtime.register_location(location_id, location_data, metadata, generated_or_loaded == "generated")
 
 	return {
@@ -175,12 +202,52 @@ func synchronize_graph_from_location_data(graph: Variant, location_data: Diction
 		}))
 		var return_entrance_id := _return_entrance_id(interior_manifest, building)
 		if not return_entrance_id.is_empty():
-			_ensure_exterior_spawn_for_entrance(graph, parent_location_id, building, return_entrance_id, _return_spawn_id(interior_manifest, building))
+			_upsert_exterior_spawn_for_entrance(graph, parent_location_id, building, return_entrance_id, _return_spawn_id(interior_manifest, building))
 
 	for transition_value in (location_data.get("transitions", []) as Array):
 		var transition: Dictionary = transition_value as Dictionary
 		warnings.append_array(_upsert_manifest_transition_edge(graph, parent_location_id, transition, building_by_id, building_by_interior_id, interior_manifest_by_id))
 	return warnings
+
+
+func _rebind_location_identity(location_data: Dictionary, source_location_id: String, target_location_id: String) -> Dictionary:
+	var rebound: Dictionary = _rebind_identity_value(location_data, source_location_id, target_location_id, "") as Dictionary
+	rebound["id"] = target_location_id
+	rebound["source_location_id"] = source_location_id
+	return rebound
+
+
+func _rebind_identity_value(value: Variant, source_location_id: String, target_location_id: String, parent_key: String) -> Variant:
+	if value is Dictionary:
+		var source: Dictionary = value as Dictionary
+		var result: Dictionary = {}
+		var should_rekey := bool(LOCATION_IDENTITY_MAP_KEYS.get(parent_key, false))
+		for key_value in source.keys():
+			var key_text := str(key_value)
+			var result_key: Variant = key_value
+			if should_rekey:
+				key_text = _replace_location_identity(key_text, source_location_id, target_location_id)
+				result_key = key_text
+			result[result_key] = _rebind_identity_value(source.get(key_value), source_location_id, target_location_id, key_text)
+		return result
+	if value is Array:
+		var result: Array = []
+		for item in (value as Array):
+			result.append(_rebind_identity_value(item, source_location_id, target_location_id, parent_key))
+		return result
+	if value is String and bool(LOCATION_IDENTITY_KEYS.get(parent_key, false)):
+		return _replace_location_identity(str(value), source_location_id, target_location_id)
+	return value
+
+
+func _replace_location_identity(value: String, source_location_id: String, target_location_id: String) -> String:
+	if value == source_location_id:
+		return target_location_id
+	for separator in ["__", "."]:
+		var source_prefix := "%s%s" % [source_location_id, separator]
+		if value.begins_with(source_prefix):
+			return "%s%s" % [target_location_id, value.substr(source_location_id.length())]
+	return value
 
 
 func _wild_source_data(graph: Variant, spec: Dictionary) -> Dictionary:
@@ -201,16 +268,42 @@ func _wild_source_data(graph: Variant, spec: Dictionary) -> Dictionary:
 	generator_data["type"] = "wild_terrain"
 	generator_data["seed"] = _seed_for_spec(graph, spec)
 	if spec.has("generator_profile_id"):
-		generator_data["terrain_profile_id"] = str(spec.get("generator_profile_id", "plain"))
+		generator_data["terrain_profile_id"] = str(spec.get("generator_profile_id", ""))
 	if spec.has("size"):
 		generator_data["size"] = (spec.get("size", {}) as Dictionary).duplicate(true)
+	if spec.has("region_patch"):
+		generator_data["region_patch"] = (spec.get("region_patch", {}) as Dictionary).duplicate(true)
+		source_data["region_patch"] = (spec.get("region_patch", {}) as Dictionary).duplicate(true)
+	if spec.has("region_biome"):
+		source_data["region_biome"] = str(spec.get("region_biome", ""))
+	if spec.has("region_position"):
+		source_data["region_position"] = (spec.get("region_position", {}) as Dictionary).duplicate(true)
 	var exit_hints := _wild_exit_hints_from_graph(graph, str(spec.get("location_id", "")))
 	if not exit_hints.is_empty():
 		generator_data["optional_exit_hints"] = exit_hints
 	source_data["generator"] = generator_data
 	source_data["id"] = str(spec.get("location_id", source_data.get("id", "")))
 	source_data["display_name"] = str(spec.get("display_name", source_data.get("display_name", source_data.get("id", ""))))
+	var default_entrance := _default_entrance_for_location(graph, str(spec.get("location_id", "")))
+	if not default_entrance.is_empty():
+		source_data["default_entrance"] = default_entrance
 	return source_data
+
+
+func _default_entrance_for_location(graph: Variant, location_id: String) -> String:
+	if graph == null or location_id.is_empty():
+		return ""
+	var spawn_id := ""
+	if str(graph.start_location_id) == location_id:
+		spawn_id = str(graph.start_spawn_id)
+	if spawn_id.is_empty():
+		var edges_to: Array[Dictionary] = graph.get_edges_to(location_id)
+		if not edges_to.is_empty():
+			spawn_id = str((edges_to[0] as Dictionary).get("target_spawn_id", ""))
+	if spawn_id.is_empty():
+		return ""
+	var spawn_spec: Dictionary = graph.get_spawn_spec(location_id, spawn_id)
+	return str(spawn_spec.get("entrance_id", ""))
 
 
 func _wild_exit_hints_from_graph(graph: Variant, location_id: String) -> Array[Dictionary]:
@@ -225,7 +318,6 @@ func _wild_exit_hints_from_graph(graph: Variant, location_id: String) -> Array[D
 			"world_exit_id": str(edge.get("exit_id", "")),
 			"side": str(metadata.get("side", metadata.get("from_side", ""))),
 			"facing": str(metadata.get("facing", "")),
-			"target_scene_path": "__world__",
 			"target_entrance_id": str(edge.get("target_spawn_id", "")),
 		}
 		var entry_entrance_id := _wild_entry_entrance_for_paired_edge(graph, location_id, edge)
@@ -254,9 +346,15 @@ func _wild_generation_context(spec: Dictionary) -> Dictionary:
 	if spec.has("seed"):
 		context["seed"] = int(spec.get("seed", 0))
 	if spec.has("generator_profile_id"):
-		context["terrain_profile_id"] = str(spec.get("generator_profile_id", "plain"))
+		context["terrain_profile_id"] = str(spec.get("generator_profile_id", ""))
 	if spec.has("size"):
 		context["size"] = (spec.get("size", {}) as Dictionary).duplicate(true)
+	if spec.has("region_patch"):
+		context["region_patch"] = (spec.get("region_patch", {}) as Dictionary).duplicate(true)
+	if spec.has("region_biome"):
+		context["region_biome"] = str(spec.get("region_biome", ""))
+	if spec.has("region_position"):
+		context["region_position"] = (spec.get("region_position", {}) as Dictionary).duplicate(true)
 	return context
 
 
@@ -348,7 +446,7 @@ func _interior_location_spec(parent_location_id: String, interior_manifest: Dict
 	}
 
 
-func _ensure_exterior_spawn_for_entrance(
+func _upsert_exterior_spawn_for_entrance(
 	graph: Variant,
 	location_id: String,
 	building: Dictionary,
@@ -418,7 +516,7 @@ func _upsert_manifest_transition_edge(
 	if from_location_id != parent_location_id and to_location_id == parent_location_id:
 		var return_entrance_id := str(transition.get("to_anchor_id", _return_entrance_id(interior_manifest, building)))
 		var target_spawn_id := str(transition.get("target_spawn_id", _return_spawn_id(interior_manifest, building)))
-		target_spawn_id = _ensure_exterior_spawn_for_entrance(graph, parent_location_id, building, return_entrance_id, target_spawn_id)
+		target_spawn_id = _upsert_exterior_spawn_for_entrance(graph, parent_location_id, building, return_entrance_id, target_spawn_id)
 		var leave_exit_id := str(building.get("world_leave_exit_id", "%s.leave" % from_location_id))
 		return graph.upsert_exit_spec({
 			"exit_id": leave_exit_id,

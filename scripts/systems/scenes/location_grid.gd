@@ -95,6 +95,39 @@ func terrain_at(cell: Vector2i) -> Dictionary:
 	return terrain.get(terrain_key_at(cell), {})
 
 
+func terrain_key_for_id(terrain_id: String) -> String:
+	if terrain_id.is_empty():
+		return ""
+
+	for key_value in terrain.keys():
+		var key := str(key_value)
+		var terrain_data: Dictionary = terrain.get(key_value, {}) as Dictionary
+		if str(terrain_data.get("id", "")) == terrain_id:
+			return key
+
+	return ""
+
+
+func set_terrain_id_at(cell: Vector2i, terrain_id: String) -> bool:
+	var terrain_key := terrain_key_for_id(terrain_id)
+	if terrain_key.is_empty():
+		return false
+	return set_terrain_key_at(cell, terrain_key)
+
+
+func set_terrain_key_at(cell: Vector2i, terrain_key: String) -> bool:
+	if not in_bounds(cell):
+		return false
+	if terrain_key.length() != 1:
+		return false
+	if not terrain.has(terrain_key):
+		return false
+
+	var row := tiles[cell.y]
+	tiles[cell.y] = row.substr(0, cell.x) + terrain_key + row.substr(cell.x + 1)
+	return true
+
+
 func is_walkable(cell: Vector2i) -> bool:
 	if not in_bounds(cell):
 		return false

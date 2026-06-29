@@ -2,6 +2,7 @@ extends SceneTree
 
 const WildTerrainGeneratorScript := preload("res://scripts/systems/terrain/wild_terrain_generator.gd")
 const WildLocationCompilerScript := preload("res://scripts/systems/terrain/wild_location_compiler.gd")
+const WILD_SOURCE_PATH := "res://data/locations/smoke_generated_wild.json"
 
 
 func _initialize() -> void:
@@ -9,7 +10,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	var source_data: Dictionary = _load_json_resource("res://data/locations/test_wild_plain.json")
+	var source_data: Dictionary = _load_json_resource(WILD_SOURCE_PATH)
 	if source_data.is_empty():
 		_fail("v63 source location could not be loaded")
 		return

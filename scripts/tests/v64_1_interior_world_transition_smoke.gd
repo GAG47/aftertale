@@ -1,7 +1,9 @@
 extends SceneTree
 
-const WORLD_PATH := "res://data/worlds/test_world.json"
-const VILLAGE_ID := "test_village"
+const SETTLEMENT_ID := "smoke_settlement"
+const SETTLEMENT_SOURCE_PATH := "res://data/locations/smoke_generated_settlement.json"
+const SETTLEMENT_SCENE_PATH := "res://scenes/locations/generated_settlement_location.tscn"
+const SPAWN_SETTLEMENT_START := "settlement_start"
 const INVALID_INTERIOR_ID := "invalid_spawn_target"
 
 
@@ -16,25 +18,25 @@ func _run() -> void:
 		return
 
 	world_service.reset_world()
-	var load_result: Dictionary = world_service.load_world(WORLD_PATH)
+	var load_result: Dictionary = world_service.load_world_from_data(_smoke_world_data())
 	if not bool(load_result.get("success", false)):
-		_fail("v64.1 could not load test_world: %s" % str(load_result.get("error", "")))
+		_fail("v64.1 could not load smoke world: %s" % str(load_result.get("error", "")))
 		return
-	if not world_service.get_child_locations(VILLAGE_ID).is_empty():
-		_fail("v64.1 test_world should not preload generated building interiors")
+	if not world_service.get_child_locations(SETTLEMENT_ID).is_empty():
+		_fail("v64.1 smoke world should not preload generated building interiors")
 		return
 
 	var start_result: Dictionary = world_service.start_world(false)
 	if not bool(start_result.get("success", false)):
 		_fail("v64.1 world start failed: %s" % str(start_result.get("error", "")))
 		return
-	if str(world_service.get_current_location_id()) != VILLAGE_ID:
-		_fail("v64.1 start did not enter the generated village")
+	if str(world_service.get_current_location_id()) != SETTLEMENT_ID:
+		_fail("v64.1 start did not enter the generated settlement")
 		return
 
-	var village_data: Dictionary = world_service.get_registered_location_data(VILLAGE_ID)
+	var village_data: Dictionary = world_service.get_registered_location_data(SETTLEMENT_ID)
 	if village_data.is_empty():
-		_fail("v64.1 test_village was not registered in runtime state")
+		_fail("v64.1 smoke settlement was not registered in runtime state")
 		return
 	var building_rows: Array = village_data.get("buildings", []) as Array
 	if building_rows.is_empty():
@@ -49,7 +51,7 @@ func _run() -> void:
 	var first_enter_exit_id := str(first_building.get("world_enter_exit_id", ""))
 	var first_leave_exit_id := str(first_building.get("world_leave_exit_id", ""))
 
-	var dynamic_children: Array = world_service.get_child_locations(VILLAGE_ID)
+	var dynamic_children: Array = world_service.get_child_locations(SETTLEMENT_ID)
 	if dynamic_children.size() < building_rows.size():
 		_fail("v64.1 world graph did not import all generated building interiors")
 		return
@@ -66,7 +68,7 @@ func _run() -> void:
 
 	var debug_summary: Dictionary = world_service.get_world_debug_summary()
 	var child_counts: Dictionary = debug_summary.get("child_counts", {}) as Dictionary
-	if int(child_counts.get(VILLAGE_ID, 0)) < building_rows.size():
+	if int(child_counts.get(SETTLEMENT_ID, 0)) < building_rows.size():
 		_fail("v64.1 debug summary did not report all generated child interiors")
 		return
 
@@ -80,7 +82,7 @@ func _run() -> void:
 	if str(enter_result.get("target_location_kind", "")) != "interior":
 		_fail("v64.1 enter transition summary missing interior kind")
 		return
-	if str(enter_result.get("parent_location_id", "")) != VILLAGE_ID:
+	if str(enter_result.get("parent_location_id", "")) != SETTLEMENT_ID:
 		_fail("v64.1 enter transition summary missing parent_location_id")
 		return
 	if str(enter_result.get("transition_type", "")) != "door":
@@ -99,8 +101,8 @@ func _run() -> void:
 	if not bool(leave_result.get("success", false)):
 		_fail("v64.1 dynamic leave transition failed: %s" % str(leave_result.get("error", "")))
 		return
-	if str(world_service.get_current_location_id()) != VILLAGE_ID:
-		_fail("v64.1 dynamic leave transition did not return to test_village")
+	if str(world_service.get_current_location_id()) != SETTLEMENT_ID:
+		_fail("v64.1 dynamic leave transition did not return to the smoke settlement")
 		return
 	if str(leave_result.get("target_spawn_id", "")) != str(first_building.get("exterior_return_spawn_id", "")):
 		_fail("v64.1 leave transition did not target the generated exterior return spawn")
@@ -108,7 +110,7 @@ func _run() -> void:
 
 	var save_state: Dictionary = world_service.get_save_state()
 	world_service.apply_save_state(save_state)
-	if world_service.get_exit_spec(VILLAGE_ID, first_enter_exit_id).is_empty():
+	if world_service.get_exit_spec(SETTLEMENT_ID, first_enter_exit_id).is_empty():
 		_fail("v64.1 restored save state lost generated interior world edges")
 		return
 
@@ -150,7 +152,7 @@ func _all_generated_doors_are_world_edges(world_service: Variant, village_data: 
 		var world_exit_id := str(object_data.get("world_exit_id", ""))
 		if world_exit_id.is_empty():
 			continue
-		if world_service.get_exit_spec(VILLAGE_ID, world_exit_id).is_empty():
+		if world_service.get_exit_spec(SETTLEMENT_ID, world_exit_id).is_empty():
 			_fail("v64.1 generated door has world_exit_id but no graph edge: %s" % world_exit_id)
 			return false
 	return true
@@ -186,7 +188,7 @@ func _all_generated_interiors_round_trip(world_service: Variant, village_data: D
 			_fail("v64.1 generated interior entry semantics drifted: %s" % interior_id)
 			return false
 
-		var enter_edge: Dictionary = world_service.get_exit_spec(VILLAGE_ID, enter_exit_id)
+		var enter_edge: Dictionary = world_service.get_exit_spec(SETTLEMENT_ID, enter_exit_id)
 		if enter_edge.is_empty():
 			_fail("v64.1 generated interior enter edge missing: %s" % enter_exit_id)
 			return false
@@ -202,10 +204,10 @@ func _all_generated_interiors_round_trip(world_service: Variant, village_data: D
 		if leave_edge.is_empty():
 			_fail("v64.1 generated interior leave edge missing: %s" % leave_exit_id)
 			return false
-		if str(leave_edge.get("target_location_id", "")) != VILLAGE_ID or str(leave_edge.get("target_spawn_id", "")) != return_spawn_id:
+		if str(leave_edge.get("target_location_id", "")) != SETTLEMENT_ID or str(leave_edge.get("target_spawn_id", "")) != return_spawn_id:
 			_fail("v64.1 generated interior leave edge target mismatch: %s" % leave_exit_id)
 			return false
-		var return_spawn: Dictionary = world_service.get_spawn_spec(VILLAGE_ID, return_spawn_id)
+		var return_spawn: Dictionary = world_service.get_spawn_spec(SETTLEMENT_ID, return_spawn_id)
 		if return_spawn.is_empty() or str(return_spawn.get("entrance_id", "")) != return_entrance_id:
 			_fail("v64.1 generated exterior return spawn mismatch: %s" % return_spawn_id)
 			return false
@@ -237,8 +239,8 @@ func _all_generated_interiors_round_trip(world_service: Variant, village_data: D
 		if not bool(leave_result.get("success", false)):
 			_fail("v64.1 generated building leave transition failed: %s" % str(leave_result.get("error", "")))
 			return false
-		if str(world_service.get_current_location_id()) != VILLAGE_ID:
-			_fail("v64.1 generated building leave did not return to test_village")
+		if str(world_service.get_current_location_id()) != SETTLEMENT_ID:
+			_fail("v64.1 generated building leave did not return to the smoke settlement")
 			return false
 	return true
 
@@ -283,7 +285,7 @@ func _offscreen_schedule_states_have_positions() -> bool:
 	if schedule_system == null:
 		_fail("v64.1 NpcScheduleSystem autoload is missing")
 		return false
-	schedule_system.settle_offscreen_location("res://data/locations/test_village.json", 0, 8 * 60, VILLAGE_ID)
+	schedule_system.settle_offscreen_location(SETTLEMENT_SOURCE_PATH, 0, 8 * 60, SETTLEMENT_ID)
 	var summaries: Dictionary = schedule_system.get_offscreen_summary()
 	for summary_value in summaries.values():
 		var summary: Dictionary = summary_value as Dictionary
@@ -308,7 +310,7 @@ func _anchor(location_data: Dictionary, anchor_id: String) -> Dictionary:
 
 
 func _world_with_invalid_interior_spawn() -> Dictionary:
-	var data: Dictionary = _load_json_resource(WORLD_PATH)
+	var data: Dictionary = _smoke_world_data()
 	var locations: Array = (data.get("locations", []) as Array).duplicate(true)
 	locations.append({
 		"location_id": INVALID_INTERIOR_ID,
@@ -319,13 +321,13 @@ func _world_with_invalid_interior_spawn() -> Dictionary:
 		"data_path": "res://data/locations/generated_building_interior.json",
 		"generator_id": "building_interior",
 		"generator_profile_id": "residential",
-		"parent_location_id": VILLAGE_ID,
+		"parent_location_id": SETTLEMENT_ID,
 	})
 	data["locations"] = locations
 	var exits: Array = (data.get("exits", []) as Array).duplicate(true)
 	exits.append({
 		"exit_id": "bad_interior_spawn_exit",
-		"from_location_id": VILLAGE_ID,
+		"from_location_id": SETTLEMENT_ID,
 		"target_location_id": INVALID_INTERIOR_ID,
 		"target_spawn_id": "missing_interior_spawn",
 		"transition_type": "door",
@@ -334,14 +336,33 @@ func _world_with_invalid_interior_spawn() -> Dictionary:
 	return data
 
 
-func _load_json_resource(resource_path: String) -> Dictionary:
-	var file := FileAccess.open(resource_path, FileAccess.READ)
-	if file == null:
-		return {}
-	var parsed: Variant = JSON.parse_string(file.get_as_text())
-	if parsed is Dictionary:
-		return (parsed as Dictionary).duplicate(true)
-	return {}
+func _smoke_world_data() -> Dictionary:
+	return {
+		"world_id": "smoke_interior_world",
+		"world_seed": 6411,
+		"start_location_id": SETTLEMENT_ID,
+		"start_spawn_id": SPAWN_SETTLEMENT_START,
+		"locations": [
+			{
+				"location_id": SETTLEMENT_ID,
+				"display_name": "Smoke Settlement",
+				"location_kind": "static",
+				"source_type": "static_scene",
+				"scene_path": SETTLEMENT_SCENE_PATH,
+				"data_path": SETTLEMENT_SOURCE_PATH,
+			},
+		],
+		"spawns": [
+			{
+				"location_id": SETTLEMENT_ID,
+				"spawn_id": SPAWN_SETTLEMENT_START,
+				"entrance_id": "plaza",
+				"facing": "down",
+				"tags": ["start"],
+			},
+		],
+		"exits": [],
+	}
 
 
 func _world_service() -> Variant:

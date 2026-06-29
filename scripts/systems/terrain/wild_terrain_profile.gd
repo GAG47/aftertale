@@ -10,12 +10,11 @@ static func supported_profile_ids() -> Array[String]:
 
 static func get_profile(profile_id: String) -> Dictionary:
 	var profiles := _profiles()
-	var resolved_id := profile_id
-	if not profiles.has(resolved_id):
-		resolved_id = DEFAULT_PROFILE_ID
+	if not profiles.has(profile_id):
+		return {}
 
-	var profile: Dictionary = (profiles.get(resolved_id, {}) as Dictionary).duplicate(true)
-	profile["id"] = resolved_id
+	var profile: Dictionary = (profiles.get(profile_id, {}) as Dictionary).duplicate(true)
+	profile["id"] = profile_id
 	return profile
 
 

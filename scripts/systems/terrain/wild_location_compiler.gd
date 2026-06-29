@@ -11,12 +11,15 @@ func generate_location(source_data: Dictionary, context: Dictionary = {}) -> Dic
 	_apply_context_overrides(generator_data, context)
 	var generator: RefCounted = WildTerrainGeneratorScript.new()
 	var blueprint: RefCounted = generator.generate_blueprint(generator_data)
+	var blueprint_errors: Array[String] = generator.validate_blueprint(blueprint)
+	if not blueprint_errors.is_empty():
+		return _failed_location(source_data, blueprint, blueprint_errors)
 	var location_data := _base_location(source_data, blueprint)
 	_compile_tiles(location_data, blueprint)
 	_compile_elevation_presentation(location_data, blueprint)
 	_compile_natural_objects(location_data, blueprint)
-	_compile_entrances(location_data, blueprint)
 	_compile_exits(location_data, blueprint)
+	_compile_entrances(location_data, blueprint)
 	location_data["wild_terrain_blueprint"] = blueprint.to_dictionary()
 	location_data["generation_summary"] = blueprint.debug_summary.duplicate(true)
 	var summary: Dictionary = location_data.get("generation_summary", {}) as Dictionary
@@ -35,16 +38,21 @@ func generate_location(source_data: Dictionary, context: Dictionary = {}) -> Dic
 
 func validate_location(location_data: Dictionary) -> Array[String]:
 	var errors: Array[String] = []
+	var summary: Dictionary = location_data.get("generation_summary", {}) as Dictionary
+	for error_value in (summary.get("generation_errors", []) as Array):
+		errors.append(str(error_value))
+	if str(location_data.get("id", "")).is_empty():
+		errors.append("compiled wild location is missing id")
 	var grid: LocationGrid = LocationGrid.from_dictionary(location_data)
 	if not grid.is_valid():
-		return ["compiled wild LocationGrid is invalid"]
+		errors.append("compiled wild LocationGrid is invalid")
+		return errors
 	var default_entrance := str(location_data.get("default_entrance", ""))
 	var entrance_cell := grid.get_entrance_cell(default_entrance)
 	if not grid.in_bounds(entrance_cell) or not grid.is_walkable(entrance_cell):
 		errors.append("default wild entrance is missing or blocked")
 	if (location_data.get("wild_terrain_blueprint", {}) as Dictionary).is_empty():
 		errors.append("compiled wild location is missing blueprint data")
-	var summary: Dictionary = location_data.get("generation_summary", {}) as Dictionary
 	if str(summary.get("type", "")) != "wild_terrain":
 		errors.append("compiled wild location missing wild_terrain summary")
 	for exit_value in (location_data.get("exits", []) as Array):
@@ -63,20 +71,65 @@ func _apply_context_overrides(generator_data: Dictionary, context: Dictionary) -
 	if context.has("wild_seed"):
 		generator_data["seed"] = int(context.get("wild_seed", generator_data.get("seed", 6201)))
 	if context.has("terrain_profile_id"):
-		generator_data["terrain_profile_id"] = str(context.get("terrain_profile_id", generator_data.get("terrain_profile_id", "plain")))
+		generator_data["terrain_profile_id"] = str(context.get("terrain_profile_id", generator_data.get("terrain_profile_id", "")))
 	if context.has("wild_terrain_profile_id"):
-		generator_data["terrain_profile_id"] = str(context.get("wild_terrain_profile_id", generator_data.get("terrain_profile_id", "plain")))
+		generator_data["terrain_profile_id"] = str(context.get("wild_terrain_profile_id", generator_data.get("terrain_profile_id", "")))
 	if context.has("size"):
 		generator_data["size"] = (context.get("size", {}) as Dictionary).duplicate(true)
+	if context.has("region_patch"):
+		generator_data["region_patch"] = (context.get("region_patch", {}) as Dictionary).duplicate(true)
+
+
+func _failed_location(source_data: Dictionary, blueprint: RefCounted, errors: Array[String]) -> Dictionary:
+	var width := 0
+	var height := 0
+	var seed := 0
+	var profile_id := ""
+	var generation_metadata: Dictionary = {}
+	var debug_summary: Dictionary = {}
+	if blueprint != null:
+		width = int(blueprint.width)
+		height = int(blueprint.height)
+		seed = int(blueprint.seed)
+		profile_id = str(blueprint.terrain_profile_id)
+		generation_metadata = (blueprint.generation_metadata as Dictionary).duplicate(true)
+		debug_summary = (blueprint.debug_summary as Dictionary).duplicate(true)
+	var summary := debug_summary.duplicate(true)
+	summary["type"] = "wild_terrain"
+	summary["generator"] = "WildTerrainGenerator"
+	summary["compiler"] = "WildLocationCompiler"
+	summary["generation_errors"] = errors.duplicate()
+	return {
+		"id": str(source_data.get("id", "")),
+		"display_name": str(source_data.get("display_name", "Generated Wild Plain")),
+		"size": { "width": width, "height": height },
+		"tile_size": int(source_data.get("tile_size", DEFAULT_TILE_SIZE)),
+		"default_entrance": str(source_data.get("default_entrance", "")),
+		"tiles": [],
+		"terrain": {},
+		"entrances": [],
+		"anchors": [],
+		"exits": [],
+		"objects": [],
+		"characters": [],
+		"state": {
+			"generation": "wild_terrain",
+			"wild_seed": seed,
+			"terrain_profile_id": profile_id,
+			"generation_failed": true,
+		},
+		"wild_terrain_blueprint": generation_metadata,
+		"generation_summary": summary,
+	}
 
 
 func _base_location(source_data: Dictionary, blueprint: RefCounted) -> Dictionary:
 	return {
-		"id": str(source_data.get("id", "test_wild_plain")),
+		"id": str(source_data.get("id", "")),
 		"display_name": str(source_data.get("display_name", "Generated Wild Plain")),
 		"size": { "width": blueprint.width, "height": blueprint.height },
 		"tile_size": int(source_data.get("tile_size", DEFAULT_TILE_SIZE)),
-		"default_entrance": "wild_spawn",
+		"default_entrance": str(source_data.get("default_entrance", "wild_spawn")),
 		"tiles": [],
 		"terrain": _terrain_definitions(),
 		"zones": [
@@ -181,12 +234,17 @@ func _compile_natural_objects(location_data: Dictionary, blueprint: RefCounted) 
 
 
 func _compile_entrances(location_data: Dictionary, blueprint: RefCounted) -> void:
+	var entrance_id := str(location_data.get("default_entrance", ""))
+	if entrance_id.is_empty():
+		return
+	if _has_entrance(location_data, entrance_id):
+		return
 	var spawn_cell := Vector2i(int(blueprint.width / 2), int(blueprint.height / 2))
 	if not blueprint.spawn_candidates.is_empty():
 		var primary_spawn: Dictionary = blueprint.spawn_candidates[0] as Dictionary
 		spawn_cell = _cell_from_dict(primary_spawn.get("grid_position", {}) as Dictionary)
-	_add_entrance(location_data, "wild_spawn", spawn_cell, "right")
-	_add_anchor(location_data, "wild_spawn", "spawn", spawn_cell, "right")
+	_add_entrance(location_data, entrance_id, spawn_cell, "right")
+	_add_anchor(location_data, entrance_id, "spawn", spawn_cell, "right")
 
 
 func _compile_exits(location_data: Dictionary, blueprint: RefCounted) -> void:
@@ -204,17 +262,20 @@ func _compile_exits(location_data: Dictionary, blueprint: RefCounted) -> void:
 		var row := {
 			"id": str(exit_data.get("id", "wild_exit")),
 			"grid_position": _dict_cell(cell),
-			"target_scene_path": target_scene_path,
 			"target_entrance_id": str(exit_data.get("target_entrance_id", "")),
 		}
+		if not target_scene_path.is_empty():
+			row["target_scene_path"] = target_scene_path
 		if not world_exit_id.is_empty():
 			row["world_exit_id"] = world_exit_id
 		(location_data.get("exits", []) as Array).append(row)
 		_add_anchor(location_data, str(exit_data.get("id", "wild_exit")), "exit", cell, str(exit_data.get("facing", "left")))
 		var entry_entrance_id := str(exit_data.get("entry_entrance_id", ""))
 		if not entry_entrance_id.is_empty() and not _has_entrance(location_data, entry_entrance_id):
-			_add_entrance(location_data, entry_entrance_id, cell, _opposite_facing(str(exit_data.get("facing", "left"))))
-			_add_anchor(location_data, entry_entrance_id, "spawn", cell, _opposite_facing(str(exit_data.get("facing", "left"))))
+			var entry_cell := _entry_cell_for_exit(blueprint, cell, str(exit_data.get("facing", "left")))
+			var entry_facing := _opposite_facing(str(exit_data.get("facing", "left")))
+			_add_entrance(location_data, entry_entrance_id, entry_cell, entry_facing)
+			_add_anchor(location_data, entry_entrance_id, "spawn", entry_cell, entry_facing)
 	location_data["tiles"] = rows
 
 
@@ -330,6 +391,44 @@ func _has_entrance(location_data: Dictionary, entrance_id: String) -> bool:
 		if str(entrance.get("id", "")) == entrance_id:
 			return true
 	return false
+
+
+func _entry_cell_for_exit(blueprint: RefCounted, exit_cell: Vector2i, exit_facing: String) -> Vector2i:
+	var preferred_cell := exit_cell + _facing_vector(exit_facing)
+	if blueprint.in_bounds(preferred_cell) and not blueprint.blocks_at(preferred_cell):
+		return preferred_cell
+
+	var best_cell := exit_cell
+	var best_score := INF
+	for candidate_value in [
+		exit_cell + Vector2i.LEFT,
+		exit_cell + Vector2i.RIGHT,
+		exit_cell + Vector2i.UP,
+		exit_cell + Vector2i.DOWN,
+	]:
+		var candidate: Vector2i = candidate_value as Vector2i
+		if not blueprint.in_bounds(candidate) or blueprint.blocks_at(candidate):
+			continue
+		var delta: Vector2i = candidate - preferred_cell
+		var score := float(delta.x * delta.x + delta.y * delta.y)
+		if score < best_score:
+			best_score = score
+			best_cell = candidate
+	return best_cell
+
+
+func _facing_vector(facing: String) -> Vector2i:
+	match facing:
+		"left":
+			return Vector2i.LEFT
+		"right":
+			return Vector2i.RIGHT
+		"up":
+			return Vector2i.UP
+		"down":
+			return Vector2i.DOWN
+		_:
+			return Vector2i.DOWN
 
 
 func _opposite_facing(facing: String) -> String:

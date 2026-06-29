@@ -2,7 +2,6 @@ extends Node
 
 const WorldGraphGeneratorScript := preload("res://scripts/systems/world/world_graph_generator.gd")
 
-const FALLBACK_WORLD_PATH := "res://data/worlds/test_world.json"
 const DEFAULT_WORLD_ID := "generated_default_world"
 const DEFAULT_WORLD_SEED := 6501
 const DEFAULT_REGION_PROFILE_ID := "temperate_frontier"
@@ -41,28 +40,36 @@ func _start_new_game() -> void:
 		"success": false,
 		"error": "WorldTransitionService autoload is unavailable.",
 	}
-	if bool(world_result.get("success", false)):
-		var start_result: Dictionary = world_service.start_world(true)
-		if bool(start_result.get("success", false)):
-			return
-		push_warning("World start failed, falling back to direct test village load: %s" % str(start_result.get("error", "")))
-	else:
-		push_warning("World load failed, falling back to direct test village load: %s" % str(world_result.get("error", "")))
-	SceneLoader.load_location("res://scenes/locations/test_village.tscn", "plaza")
+	if not bool(world_result.get("success", false)):
+		push_error("World load failed: %s" % str(world_result.get("error", "")))
+		return
+	var start_result: Dictionary = world_service.start_world(true)
+	if not bool(start_result.get("success", false)):
+		push_error("World start failed: %s" % str(start_result.get("error", "")))
 
 
 func _load_default_world(world_service: Variant) -> Dictionary:
 	var generator: RefCounted = WorldGraphGeneratorScript.new()
-	var world_data: Dictionary = generator.generate_world_data({
+	var generation_result: Dictionary = generator.generate_world_data_result({
 		"world_id": DEFAULT_WORLD_ID,
 		"world_seed": DEFAULT_WORLD_SEED,
 		"region_profile_id": DEFAULT_REGION_PROFILE_ID,
 	})
+	if not bool(generation_result.get("success", false)):
+		return {
+			"success": false,
+			"error": "Default world generation failed: %s" % str(generation_result.get("errors", [])),
+			"warnings": generation_result.get("warnings", []),
+		}
+	var world_data: Dictionary = generation_result.get("world_data", {}) as Dictionary
 	var result: Dictionary = world_service.load_world_from_data(world_data)
-	if bool(result.get("success", false)):
-		return result
-	push_warning("Generated default world load failed, falling back to fixture world: %s" % str(result.get("error", "")))
-	return world_service.load_world(FALLBACK_WORLD_PATH)
+	if not bool(result.get("success", false)):
+		return {
+			"success": false,
+			"error": str(result.get("error", "")),
+			"warnings": result.get("warnings", []),
+		}
+	return result
 
 
 func _world_transition_service() -> Variant:

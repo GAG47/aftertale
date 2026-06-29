@@ -1,6 +1,7 @@
 extends SceneTree
 
 const VillageRoadGeneratorScript := preload("res://scripts/systems/scenes/village_road_generator.gd")
+const SETTLEMENT_SOURCE_PATH := "res://data/locations/smoke_generated_settlement.json"
 
 
 func _initialize() -> void:
@@ -8,7 +9,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	var source_data: Dictionary = _load_json_resource("res://data/locations/test_village.json")
+	var source_data: Dictionary = _load_json_resource(SETTLEMENT_SOURCE_PATH)
 	var generator: RefCounted = VillageRoadGeneratorScript.new()
 	var generated: Dictionary = generator.generate_location(source_data)
 	var validation_errors: Array[String] = generator.validate_location_contract(generated)

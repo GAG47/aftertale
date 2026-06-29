@@ -98,8 +98,13 @@ func load_game(save_path: String = DEFAULT_SAVE_PATH) -> ActionResult:
 	var scene_state: Dictionary = save_data.get("scene", {}) as Dictionary
 	var scene_path: String = str(scene_state.get("scene_path", ""))
 	var saved_location_id := str(scene_state.get("location_id", ""))
-	var prepared_location: Dictionary = world_service.prepare_scene_load_for_location(saved_location_id) if world_service != null else {}
-	if not prepared_location.is_empty():
+	var prepared_location: Dictionary = {}
+	if world_service != null and world_service.is_world_active():
+		if saved_location_id.is_empty():
+			return _fail_load(save_path, "存档缺少世界地点 ID。")
+		prepared_location = world_service.prepare_scene_load_for_location(saved_location_id)
+		if prepared_location.is_empty():
+			return _fail_load(save_path, "存档地点不在当前世界图中。")
 		scene_path = str(prepared_location.get("scene_path", scene_path))
 	if scene_path.is_empty():
 		return _fail_load(save_path, "存档缺少场景路径。")

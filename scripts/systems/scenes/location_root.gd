@@ -8,6 +8,8 @@ signal facility_requested(facility_data: Dictionary)
 const NpcMovementAgentScript := preload("res://scripts/systems/schedules/npc_movement_agent.gd")
 const NpcActivityAgentScript := preload("res://scripts/systems/schedules/npc_activity_agent.gd")
 const NpcAutonomyAgentScript := preload("res://scripts/systems/schedules/npc_autonomy_agent.gd")
+const TileMapGroundRendererScript := preload("res://scripts/systems/scenes/tile_map_ground_renderer.gd")
+const DebugTileRendererScript := preload("res://scripts/systems/scenes/debug_tile_renderer.gd")
 const WildTerrainDebugOverlayScript := preload("res://scripts/systems/terrain/wild_terrain_debug_overlay.gd")
 const CAMERA_ZOOM_MIN := 0.75
 const CAMERA_ZOOM_MAX := 3.0
@@ -20,7 +22,6 @@ const CAMERA_SNAP_DISTANCE := 0.35
 @export_file("*.json") var location_data_path: String = ""
 @export var entrance_id: String = ""
 
-@onready var tile_renderer: DebugTileRenderer = $DebugTileRenderer
 @onready var floor_decoration_renderer: Node = get_node_or_null("FloorDecorationRenderer")
 @onready var structure_renderer: Node = get_node_or_null("StructureRenderer")
 @onready var building_renderer: Node = get_node_or_null("BuildingRenderer")
@@ -34,6 +35,8 @@ var battle_overlay: BattleGridOverlay
 var battle_feedback_root: Node2D
 var interaction_overlay: InteractionTargetOverlay
 var wild_terrain_debug_overlay: Node2D
+var ground_renderer: Node2D
+var debug_tile_renderer: DebugTileRenderer
 var current_grid_position: Vector2i = Vector2i.ZERO
 var controlled_character: CharacterEntity
 var _location_data_cache: Dictionary = {}
@@ -97,7 +100,8 @@ func _process(delta: float) -> void:
 
 
 func _setup_scene_layer_order() -> void:
-	tile_renderer.z_index = -100
+	_remove_legacy_debug_tile_renderer_node()
+	_setup_ground_renderer_node()
 	if floor_decoration_renderer != null:
 		floor_decoration_renderer.z_index = -50
 	objects_root.z_index = 0
@@ -107,6 +111,69 @@ func _setup_scene_layer_order() -> void:
 	characters_root.y_sort_enabled = true
 	if building_renderer != null:
 		building_renderer.z_index = 30
+
+
+func _remove_legacy_debug_tile_renderer_node() -> void:
+	var legacy_renderer := get_node_or_null("DebugTileRenderer")
+	if legacy_renderer == null:
+		return
+	remove_child(legacy_renderer)
+	legacy_renderer.queue_free()
+
+
+func _setup_ground_renderer_node() -> void:
+	var existing_renderer := get_node_or_null("GroundRenderer")
+	if existing_renderer != null:
+		if existing_renderer.get_script() != TileMapGroundRendererScript:
+			push_error("GroundRenderer node exists but is not a TileMapGroundRenderer.")
+			return
+		ground_renderer = existing_renderer
+	else:
+		ground_renderer = TileMapGroundRendererScript.new()
+		ground_renderer.name = "GroundRenderer"
+		add_child(ground_renderer)
+		move_child(ground_renderer, 0)
+	ground_renderer.z_index = -100
+
+
+func _rebuild_ground_from_grid() -> bool:
+	if ground_renderer == null:
+		push_error("LocationRoot cannot load location without TileMapGroundRenderer.")
+		return false
+	if not bool(ground_renderer.call("configure")):
+		return false
+	return bool(ground_renderer.call("rebuild_from_grid", grid))
+
+
+func _set_debug_ground_visible(value: bool) -> void:
+	if not value:
+		if debug_tile_renderer != null and is_instance_valid(debug_tile_renderer):
+			debug_tile_renderer.queue_free()
+		debug_tile_renderer = null
+		if ground_renderer != null:
+			ground_renderer.call("set_debug_renderer_active", false)
+		return
+
+	if grid == null:
+		if ground_renderer != null:
+			ground_renderer.call("set_debug_renderer_active", false)
+		return
+
+	if debug_tile_renderer == null or not is_instance_valid(debug_tile_renderer):
+		debug_tile_renderer = DebugTileRendererScript.new()
+		debug_tile_renderer.name = "DebugTileRenderer"
+		debug_tile_renderer.z_index = -95
+		add_child(debug_tile_renderer)
+		move_child(debug_tile_renderer, _ground_layer_index() + 1)
+	debug_tile_renderer.configure(grid)
+	if ground_renderer != null:
+		ground_renderer.call("set_debug_renderer_active", true)
+
+
+func _ground_layer_index() -> int:
+	if ground_renderer == null:
+		return 0
+	return ground_renderer.get_index()
 
 
 func _exit_tree() -> void:
@@ -214,6 +281,7 @@ func set_save_runtime_on_exit(value: bool) -> void:
 
 
 func set_debug_presentation_visible(value: bool) -> void:
+	_set_debug_ground_visible(value)
 	for renderer in [floor_decoration_renderer, structure_renderer, building_renderer]:
 		if renderer == null:
 			continue
@@ -273,7 +341,21 @@ func get_location_summary() -> Dictionary:
 		"crops": CropSystem.get_location_crops(grid.location_id),
 		"generation_summary": (_location_data_cache.get("generation_summary", {}) as Dictionary).duplicate(true),
 		"shops": (_location_data_cache.get("shops", []) as Array).duplicate(true),
+		"ground_renderer": get_ground_render_summary(),
 	}
+
+
+func get_ground_render_summary() -> Dictionary:
+	if ground_renderer == null:
+		return {}
+	return ground_renderer.call("get_render_summary") as Dictionary
+
+
+func set_cell_terrain(cell: Vector2i, terrain_id: String) -> bool:
+	if ground_renderer == null:
+		push_error("LocationRoot cannot update ground terrain before GroundRenderer exists.")
+		return false
+	return bool(ground_renderer.call("set_cell_terrain", cell, terrain_id))
 
 
 func get_interaction_prompt() -> String:
@@ -287,6 +369,10 @@ func get_interaction_prompt() -> String:
 	var crop_prompt: String = _get_crop_interaction_prompt(controlled_character.grid_position)
 	if not crop_prompt.is_empty():
 		return crop_prompt
+
+	var current_exit: Dictionary = grid.get_exit_at(controlled_character.grid_position)
+	if not current_exit.is_empty():
+		return "E/Enter 前往：%s" % str(current_exit.get("target_entrance_id", "下一个地点"))
 
 	var target_cell: Vector2i = controlled_character.get_facing_cell()
 	var target_character: CharacterEntity = grid.get_character_at(target_cell)
@@ -320,7 +406,7 @@ func get_interaction_prompt() -> String:
 
 	var exit_data: Dictionary = grid.get_exit_at(target_cell)
 	if not exit_data.is_empty():
-		return "向前移动：前往 %s" % str(exit_data.get("target_entrance_id", "下一个地点"))
+		return "E/Enter 前往：%s" % str(exit_data.get("target_entrance_id", "下一个地点"))
 
 	return "E/Enter 调查前方  B 背包  J 任务  C 角色  滚轮/+/- 缩放"
 
@@ -335,10 +421,13 @@ func _load_location_data() -> void:
 		push_error("Location data is invalid: %s" % location_data_path)
 		return
 
+	if not _rebuild_ground_from_grid():
+		grid = null
+		return
+
 	_setup_npc_movement_agent()
 	_setup_npc_activity_agent()
 	_setup_npc_autonomy_agent()
-	tile_renderer.configure(grid)
 	_configure_scene_layer_renderer(floor_decoration_renderer)
 	_configure_scene_layer_renderer(structure_renderer)
 	_configure_scene_layer_renderer(building_renderer)
@@ -747,7 +836,7 @@ func _setup_battle_overlay() -> void:
 	battle_overlay.name = "BattleGridOverlay"
 	battle_overlay.visible = false
 	add_child(battle_overlay)
-	move_child(battle_overlay, tile_renderer.get_index() + 1)
+	move_child(battle_overlay, _ground_layer_index() + 1)
 	battle_overlay.configure(grid)
 
 
@@ -762,7 +851,7 @@ func _setup_interaction_overlay() -> void:
 	interaction_overlay = InteractionTargetOverlay.new()
 	interaction_overlay.name = "InteractionTargetOverlay"
 	add_child(interaction_overlay)
-	move_child(interaction_overlay, tile_renderer.get_index() + 1)
+	move_child(interaction_overlay, _ground_layer_index() + 1)
 	interaction_overlay.configure(grid)
 
 
@@ -775,7 +864,7 @@ func _setup_wild_terrain_debug_overlay() -> void:
 	wild_terrain_debug_overlay.name = "WildTerrainDebugOverlay"
 	wild_terrain_debug_overlay.z_index = -45
 	add_child(wild_terrain_debug_overlay)
-	move_child(wild_terrain_debug_overlay, tile_renderer.get_index() + 1)
+	move_child(wild_terrain_debug_overlay, _ground_layer_index() + 1)
 	wild_terrain_debug_overlay.configure(grid, terrain_blueprint)
 
 
@@ -1455,10 +1544,10 @@ func _on_move_requested(direction: Vector2i) -> void:
 	var context: Dictionary = { "location_root": self }
 	var action: GameAction = ActionSystem.create_action("MoveAction", controlled_character, target, context) as GameAction
 	var result: ActionResult = ActionSystem.submit(action) as ActionResult
-	if _has_controlled_character() and not _result_has_change_type(result, "location_exit_requested"):
+	if _has_controlled_character():
 		_recenter_camera_to_focus(false)
 	_refresh_interaction_overlay()
-	if result.success and _result_has_change_type(result, "character_moved") and not _result_has_change_type(result, "location_exit_requested") and _has_controlled_character():
+	if result.success and _result_has_change_type(result, "character_moved") and _has_controlled_character():
 		current_grid_position = controlled_character.grid_position
 		_step_party_followers_after_player_move(result)
 
@@ -1470,11 +1559,11 @@ func request_exit_transition(exit_data: Dictionary) -> bool:
 		var transition_result: Dictionary = world_service.transition_by_exit_data(exit_data)
 		if bool(transition_result.get("success", false)):
 			return true
-		if not bool(transition_result.get("success", false)):
-			push_warning("World transition failed for exit %s: %s" % [
-				str(exit_data.get("id", "")),
-				str(transition_result.get("error", "unknown error")),
-			])
+		push_warning("World transition failed for exit %s: %s" % [
+			str(exit_data.get("id", "")),
+			str(transition_result.get("error", "unknown error")),
+		])
+		return false
 	var target_scene_path := str(exit_data.get("target_scene_path", ""))
 	if target_scene_path == "__return__":
 		return SceneLoader.load_pending_return_location() == OK
@@ -1688,6 +1777,19 @@ func _on_primary_action_requested() -> void:
 		return
 
 	var target_cell: Vector2i = controlled_character.get_facing_cell()
+	var current_object: LocationObject = grid.get_primary_object_at(controlled_character.grid_position)
+	if current_object != null and current_object.is_pickable:
+		_submit_object_interaction(current_object, controlled_character.grid_position)
+		return
+
+	if _try_submit_crop_interaction(controlled_character.grid_position):
+		return
+
+	var current_exit: Dictionary = grid.get_exit_at(controlled_character.grid_position)
+	if not current_exit.is_empty():
+		_submit_exit_interaction(current_exit)
+		return
+
 	var target_character: CharacterEntity = grid.get_character_at(target_cell)
 	if target_character != null and PartySystem.is_member(target_character.character_id):
 		target_character = null
@@ -1699,16 +1801,12 @@ func _on_primary_action_requested() -> void:
 		_submit_talk_interaction(target_character)
 		return
 
-	var current_object: LocationObject = grid.get_primary_object_at(controlled_character.grid_position)
-	if current_object != null and current_object.is_pickable:
-		_submit_object_interaction(current_object, controlled_character.grid_position)
-		return
-
-	if _try_submit_crop_interaction(controlled_character.grid_position):
-		return
-
 	var target_object: LocationObject = grid.get_primary_object_at(target_cell)
 	if target_object == null:
+		var target_exit: Dictionary = grid.get_exit_at(target_cell)
+		if not target_exit.is_empty():
+			_submit_exit_interaction(target_exit)
+			return
 		_submit_inspect_empty(target_cell)
 		return
 
@@ -1951,15 +2049,17 @@ func _submit_scene_transition_object(target_object: LocationObject) -> void:
 	var transition_data: Dictionary = target_object.get_transition_data()
 	var world_exit_id := str(transition_data.get("world_exit_id", ""))
 	var world_service: Variant = _world_transition_service()
-	if world_service != null and world_service.is_world_active() and not world_exit_id.is_empty():
-		if request_exit_transition({
+	if world_service != null and world_service.is_world_active():
+		if world_exit_id.is_empty():
+			push_warning("Scene transition object has no world_exit_id while world graph is active: %s" % str(transition_data.get("id", "")))
+			return
+		request_exit_transition({
 			"id": world_exit_id,
 			"world_exit_id": world_exit_id,
 			"transition_type": "door",
-			"target_scene_path": str(transition_data.get("target_scene_path", "")),
 			"target_entrance_id": str(transition_data.get("target_entrance_id", "")),
-		}):
-			return
+		})
+		return
 	var target_scene_path := str(transition_data.get("target_scene_path", ""))
 	var target_entrance_id := str(transition_data.get("target_entrance_id", ""))
 	if target_scene_path == "__return__":
@@ -1976,6 +2076,13 @@ func _submit_scene_transition_object(target_object: LocationObject) -> void:
 	if not context.is_empty():
 		SceneLoader.set_pending_location_context(context)
 	SceneLoader.load_location(target_scene_path, target_entrance_id)
+
+
+func _submit_exit_interaction(exit_data: Dictionary) -> void:
+	if exit_data.is_empty():
+		return
+	request_exit_transition(exit_data)
+	_refresh_interaction_overlay()
 
 
 func _submit_talk_interaction(target_character: CharacterEntity) -> void:
@@ -2017,9 +2124,9 @@ func _get_rest_facility_prompt(target_object: LocationObject) -> String:
 		"bed":
 			return "E/Enter 休息到明早：%s" % target_object.display_name
 		"campfire":
-			return "E/Enter 烤火休息：%s" % target_object.display_name
+			return "E/Enter 营火休息：%s" % target_object.display_name
 		"inn":
-			return "E/Enter 入住：%s（%d 金币）" % [target_object.display_name, target_object.cost]
+			return "E/Enter 入住：%s，%d 金币。" % [target_object.display_name, target_object.cost]
 		_:
 			return "E/Enter 休息：%s" % target_object.display_name
 
@@ -2077,7 +2184,7 @@ func _on_action_result_for_presentation(_action_type: String, _actor_id: String,
 		return
 
 	if GameState.current_mode == GameState.GameMode.COMBAT and _has_controlled_character():
-		_spawn_battle_feedback(controlled_character.character_id, "无效", Color(0.92, 0.92, 0.92, 0.95))
+		_spawn_battle_feedback(controlled_character.character_id, "鏃犳晥", Color(0.92, 0.92, 0.92, 0.95))
 
 
 func _focus_camera_from_action_result(result: ActionResult) -> void:
@@ -2297,6 +2404,11 @@ func _refresh_interaction_overlay() -> void:
 	var crop_kind: String = _get_crop_interaction_kind(current_cell)
 	if not crop_kind.is_empty():
 		interaction_overlay.set_target(current_cell, crop_kind)
+		return
+
+	var current_exit: Dictionary = grid.get_exit_at(current_cell)
+	if not current_exit.is_empty():
+		interaction_overlay.set_target(current_cell, "exit")
 		return
 
 	var target_cell: Vector2i = controlled_character.get_facing_cell()

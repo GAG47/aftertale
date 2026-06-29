@@ -36,7 +36,7 @@ func unregister_location_root(location_root: Node) -> void:
 	if not is_instance_valid(active_location_root) or active_location_root == location_root:
 		if _skip_next_unregister_settle:
 			_skip_next_unregister_settle = false
-		elif not active_location_data_path.is_empty():
+		elif not active_location_data_path.is_empty() or not active_location_id.is_empty():
 			settle_offscreen_location(active_location_data_path, active_location_registered_minutes, TimeManager.get_absolute_minutes(), active_location_id)
 		active_location_root = null
 		active_location_data_path = ""
@@ -69,9 +69,7 @@ func get_active_entry(schedule: Array, absolute_minutes: int) -> Dictionary:
 
 
 func settle_offscreen_location(location_data_path: String, from_absolute_minutes: int, to_absolute_minutes: int, resolved_location_id: String = "") -> Dictionary:
-	var location_data: Dictionary = DefinitionLoader.resolve_location_by_id(resolved_location_id) if not resolved_location_id.is_empty() else {}
-	if location_data.is_empty():
-		location_data = DefinitionLoader.load_resolved_location(location_data_path)
+	var location_data: Dictionary = _location_data_for_schedule(resolved_location_id, location_data_path)
 	if location_data.is_empty():
 		return {}
 
@@ -225,9 +223,7 @@ func _settle_location_before_entry(location_id: String, location_data_path: Stri
 	if location_id.is_empty() and location_data_path.is_empty():
 		return
 
-	var location_data: Dictionary = DefinitionLoader.resolve_location_by_id(location_id) if not location_id.is_empty() else {}
-	if location_data.is_empty():
-		location_data = DefinitionLoader.load_resolved_location(location_data_path)
+	var location_data: Dictionary = _location_data_for_schedule(location_id, location_data_path)
 	if location_data.is_empty():
 		return
 
@@ -241,6 +237,27 @@ func _settle_location_before_entry(location_id: String, location_data_path: Stri
 		return
 
 	settle_offscreen_location(location_data_path, last_settled_minutes, current_minutes, location_id)
+
+
+func _location_data_for_schedule(location_id: String, location_data_path: String) -> Dictionary:
+	var world_service: Variant = _world_transition_service()
+	if world_service != null and world_service.is_world_active() and not location_id.is_empty():
+		var runtime_data: Dictionary = world_service.get_registered_location_data(location_id)
+		if not runtime_data.is_empty():
+			return runtime_data
+		if not world_service.get_location_spec(location_id).is_empty():
+			return {}
+	var location_data: Dictionary = DefinitionLoader.resolve_location_by_id(location_id) if not location_id.is_empty() else {}
+	if location_data.is_empty():
+		location_data = DefinitionLoader.load_resolved_location(location_data_path)
+	return location_data
+
+
+func _world_transition_service() -> Variant:
+	var tree := Engine.get_main_loop() as SceneTree
+	if tree == null or tree.root == null:
+		return null
+	return tree.root.get_node_or_null("WorldTransitionService")
 
 
 func _location_id_from_root(location_root: Node) -> String:

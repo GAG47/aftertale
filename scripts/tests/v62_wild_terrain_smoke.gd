@@ -2,6 +2,7 @@ extends SceneTree
 
 const WildTerrainGeneratorScript := preload("res://scripts/systems/terrain/wild_terrain_generator.gd")
 const WildLocationCompilerScript := preload("res://scripts/systems/terrain/wild_location_compiler.gd")
+const WILD_SOURCE_PATH := "res://data/locations/smoke_generated_wild.json"
 
 
 func _initialize() -> void:
@@ -9,7 +10,7 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	var source_data: Dictionary = _load_json_resource("res://data/locations/test_wild_plain.json")
+	var source_data: Dictionary = _load_json_resource(WILD_SOURCE_PATH)
 	if source_data.is_empty():
 		_fail("v62 source location could not be loaded")
 		return
@@ -51,6 +52,9 @@ func _run() -> void:
 		return
 	if first.exit_candidates.is_empty():
 		_fail("v62 generated no exit candidates for configured exit hints")
+		return
+	if not _all_exit_candidates_reachable(first):
+		_fail("v62 generated an exit candidate outside the primary spawn reachable area")
 		return
 
 	var summary: Dictionary = first.debug_summary
@@ -141,6 +145,49 @@ func _load_json_resource(resource_path: String) -> Dictionary:
 	if parsed is Dictionary:
 		return (parsed as Dictionary).duplicate(true)
 	return {}
+
+
+func _all_exit_candidates_reachable(blueprint: RefCounted) -> bool:
+	if blueprint.spawn_candidates.is_empty():
+		return false
+	var spawn: Dictionary = blueprint.spawn_candidates[0] as Dictionary
+	var start_cell := _cell_from_dict(spawn.get("grid_position", {}) as Dictionary)
+	if not blueprint.in_bounds(start_cell) or blueprint.blocks_at(start_cell):
+		return false
+	var reachable := _flood_blueprint_passable_cells(blueprint, start_cell)
+	for exit_value in blueprint.exit_candidates:
+		var exit_data: Dictionary = exit_value as Dictionary
+		var exit_cell := _cell_from_dict(exit_data.get("grid_position", {}) as Dictionary)
+		if not reachable.has(_cell_key(exit_cell)):
+			return false
+	return true
+
+
+func _flood_blueprint_passable_cells(blueprint: RefCounted, start_cell: Vector2i) -> Dictionary:
+	var visited := {}
+	var queue: Array[Vector2i] = [start_cell]
+	visited[_cell_key(start_cell)] = true
+	var read_index := 0
+	while read_index < queue.size():
+		var cell := queue[read_index]
+		read_index += 1
+		for offset_value in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+			var offset: Vector2i = offset_value as Vector2i
+			var next_cell: Vector2i = cell + offset
+			var key := _cell_key(next_cell)
+			if visited.has(key) or not blueprint.in_bounds(next_cell) or blueprint.blocks_at(next_cell):
+				continue
+			visited[key] = true
+			queue.append(next_cell)
+	return visited
+
+
+func _cell_from_dict(value: Dictionary) -> Vector2i:
+	return Vector2i(int(value.get("x", -1)), int(value.get("y", -1)))
+
+
+func _cell_key(cell: Vector2i) -> String:
+	return "%d,%d" % [cell.x, cell.y]
 
 
 func _fail(message: String) -> void:

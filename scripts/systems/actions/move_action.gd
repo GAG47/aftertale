@@ -70,21 +70,6 @@ func execute() -> ActionResult:
 	})
 	result.add_feedback("%s 移动到 %s。" % [actor.display_name, target_cell])
 
-	var exit_data: Dictionary = grid.get_exit_at(target_cell)
-	if not exit_data.is_empty():
-		result.add_world_change({
-			"type": "location_exit_requested",
-			"character_id": actor.character_id,
-			"from_location_id": grid.location_id,
-			"exit_id": str(exit_data.get("id", "")),
-			"target_scene_path": str(exit_data.get("target_scene_path", "")),
-			"target_entrance_id": str(exit_data.get("target_entrance_id", "")),
-		})
-		result.add_feedback("%s 通过 %s 离开。" % [actor.display_name, str(exit_data.get("id", "出口"))])
-
-		if location_root.has_method("request_exit_transition"):
-			location_root.request_exit_transition(exit_data)
-
 	return result
 
 

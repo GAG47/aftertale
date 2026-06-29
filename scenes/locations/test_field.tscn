@@ -1,14 +1,10 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=2 format=3]
 
 [ext_resource type="Script" path="res://scripts/systems/scenes/location_root.gd" id="1_location_root"]
-[ext_resource type="Script" path="res://scripts/systems/scenes/debug_tile_renderer.gd" id="2_tile_renderer"]
 
 [node name="TestField" type="Node2D"]
 script = ExtResource("1_location_root")
 location_data_path = "res://data/locations/test_field.json"
-
-[node name="DebugTileRenderer" type="Node2D" parent="."]
-script = ExtResource("2_tile_renderer")
 
 [node name="Objects" type="Node2D" parent="."]
 

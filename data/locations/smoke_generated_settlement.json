@@ -1,0 +1,10 @@
+{
+  "id": "smoke_generated_settlement",
+  "display_name": "Smoke Generated Settlement",
+  "tile_size": 32,
+  "generator": {
+    "type": "village_road",
+    "seed": 5601,
+    "size": { "width": 36, "height": 24 }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "id": "smoke_generated_wild",
+  "display_name": "Smoke Generated Wild",
+  "tile_size": 32,
+  "default_entrance": "wild_spawn",
+  "generator": {
+    "type": "wild_terrain",
+    "seed": 6201,
+    "size": { "width": 64, "height": 64 },
+    "terrain_profile_id": "plain",
+    "optional_spawn_hint": {
+      "side": "west"
+    },
+    "optional_exit_hints": [
+      {
+        "id": "smoke_world_exit",
+        "world_exit_id": "smoke_world_exit",
+        "side": "west",
+        "facing": "left",
+        "target_entrance_id": "smoke_world_target"
+      }
+    ]
+  }
+}

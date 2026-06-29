@@ -371,7 +371,7 @@ func validate_location_contract(location_data: Dictionary) -> Array[String]:
 
 func _base_location(source_data: Dictionary) -> Dictionary:
 	return {
-		"id": str(source_data.get("id", "test_village")),
+		"id": str(source_data.get("id", "")),
 		"display_name": str(source_data.get("display_name", "Generated Village")),
 		"size": { "width": _width, "height": _height },
 		"tile_size": int(source_data.get("tile_size", DEFAULT_TILE_SIZE)),
@@ -449,7 +449,7 @@ func _layout_uses_legacy_road_first(generator_data: Dictionary) -> bool:
 func _run_agent_blueprint_planner(source_data: Dictionary, generator_data: Dictionary) -> Dictionary:
 	var planner: RefCounted = AgentSettlementPlannerScript.new()
 	return planner.plan({
-		"source_location_id": str(source_data.get("id", "test_village")),
+		"source_location_id": str(source_data.get("id", "")),
 		"seed": int(generator_data.get("seed", 5601)),
 		"width": _width,
 		"height": _height,
@@ -1201,7 +1201,7 @@ func _apply_plaza(rect: Dictionary) -> void:
 func _apply_building_spec(spec: Dictionary, lot: Dictionary, instance_number: int, parcel: Dictionary, prefab: Dictionary, placement: Dictionary) -> void:
 	var archetype_id: String = str(spec.get("id", "building"))
 	var instance_id := "b%03d" % instance_number
-	var exterior_location_id := str(_generated.get("id", "test_village"))
+	var exterior_location_id := str(_generated.get("id", ""))
 	var interior_location_id := "%s__interior_%s" % [exterior_location_id, instance_id]
 	var display_name := str(prefab.get("display_name", spec.get("display_name", "Building")))
 	var rect: Dictionary = placement.get("building_bounds", {}) as Dictionary
@@ -1863,8 +1863,8 @@ func _apply_wild_gate(area: Dictionary) -> void:
 	})
 	_add_entrance("from_wild", gate_anchor, "left")
 	_add_anchor("wild_gate_guard_post", "guard_post", gate_anchor + Vector2i(-1, 0), "right", [gate_anchor + Vector2i(-1, 0), gate_anchor])
-	_connector_cells["wild_gate"] = gate_anchor
-	_add_exit("wild_gate", exit_cell, "res://scenes/locations/test_wild_plain.tscn", "wild_spawn")
+	_connector_cells["settlement_exit_east"] = gate_anchor
+	_add_exit("settlement_exit_east", exit_cell, "", "")
 	var sign_cell := gate_anchor + Vector2i(0, 1)
 	if not _in_bounds(sign_cell):
 		sign_cell = gate_anchor + Vector2i(0, -1)
@@ -2036,7 +2036,7 @@ func _schedule_entry(
 		"id": entry_id,
 		"start": start_time,
 		"end": end_time,
-		"location_id": str(_generated.get("id", "test_village")),
+		"location_id": str(_generated.get("id", "")),
 		"anchor_id": anchor_id,
 		"facing": facing,
 		"activity_type": activity_type,
@@ -2063,9 +2063,10 @@ func _building_schedule_entry(
 
 
 func _transition_anchors_for_building(target_building: Dictionary) -> Dictionary:
-	var anchors := {
-		str(_generated.get("id", "test_village")): str(target_building.get("exterior_door_anchor_id", "")),
-	}
+	var anchors := {}
+	var exterior_location_id := str(_generated.get("id", ""))
+	if not exterior_location_id.is_empty():
+		anchors[exterior_location_id] = str(target_building.get("exterior_door_anchor_id", ""))
 	for building_value in _building_instances:
 		var building: Dictionary = building_value as Dictionary
 		var interior_location_id := str(building.get("interior_location_id", ""))
