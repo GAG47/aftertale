@@ -47,7 +47,10 @@ func load_scene(scene_path: String) -> Error:
 	return OK
 
 
-func load_location(scene_path: String, entrance_id: String = "") -> Error:
+func load_location(scene_path: String, entrance_id: String) -> Error:
+	if entrance_id.is_empty():
+		push_error("SceneLoader.load_location requires an explicit entrance_id for location scenes: %s" % scene_path)
+		return ERR_INVALID_PARAMETER
 	pending_entrance_id = entrance_id
 	return load_scene(scene_path)
 
@@ -73,6 +76,9 @@ func consume_pending_location_context() -> Dictionary:
 
 
 func set_pending_return_location(scene_path: String, entrance_id: String) -> void:
+	if entrance_id.is_empty():
+		push_error("SceneLoader return location requires an explicit entrance_id: %s" % scene_path)
+		return
 	pending_return_location = {
 		"scene_path": scene_path,
 		"entrance_id": entrance_id,
@@ -86,6 +92,9 @@ func load_pending_return_location() -> Error:
 	if scene_path.is_empty():
 		push_error("SceneLoader has no pending return location.")
 		return ERR_UNAVAILABLE
+	if entrance_id.is_empty():
+		push_error("SceneLoader pending return location has no explicit entrance_id: %s" % scene_path)
+		return ERR_INVALID_PARAMETER
 	return load_location(scene_path, entrance_id)
 
 

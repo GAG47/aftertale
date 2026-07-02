@@ -51,7 +51,9 @@ func start_world(load_scene: bool = true, spawn_id: String = "") -> Dictionary:
 	if target_spawn_id.is_empty():
 		target_spawn_id = _graph.start_spawn_id
 	if target_spawn_id.is_empty():
-		target_spawn_id = _default_spawn_id(_graph.start_location_id)
+		return _fail("World start requires an explicit start_spawn_id.", {
+			"target_location_id": _graph.start_location_id,
+		})
 	return _enter_location(_graph.start_location_id, target_spawn_id, {
 		"from_location_id": "",
 		"exit_id": "__start__",
@@ -122,6 +124,38 @@ func get_location_spec(location_id: String) -> Dictionary:
 	if not is_world_active():
 		return {}
 	return _graph.get_location_spec(location_id)
+
+
+func get_all_location_specs() -> Array[Dictionary]:
+	if not is_world_active():
+		return []
+	return _graph.get_all_locations()
+
+
+func get_all_edge_specs() -> Array[Dictionary]:
+	if not is_world_active():
+		return []
+	return _graph.get_all_edges()
+
+
+func get_region_map() -> Dictionary:
+	if not is_world_active():
+		return {}
+	return _graph.get_region_map()
+
+
+func get_region_map_view_data() -> Dictionary:
+	if not is_world_active():
+		return {}
+	var current_location_id := get_current_location_id()
+	return {
+		"world_id": get_world_id(),
+		"region_map": get_region_map(),
+		"locations": get_all_location_specs(),
+		"edges": get_all_edge_specs(),
+		"current_location_id": current_location_id,
+		"display_current_location_id": _region_map_display_location_id(current_location_id),
+	}
 
 
 func get_spawn_spec(location_id: String, spawn_id: String) -> Dictionary:
@@ -235,6 +269,10 @@ func _enter_location(target_location_id: String, target_spawn_id: String, base_s
 	var spawn_spec: Dictionary = _graph.get_spawn_spec(target_location_id, target_spawn_id)
 	if spawn_spec.is_empty():
 		return _fail("Unknown target spawn: %s/%s" % [target_location_id, target_spawn_id], summary)
+	var entrance_id := _entrance_id_for_spawn(spawn_spec)
+	if entrance_id.is_empty():
+		summary["warnings"] = warnings
+		return _fail("Target spawn has no explicit entrance_id: %s/%s" % [target_location_id, target_spawn_id], summary)
 
 	var resolved: Dictionary = _registry.resolve_location(_graph, _runtime, target_location_id)
 	if not bool(resolved.get("success", false)):
@@ -243,12 +281,15 @@ func _enter_location(target_location_id: String, target_spawn_id: String, base_s
 	warnings.append_array(resolved.get("warnings", []) as Array)
 
 	var scene_path := str(resolved.get("scene_path", ""))
-	var entrance_id := _entrance_id_for_spawn(spawn_spec)
+	var location_data: Dictionary = resolved.get("location_data", {}) as Dictionary
+	var entrance_errors: Array[String] = _validate_location_entrance(location_data, entrance_id)
+	if not entrance_errors.is_empty():
+		summary["warnings"] = warnings
+		return _fail("Target entrance is invalid for %s/%s: %s" % [target_location_id, entrance_id, str(entrance_errors)], summary)
 	if load_scene:
 		if scene_path.is_empty():
 			summary["warnings"] = warnings
 			return _fail("Target location has no scene_path: %s" % target_location_id, summary)
-		var location_data: Dictionary = resolved.get("location_data", {}) as Dictionary
 		if not location_data.is_empty():
 			SceneLoader.set_pending_location_data(location_data)
 		var load_error: Error = SceneLoader.load_location(scene_path, entrance_id)
@@ -276,23 +317,51 @@ func _enter_location(target_location_id: String, target_spawn_id: String, base_s
 
 
 func _entrance_id_for_spawn(spawn_spec: Dictionary) -> String:
-	var entrance_id := str(spawn_spec.get("entrance_id", ""))
-	if not entrance_id.is_empty():
-		return entrance_id
-	return str(spawn_spec.get("spawn_id", ""))
+	return str(spawn_spec.get("entrance_id", ""))
 
 
-func _default_spawn_id(location_id: String) -> String:
-	var spawns: Dictionary = _graph.spawns_by_location.get(location_id, {}) as Dictionary
-	for spawn_id in spawns.keys():
-		return str(spawn_id)
-	return ""
+func _validate_location_entrance(location_data: Dictionary, entrance_id: String) -> Array[String]:
+	var errors: Array[String] = []
+	if location_data.is_empty():
+		errors.append("location data is empty")
+		return errors
+	var location_grid: LocationGrid = LocationGrid.from_dictionary(location_data)
+	if not location_grid.is_valid():
+		errors.append("location grid is invalid")
+		return errors
+	var entrance: Dictionary = location_grid.get_entrance(entrance_id)
+	if entrance.is_empty():
+		errors.append("entrance is missing")
+		return errors
+	var entrance_cell: Vector2i = location_grid.get_entrance_cell(entrance_id)
+	if not location_grid.in_bounds(entrance_cell):
+		errors.append("entrance cell is out of bounds: %s" % str(entrance_cell))
+	elif not location_grid.is_walkable(entrance_cell):
+		errors.append("entrance cell is blocked: %s" % str(entrance_cell))
+	return errors
 
 
 func _current_location_id() -> String:
 	if _runtime != null and not _runtime.current_location_id.is_empty():
 		return _runtime.current_location_id
 	return GameState.current_location_id
+
+
+func _region_map_display_location_id(location_id: String) -> String:
+	var cursor := location_id
+	var visited := {}
+	while not cursor.is_empty() and not visited.has(cursor):
+		visited[cursor] = true
+		var spec: Dictionary = _graph.get_location_spec(cursor)
+		if _location_has_region_position(spec):
+			return cursor
+		cursor = str(spec.get("parent_location_id", ""))
+	return ""
+
+
+func _location_has_region_position(location_spec: Dictionary) -> bool:
+	var position: Dictionary = location_spec.get("region_position", {}) as Dictionary
+	return position.has("x") and position.has("y")
 
 
 func _reset_instances() -> void:

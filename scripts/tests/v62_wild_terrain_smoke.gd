@@ -53,8 +53,11 @@ func _run() -> void:
 	if first.exit_candidates.is_empty():
 		_fail("v62 generated no exit candidates for configured exit hints")
 		return
-	if not _all_exit_candidates_reachable(first):
-		_fail("v62 generated an exit candidate outside the primary spawn reachable area")
+	if not _all_exit_candidates_are_passable(first):
+		_fail("v62 generated an exit candidate outside passable terrain")
+		return
+	if not _exit_candidates_have_unique_cells(first):
+		_fail("v62 generated overlapping exit candidates")
 		return
 
 	var summary: Dictionary = first.debug_summary
@@ -124,6 +127,9 @@ func _run() -> void:
 	if (location_data.get("exits", []) as Array).is_empty():
 		_fail("v62 compiled location has no runtime exit")
 		return
+	if not _compiled_exits_have_unique_cells(location_data):
+		_fail("v62 compiled location has overlapping runtime exits")
+		return
 	if (location_data.get("wild_terrain_blueprint", {}) as Dictionary).is_empty():
 		_fail("v62 compiled location did not expose the wild terrain blueprint")
 		return
@@ -147,39 +153,37 @@ func _load_json_resource(resource_path: String) -> Dictionary:
 	return {}
 
 
-func _all_exit_candidates_reachable(blueprint: RefCounted) -> bool:
-	if blueprint.spawn_candidates.is_empty():
-		return false
-	var spawn: Dictionary = blueprint.spawn_candidates[0] as Dictionary
-	var start_cell := _cell_from_dict(spawn.get("grid_position", {}) as Dictionary)
-	if not blueprint.in_bounds(start_cell) or blueprint.blocks_at(start_cell):
-		return false
-	var reachable := _flood_blueprint_passable_cells(blueprint, start_cell)
+func _all_exit_candidates_are_passable(blueprint: RefCounted) -> bool:
 	for exit_value in blueprint.exit_candidates:
 		var exit_data: Dictionary = exit_value as Dictionary
 		var exit_cell := _cell_from_dict(exit_data.get("grid_position", {}) as Dictionary)
-		if not reachable.has(_cell_key(exit_cell)):
+		if not blueprint.in_bounds(exit_cell) or blueprint.blocks_at(exit_cell):
 			return false
 	return true
 
 
-func _flood_blueprint_passable_cells(blueprint: RefCounted, start_cell: Vector2i) -> Dictionary:
-	var visited := {}
-	var queue: Array[Vector2i] = [start_cell]
-	visited[_cell_key(start_cell)] = true
-	var read_index := 0
-	while read_index < queue.size():
-		var cell := queue[read_index]
-		read_index += 1
-		for offset_value in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
-			var offset: Vector2i = offset_value as Vector2i
-			var next_cell: Vector2i = cell + offset
-			var key := _cell_key(next_cell)
-			if visited.has(key) or not blueprint.in_bounds(next_cell) or blueprint.blocks_at(next_cell):
-				continue
-			visited[key] = true
-			queue.append(next_cell)
-	return visited
+func _exit_candidates_have_unique_cells(blueprint: RefCounted) -> bool:
+	var used_cells := {}
+	for exit_value in blueprint.exit_candidates:
+		var exit_data: Dictionary = exit_value as Dictionary
+		var exit_cell := _cell_from_dict(exit_data.get("grid_position", {}) as Dictionary)
+		var key := _cell_key(exit_cell)
+		if used_cells.has(key):
+			return false
+		used_cells[key] = true
+	return true
+
+
+func _compiled_exits_have_unique_cells(location_data: Dictionary) -> bool:
+	var used_cells := {}
+	for exit_value in (location_data.get("exits", []) as Array):
+		var exit_data: Dictionary = exit_value as Dictionary
+		var exit_cell := _cell_from_dict(exit_data.get("grid_position", {}) as Dictionary)
+		var key := _cell_key(exit_cell)
+		if used_cells.has(key):
+			return false
+		used_cells[key] = true
+	return true
 
 
 func _cell_from_dict(value: Dictionary) -> Vector2i:

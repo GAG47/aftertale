@@ -51,6 +51,9 @@ a usable skeleton toward presentable generated places:
   on one regional terrain map, derives each node's wild profile from its region
   biome, records biome transition metadata on edges, and passes RegionPatch
   context into generated wild locations.
+- explicit location entry rules that require a concrete entrance for every
+  scene load and world transition, with generated wild entrances compiled from
+  world spawn facts instead of default or first-candidate fallbacks.
 
 ## Battle Deepening Roadmap
 
@@ -76,6 +79,8 @@ a usable skeleton toward presentable generated places:
 | v65.1 | Complete | `doc/phase_65_1_world_graph_generator_cleanup.md` | Remove the v65 fixture loop and fallback paths: generated worlds no longer start from test village data, generated edges no longer use fixed gate ids, unsupported location kinds fail explicitly, and world-active transitions do not continue through legacy scene paths. |
 | v66 | Complete | `doc/phase_66_tile_map_ground_renderer.md` | Move formal location ground rendering to a TileMapLayer-backed renderer, keep DebugTileRenderer debug-only, expose rebuild/update statistics, and support single-cell terrain updates without player or camera movement causing full ground rebuilds. |
 | v67 | Complete | `doc/phase_67_region_map_world_context.md` | Add a shared RegionMap as generated world geography, derive generated wild node profiles from region biomes, record region/biome transition metadata on edges, and pass RegionPatch context into generated wild terrain without requiring visual edge stitching. |
+| v67.1 | Complete | `doc/phase_67_1_explicit_location_entry.md` | 地点加载和世界转移必须带明确入口；generated_wild 入口由世界出生点事实编译；删除旧入场兜底和第一个可站点兜底；测试玩家会落在请求的入口。 |
+| v68 | Complete | `doc/phase_68_region_map_view.md` | 新增区域大地图显示层：按 M 打开/关闭，读取 RegionMap、世界地点和世界边，绘制地貌底图、地点节点、连接线和当前地点高亮，不改变生成、转场或入口规则。 |
 
 ## Dependency Order
 
@@ -100,6 +105,7 @@ v50 skill effect data model
 -> v65.1 world graph generator cleanup
 -> v66 TileMapLayer ground rendering
 -> v67 RegionMap world context
+-> v67.1 explicit location entry rules
 ```
 
 ## Minimum Tactical Slice

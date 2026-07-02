@@ -16,6 +16,7 @@ signal quit_game_requested()
 @onready var inventory_panel = $InventoryPanel
 @onready var quest_panel = $QuestPanel
 @onready var character_panel = $CharacterPanel
+@onready var region_map_panel: RegionMapView = $RegionMapPanel
 @onready var facility_panel = $FacilityPanel
 @onready var battle_hud_panel: BattleHudPanel = $BattleHudPanel
 @onready var dialogue_panel: DialoguePanel = $DialoguePanel
@@ -43,6 +44,7 @@ func bind_managers(game_state: Node, scene_loader: Node, time_manager: Node, inp
 	_input_manager.inventory_toggle_requested.connect(_on_inventory_toggle_requested)
 	_input_manager.quest_toggle_requested.connect(_on_quest_toggle_requested)
 	_input_manager.character_toggle_requested.connect(_on_character_toggle_requested)
+	_input_manager.region_map_toggle_requested.connect(_on_region_map_toggle_requested)
 	_dialogue_runner.dialogue_node_changed.connect(_on_dialogue_node_changed)
 	_dialogue_runner.dialogue_ended.connect(_on_dialogue_ended)
 	BattleSystem.battle_started.connect(_on_battle_changed)
@@ -61,6 +63,7 @@ func bind_managers(game_state: Node, scene_loader: Node, time_manager: Node, inp
 	inventory_panel.inventory_action_requested.connect(_on_inventory_action_requested)
 	quest_panel.close_requested.connect(_on_quest_close_requested)
 	character_panel.close_requested.connect(_on_character_close_requested)
+	region_map_panel.close_requested.connect(_on_region_map_close_requested)
 	character_panel.character_action_requested.connect(_on_character_action_requested)
 	facility_panel.close_requested.connect(_on_facility_close_requested)
 	facility_panel.facility_action_requested.connect(_on_facility_action_requested)
@@ -73,6 +76,8 @@ func bind_managers(game_state: Node, scene_loader: Node, time_manager: Node, inp
 	debug_panel.bind_managers(_game_state, _scene_loader, _time_manager, _input_manager, action_system, _dialogue_runner, quest_system, relation_system)
 	game_menu_panel.bind_context(_scene_loader, quest_system)
 	quest_panel.bind_context(quest_system)
+	region_map_panel.bind_world_service(_world_transition_service())
+	_connect_world_transition_refresh()
 
 	_refresh_static_labels()
 	_on_time_changed(_time_manager.day, _time_manager.hour, _time_manager.minute)
@@ -110,6 +115,10 @@ func is_quest_visible() -> bool:
 
 func is_character_visible() -> bool:
 	return character_panel.visible
+
+
+func is_region_map_visible() -> bool:
+	return region_map_panel.visible
 
 
 func is_facility_visible() -> bool:
@@ -292,6 +301,47 @@ func close_character_panel() -> void:
 	message_log_panel.add_message("关闭角色。")
 
 
+func toggle_region_map() -> void:
+	if region_map_panel.visible:
+		close_region_map()
+		return
+
+	open_region_map()
+
+
+func open_region_map() -> void:
+	if _game_state.current_mode != GameState.GameMode.EXPLORATION and _game_state.current_mode != GameState.GameMode.MENU:
+		return
+
+	if game_menu_panel.visible:
+		game_menu_panel.close_menu()
+	if inventory_panel.visible:
+		inventory_panel.close_panel()
+	if quest_panel.visible:
+		quest_panel.close_panel()
+	if character_panel.visible:
+		character_panel.close_panel()
+	if facility_panel.visible:
+		facility_panel.close_panel()
+	_mode_before_menu = _game_state.current_mode
+	_game_state.set_mode(GameState.GameMode.MENU)
+	region_map_panel.bind_world_service(_world_transition_service())
+	region_map_panel.open_panel()
+	message_log_panel.add_message("打开区域地图。")
+
+
+func close_region_map() -> void:
+	if not region_map_panel.visible:
+		return
+
+	region_map_panel.close_panel()
+	var restore_mode: int = _mode_before_menu
+	if restore_mode == GameState.GameMode.MENU:
+		restore_mode = GameState.GameMode.EXPLORATION
+	_game_state.set_mode(restore_mode)
+	message_log_panel.add_message("关闭区域地图。")
+
+
 func open_facility(facility_data: Dictionary) -> void:
 	if _game_state.current_mode != GameState.GameMode.EXPLORATION and _game_state.current_mode != GameState.GameMode.MENU:
 		return
@@ -331,6 +381,7 @@ func clear_transient_ui() -> void:
 	inventory_panel.close_panel()
 	quest_panel.close_panel()
 	character_panel.close_panel()
+	region_map_panel.close_panel()
 	facility_panel.close_panel()
 	dialogue_panel.hide_panel()
 	battle_hud_panel.hide_panel()
@@ -397,6 +448,10 @@ func _on_character_toggle_requested() -> void:
 	toggle_character_panel()
 
 
+func _on_region_map_toggle_requested() -> void:
+	toggle_region_map()
+
+
 func _on_game_menu_close_requested() -> void:
 	close_game_menu()
 
@@ -423,6 +478,10 @@ func _on_quest_close_requested() -> void:
 
 func _on_character_close_requested() -> void:
 	close_character_panel()
+
+
+func _on_region_map_close_requested() -> void:
+	close_region_map()
 
 
 func _on_facility_close_requested() -> void:
@@ -490,6 +549,8 @@ func _on_action_result(_action_type: String, _actor_id: String, result: ActionRe
 		quest_panel.refresh()
 	if character_panel.visible:
 		character_panel.refresh()
+	if region_map_panel.visible:
+		region_map_panel.refresh()
 	if facility_panel.is_open():
 		facility_panel.refresh()
 	if not _should_show_result(result):
@@ -578,7 +639,7 @@ func _refresh_interaction_prompt() -> void:
 			prompt = str(_scene_loader.current_scene.get_interaction_prompt())
 
 	if prompt.is_empty():
-		prompt = "WASD/方向键移动  E/Enter 互动  B 背包  J 任务  C 角色  R 等待  滚轮/+/- 缩放"
+		prompt = "WASD/方向键移动  E/Enter 互动  B 背包  J 任务  C 角色  M 地图  R 等待  滚轮/+/- 缩放"
 
 	interaction_label.text = prompt
 	interaction_panel.visible = true
@@ -604,3 +665,21 @@ func _should_show_result(result: ActionResult) -> bool:
 			return false
 		_:
 			return true
+
+
+func _connect_world_transition_refresh() -> void:
+	var world_service: Variant = _world_transition_service()
+	if world_service == null:
+		return
+	var callback := Callable(self, "_on_world_transition_completed")
+	if world_service.has_signal("transition_completed") and not world_service.is_connected("transition_completed", callback):
+		world_service.connect("transition_completed", callback)
+
+
+func _on_world_transition_completed(_summary: Dictionary) -> void:
+	if region_map_panel.visible:
+		region_map_panel.refresh()
+
+
+func _world_transition_service() -> Variant:
+	return get_node_or_null("/root/WorldTransitionService")

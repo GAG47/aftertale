@@ -10,6 +10,7 @@ const NpcActivityAgentScript := preload("res://scripts/systems/schedules/npc_act
 const NpcAutonomyAgentScript := preload("res://scripts/systems/schedules/npc_autonomy_agent.gd")
 const TileMapGroundRendererScript := preload("res://scripts/systems/scenes/tile_map_ground_renderer.gd")
 const DebugTileRendererScript := preload("res://scripts/systems/scenes/debug_tile_renderer.gd")
+const ExitMarkerRendererScript := preload("res://scripts/systems/scenes/exit_marker_renderer.gd")
 const WildTerrainDebugOverlayScript := preload("res://scripts/systems/terrain/wild_terrain_debug_overlay.gd")
 const CAMERA_ZOOM_MIN := 0.75
 const CAMERA_ZOOM_MAX := 3.0
@@ -36,6 +37,7 @@ var battle_feedback_root: Node2D
 var interaction_overlay: InteractionTargetOverlay
 var wild_terrain_debug_overlay: Node2D
 var ground_renderer: Node2D
+var exit_marker_renderer: ExitMarkerRenderer
 var debug_tile_renderer: DebugTileRenderer
 var current_grid_position: Vector2i = Vector2i.ZERO
 var controlled_character: CharacterEntity
@@ -102,6 +104,7 @@ func _process(delta: float) -> void:
 func _setup_scene_layer_order() -> void:
 	_remove_legacy_debug_tile_renderer_node()
 	_setup_ground_renderer_node()
+	_setup_exit_marker_renderer_node()
 	if floor_decoration_renderer != null:
 		floor_decoration_renderer.z_index = -50
 	objects_root.z_index = 0
@@ -136,13 +139,32 @@ func _setup_ground_renderer_node() -> void:
 	ground_renderer.z_index = -100
 
 
+func _setup_exit_marker_renderer_node() -> void:
+	var existing_renderer := get_node_or_null("ExitMarkerRenderer")
+	if existing_renderer != null:
+		if existing_renderer.get_script() != ExitMarkerRendererScript:
+			push_error("ExitMarkerRenderer node exists but is not an ExitMarkerRenderer.")
+			return
+		exit_marker_renderer = existing_renderer as ExitMarkerRenderer
+	else:
+		exit_marker_renderer = ExitMarkerRendererScript.new()
+		exit_marker_renderer.name = "ExitMarkerRenderer"
+		add_child(exit_marker_renderer)
+		move_child(exit_marker_renderer, _ground_layer_index() + 1)
+	exit_marker_renderer.z_index = -90
+
+
 func _rebuild_ground_from_grid() -> bool:
 	if ground_renderer == null:
 		push_error("LocationRoot cannot load location without TileMapGroundRenderer.")
 		return false
 	if not bool(ground_renderer.call("configure")):
 		return false
-	return bool(ground_renderer.call("rebuild_from_grid", grid))
+	if not bool(ground_renderer.call("rebuild_from_grid", grid)):
+		return false
+	if exit_marker_renderer != null:
+		exit_marker_renderer.configure(grid)
+	return true
 
 
 func _set_debug_ground_visible(value: bool) -> void:
@@ -421,6 +443,10 @@ func _load_location_data() -> void:
 		push_error("Location data is invalid: %s" % location_data_path)
 		return
 
+	if not _validate_explicit_entrance():
+		grid = null
+		return
+
 	if not _rebuild_ground_from_grid():
 		grid = null
 		return
@@ -438,6 +464,24 @@ func _load_location_data() -> void:
 	_camera_default_zoom = Vector2(SceneLoader.get_default_camera_zoom(), SceneLoader.get_default_camera_zoom())
 	_last_camera_viewport_size = get_viewport_rect().size
 	_clamp_camera_to_map()
+
+
+func _validate_explicit_entrance() -> bool:
+	if entrance_id.is_empty():
+		push_error("LocationRoot requires an explicit entrance_id for location: %s" % str(_location_data_cache.get("id", location_data_path)))
+		return false
+	var entrance_data: Dictionary = grid.get_entrance(entrance_id)
+	if entrance_data.is_empty():
+		push_error("LocationRoot entrance_id is missing in %s: %s" % [str(_location_data_cache.get("id", location_data_path)), entrance_id])
+		return false
+	var entrance_cell: Vector2i = grid.get_entrance_cell(entrance_id)
+	if not grid.in_bounds(entrance_cell):
+		push_error("LocationRoot entrance_id is out of bounds in %s: %s at %s" % [str(_location_data_cache.get("id", location_data_path)), entrance_id, str(entrance_cell)])
+		return false
+	if not grid.is_walkable(entrance_cell):
+		push_error("LocationRoot entrance_id is blocked in %s: %s at %s" % [str(_location_data_cache.get("id", location_data_path)), entrance_id, str(entrance_cell)])
+		return false
+	return true
 
 
 func _on_camera_zoom_requested(steps: int) -> void:
@@ -910,15 +954,19 @@ func _spawn_characters_from_data() -> void:
 func _apply_entrance_to_spawn_data(spawn_data: Dictionary) -> void:
 	var selected_entrance: String = entrance_id
 	if selected_entrance.is_empty():
-		if _location_data_cache.is_empty():
-			return
-
-		selected_entrance = str(_location_data_cache.get("default_entrance", ""))
-
-	var entrance_cell: Vector2i = grid.get_entrance_cell(selected_entrance)
-	spawn_data["grid_position"] = { "x": entrance_cell.x, "y": entrance_cell.y }
+		push_error("LocationRoot requires an explicit entrance_id before spawning the player in %s." % (grid.location_id if grid != null else location_data_path))
+		return
 
 	var entrance_data: Dictionary = grid.get_entrance(selected_entrance)
+	if entrance_data.is_empty():
+		push_error("LocationRoot entrance_id does not exist in %s: %s" % [grid.location_id if grid != null else location_data_path, selected_entrance])
+		return
+	var entrance_cell: Vector2i = grid.get_entrance_cell(selected_entrance)
+	if not grid.in_bounds(entrance_cell) or not grid.is_walkable(entrance_cell):
+		push_error("LocationRoot entrance_id is not a valid walkable cell in %s: %s at %s" % [grid.location_id if grid != null else location_data_path, selected_entrance, str(entrance_cell)])
+		return
+	spawn_data["grid_position"] = { "x": entrance_cell.x, "y": entrance_cell.y }
+
 	if entrance_data.has("facing"):
 		spawn_data["facing"] = str(entrance_data.get("facing", "down"))
 
@@ -1569,7 +1617,12 @@ func request_exit_transition(exit_data: Dictionary) -> bool:
 		return SceneLoader.load_pending_return_location() == OK
 	if target_scene_path.is_empty():
 		return false
-	SceneLoader.load_location(target_scene_path, str(exit_data.get("target_entrance_id", "")))
+	var target_entrance_id := str(exit_data.get("target_entrance_id", ""))
+	if target_entrance_id.is_empty():
+		push_warning("Location exit has no explicit target_entrance_id: %s in %s" % [str(exit_data.get("id", "")), grid.location_id if grid != null else ""])
+		return false
+	if SceneLoader.load_location(target_scene_path, target_entrance_id) != OK:
+		return false
 	return true
 
 
@@ -2066,6 +2119,9 @@ func _submit_scene_transition_object(target_object: LocationObject) -> void:
 		SceneLoader.load_pending_return_location()
 		return
 	if target_scene_path.is_empty():
+		return
+	if target_entrance_id.is_empty():
+		push_warning("Scene transition object has no explicit target_entrance_id: %s" % str(transition_data.get("id", "")))
 		return
 
 	var return_entrance_id := str(transition_data.get("return_entrance_id", ""))

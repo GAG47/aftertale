@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/ui_root.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/ui/components/debug_panel.tscn" id="2"]
@@ -10,6 +10,7 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/screens/character_screen.tscn" id="8"]
 [ext_resource type="PackedScene" path="res://scenes/ui/screens/facility_screen.tscn" id="9"]
 [ext_resource type="PackedScene" path="res://scenes/ui/screens/battle_hud.tscn" id="10"]
+[ext_resource type="PackedScene" path="res://scenes/ui/screens/region_map_screen.tscn" id="11"]
 
 [node name="UIRoot" type="Control"]
 layout_mode = 3
@@ -93,3 +94,4 @@ layout_mode = 2
 [node name="FacilityPanel" parent="." instance=ExtResource("9")]
 [node name="BattleHudPanel" parent="." instance=ExtResource("10")]
 [node name="DialoguePanel" parent="." instance=ExtResource("3")]
+[node name="RegionMapPanel" parent="." instance=ExtResource("11")]

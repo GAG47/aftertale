@@ -22,7 +22,6 @@ func generate_location(source_data: Dictionary, context: Dictionary = {}) -> Dic
 		"display_name": "%s Interior" % display_name,
 		"size": { "width": WIDTH, "height": HEIGHT },
 		"tile_size": int(source_data.get("tile_size", DEFAULT_TILE_SIZE)),
-		"default_entrance": entry_entrance_id,
 		"tiles": [
 			"xxxxxxxxxx",
 			"xiiiiiiiix",

@@ -220,8 +220,8 @@ func _all_generated_interiors_round_trip(world_service: Variant, village_data: D
 		if str((interior_data.get("state", {}) as Dictionary).get("archetype_id", "")) != str(building.get("archetype_id", "")):
 			_fail("v64.1 generated interior data archetype drifted: %s" % interior_id)
 			return false
-		if str(interior_data.get("default_entrance", "")) != entry_entrance_id:
-			_fail("v64.1 generated interior default entrance does not match manifest: %s" % interior_id)
+		if _entrance(interior_data, entry_entrance_id).is_empty():
+			_fail("v64.1 generated interior missing declared entry entrance: %s" % entry_entrance_id)
 			return false
 		if _anchor(interior_data, entry_entrance_id).is_empty():
 			_fail("v64.1 generated interior missing declared entry anchor: %s" % entry_entrance_id)
@@ -306,6 +306,14 @@ func _anchor(location_data: Dictionary, anchor_id: String) -> Dictionary:
 		var anchor: Dictionary = anchor_value as Dictionary
 		if str(anchor.get("id", "")) == anchor_id:
 			return anchor
+	return {}
+
+
+func _entrance(location_data: Dictionary, entrance_id: String) -> Dictionary:
+	for entrance_value in (location_data.get("entrances", []) as Array):
+		var entrance: Dictionary = entrance_value as Dictionary
+		if str(entrance.get("id", "")) == entrance_id:
+			return entrance
 	return {}
 
 

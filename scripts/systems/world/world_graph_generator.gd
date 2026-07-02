@@ -275,15 +275,19 @@ func _add_generated_wild_node(index: int, is_start: bool) -> bool:
 	var wild_profile_id := _pick_profile_for_biome(region_biome, region_position)
 	if wild_profile_id.is_empty():
 		return false
+	var display_name := _display_name_for_wild_profile(wild_profile_id, index)
+	if display_name.is_empty():
+		return false
 	var size := _pick_size("generated_wild")
 	if size.is_empty():
 		return false
 	var location_id := "%s_node_%03d" % [_world_id, index]
 	var seed := _derive_node_seed(index, wild_profile_id, region_position)
 	var spawn_id := "%s_spawn" % location_id if is_start else "%s_entry" % location_id
+	var spawn_side := _start_side_for_node(index)
 	_node_rows.append({
 		"location_id": location_id,
-		"display_name": _display_name_for_wild_profile(wild_profile_id, index),
+		"display_name": display_name,
 		"location_kind": "generated_wild",
 		"source_type": "generated",
 		"generator_id": "wild_terrain",
@@ -308,8 +312,12 @@ func _add_generated_wild_node(index: int, is_start: bool) -> bool:
 		"location_id": location_id,
 		"spawn_id": spawn_id,
 		"entrance_id": spawn_id,
-		"facing": "down",
-		"tags": ["generated_world_graph", "start"] if is_start else ["generated_world_graph", "entry"],
+		"facing": _facing_for_entry_side(spawn_side),
+		"tags": ["generated_world_graph", "start", spawn_side] if is_start else ["generated_world_graph", "entry", spawn_side],
+		"metadata": {
+			"source": "world_graph_generator",
+			"side": spawn_side,
+		},
 	})
 	if is_start:
 		_start_spawn_id = spawn_id
@@ -457,7 +465,7 @@ func _generated_edge_spawn_id(location_id: String, from_location_id: String, tar
 		"location_id": location_id,
 		"spawn_id": spawn_id,
 		"entrance_id": spawn_id,
-		"facing": _facing_for_side(target_side),
+		"facing": _facing_for_entry_side(target_side),
 		"tags": ["generated_world_graph", "from_%s" % from_location_id, target_side],
 		"metadata": {
 			"source": "world_graph_generator",
@@ -720,9 +728,38 @@ func _facing_for_side(side: String) -> String:
 			return "down"
 
 
+func _facing_for_entry_side(side: String) -> String:
+	match side:
+		"north":
+			return "down"
+		"south":
+			return "up"
+		"east":
+			return "left"
+		"west":
+			return "right"
+		_:
+			return "down"
+
+
+func _start_side_for_node(index: int) -> String:
+	var sides: Array[String] = ["north", "east", "south", "west"]
+	var value: int = int(abs(hash("%s:%d:start:%d" % [_world_id, _world_seed, index])) % sides.size())
+	return sides[value]
+
+
 func _display_name_for_wild_profile(profile_id: String, index: int) -> String:
-	var label := profile_id.capitalize().replace("_", " ")
-	return "%s Wild %02d" % [label, index]
+	var labels := {
+		"plain": "平原野地",
+		"forest_edge": "林缘野地",
+		"riverbank": "河岸野地",
+		"foothill": "山脚野地",
+	}
+	if not labels.has(profile_id):
+		_errors.append("wild profile has no generated display name label: %s" % profile_id)
+		return ""
+	var label := str(labels.get(profile_id, ""))
+	return "%s %02d" % [label, index]
 
 
 func _wild_role_for_profile(profile_id: String) -> String:

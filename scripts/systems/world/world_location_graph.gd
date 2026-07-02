@@ -55,6 +55,9 @@ func configure(data: Dictionary) -> Array[String]:
 		if location_id.is_empty() or spawn_id.is_empty():
 			errors.append("spawn spec missing location_id or spawn_id")
 			continue
+		if str(spawn_spec.get("entrance_id", "")).is_empty():
+			errors.append("spawn spec missing explicit entrance_id: %s/%s" % [location_id, spawn_id])
+			continue
 		if not locations_by_id.has(location_id):
 			errors.append("spawn references unknown location: %s/%s" % [location_id, spawn_id])
 			continue
@@ -92,7 +95,9 @@ func configure(data: Dictionary) -> Array[String]:
 		errors.append("start_location_id is missing")
 	elif not locations_by_id.has(start_location_id):
 		errors.append("start_location_id references unknown location: %s" % start_location_id)
-	if not start_spawn_id.is_empty() and get_spawn_spec(start_location_id, start_spawn_id).is_empty():
+	if start_spawn_id.is_empty():
+		errors.append("start_spawn_id is missing")
+	elif get_spawn_spec(start_location_id, start_spawn_id).is_empty():
 		errors.append("start_spawn_id references unknown spawn: %s/%s" % [start_location_id, start_spawn_id])
 
 	return errors
@@ -104,6 +109,33 @@ func get_location_spec(location_id: String) -> Dictionary:
 
 func get_location(location_id: String) -> Dictionary:
 	return get_location_spec(location_id)
+
+
+func get_all_locations() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var location_ids: Array = locations_by_id.keys()
+	location_ids.sort()
+	for location_id_value in location_ids:
+		var location_id := str(location_id_value)
+		var spec: Dictionary = locations_by_id.get(location_id, {}) as Dictionary
+		if not spec.is_empty():
+			result.append(spec.duplicate(true))
+	return result
+
+
+func get_all_edges() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var edge_keys: Array = exits_by_location_and_id.keys()
+	edge_keys.sort()
+	for key_value in edge_keys:
+		var edge: Dictionary = exits_by_location_and_id.get(str(key_value), {}) as Dictionary
+		if not edge.is_empty():
+			result.append(edge.duplicate(true))
+	return result
+
+
+func get_region_map() -> Dictionary:
+	return (source_data.get("region_map", {}) as Dictionary).duplicate(true)
 
 
 func get_spawn_spec(location_id: String, spawn_id: String) -> Dictionary:

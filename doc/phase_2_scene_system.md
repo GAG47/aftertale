@@ -36,7 +36,6 @@ id              场景唯一 ID
 display_name    显示名
 size            width / height
 tile_size       单格像素尺寸
-default_entrance 默认入口
 tiles           瓦片字符矩阵
 terrain         字符到地形定义的映射
 entrances       入口定义

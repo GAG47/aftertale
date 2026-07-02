@@ -278,32 +278,49 @@ func _wild_source_data(graph: Variant, spec: Dictionary) -> Dictionary:
 		source_data["region_biome"] = str(spec.get("region_biome", ""))
 	if spec.has("region_position"):
 		source_data["region_position"] = (spec.get("region_position", {}) as Dictionary).duplicate(true)
+	var entrance_hints := _wild_entrance_hints_from_graph(graph, str(spec.get("location_id", "")))
+	if not entrance_hints.is_empty():
+		generator_data["optional_entrance_hints"] = entrance_hints
 	var exit_hints := _wild_exit_hints_from_graph(graph, str(spec.get("location_id", "")))
 	if not exit_hints.is_empty():
 		generator_data["optional_exit_hints"] = exit_hints
 	source_data["generator"] = generator_data
 	source_data["id"] = str(spec.get("location_id", source_data.get("id", "")))
 	source_data["display_name"] = str(spec.get("display_name", source_data.get("display_name", source_data.get("id", ""))))
-	var default_entrance := _default_entrance_for_location(graph, str(spec.get("location_id", "")))
-	if not default_entrance.is_empty():
-		source_data["default_entrance"] = default_entrance
 	return source_data
 
 
-func _default_entrance_for_location(graph: Variant, location_id: String) -> String:
+func _wild_entrance_hints_from_graph(graph: Variant, location_id: String) -> Array[Dictionary]:
+	var hints: Array[Dictionary] = []
 	if graph == null or location_id.is_empty():
-		return ""
-	var spawn_id := ""
-	if str(graph.start_location_id) == location_id:
-		spawn_id = str(graph.start_spawn_id)
-	if spawn_id.is_empty():
-		var edges_to: Array[Dictionary] = graph.get_edges_to(location_id)
-		if not edges_to.is_empty():
-			spawn_id = str((edges_to[0] as Dictionary).get("target_spawn_id", ""))
-	if spawn_id.is_empty():
-		return ""
-	var spawn_spec: Dictionary = graph.get_spawn_spec(location_id, spawn_id)
-	return str(spawn_spec.get("entrance_id", ""))
+		return hints
+	var spawns: Dictionary = graph.spawns_by_location.get(location_id, {}) as Dictionary
+	for spawn_id_value in spawns.keys():
+		var spawn_id := str(spawn_id_value)
+		var spawn_spec: Dictionary = graph.get_spawn_spec(location_id, spawn_id)
+		var entrance_id := str(spawn_spec.get("entrance_id", ""))
+		if entrance_id.is_empty():
+			continue
+		var metadata: Dictionary = spawn_spec.get("metadata", {}) as Dictionary
+		var hint := {
+			"spawn_id": spawn_id,
+			"entrance_id": entrance_id,
+			"facing": str(spawn_spec.get("facing", "")),
+			"side": str(metadata.get("side", "")),
+			"metadata": metadata.duplicate(true),
+		}
+		if hint["side"].is_empty():
+			hint["side"] = _side_from_spawn_tags(spawn_spec.get("tags", []) as Array)
+		hints.append(hint)
+	return hints
+
+
+func _side_from_spawn_tags(tags: Array) -> String:
+	for tag_value in tags:
+		var tag := str(tag_value)
+		if ["north", "east", "south", "west"].has(tag):
+			return tag
+	return ""
 
 
 func _wild_exit_hints_from_graph(graph: Variant, location_id: String) -> Array[Dictionary]:

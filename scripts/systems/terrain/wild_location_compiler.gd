@@ -19,13 +19,17 @@ func generate_location(source_data: Dictionary, context: Dictionary = {}) -> Dic
 	_compile_elevation_presentation(location_data, blueprint)
 	_compile_natural_objects(location_data, blueprint)
 	_compile_exits(location_data, blueprint)
-	_compile_entrances(location_data, blueprint)
+	var compile_errors := _compile_entrances(location_data, blueprint, source_data)
 	location_data["wild_terrain_blueprint"] = blueprint.to_dictionary()
 	location_data["generation_summary"] = blueprint.debug_summary.duplicate(true)
 	var summary: Dictionary = location_data.get("generation_summary", {}) as Dictionary
 	summary["type"] = "wild_terrain"
 	summary["generator"] = "WildTerrainGenerator"
 	summary["compiler"] = "WildLocationCompiler"
+	if not compile_errors.is_empty():
+		var generation_errors: Array = (summary.get("generation_errors", []) as Array).duplicate()
+		generation_errors.append_array(compile_errors)
+		summary["generation_errors"] = generation_errors
 	location_data["generation_summary"] = summary
 	var state: Dictionary = location_data.get("state", {}) as Dictionary
 	state["generation"] = "wild_terrain"
@@ -47,10 +51,16 @@ func validate_location(location_data: Dictionary) -> Array[String]:
 	if not grid.is_valid():
 		errors.append("compiled wild LocationGrid is invalid")
 		return errors
-	var default_entrance := str(location_data.get("default_entrance", ""))
-	var entrance_cell := grid.get_entrance_cell(default_entrance)
-	if not grid.in_bounds(entrance_cell) or not grid.is_walkable(entrance_cell):
-		errors.append("default wild entrance is missing or blocked")
+	if (location_data.get("entrances", []) as Array).is_empty():
+		errors.append("compiled wild location has no explicit entrances")
+	for entrance_value in (location_data.get("entrances", []) as Array):
+		var entrance: Dictionary = entrance_value as Dictionary
+		var entrance_id := str(entrance.get("id", ""))
+		var entrance_cell := _cell_from_dict(entrance.get("grid_position", {}) as Dictionary)
+		if entrance_id.is_empty():
+			errors.append("wild entrance is missing id")
+		elif not grid.in_bounds(entrance_cell) or not grid.is_walkable(entrance_cell):
+			errors.append("wild entrance is missing or blocked: %s" % entrance_id)
 	if (location_data.get("wild_terrain_blueprint", {}) as Dictionary).is_empty():
 		errors.append("compiled wild location is missing blueprint data")
 	if str(summary.get("type", "")) != "wild_terrain":
@@ -104,7 +114,6 @@ func _failed_location(source_data: Dictionary, blueprint: RefCounted, errors: Ar
 		"display_name": str(source_data.get("display_name", "Generated Wild Plain")),
 		"size": { "width": width, "height": height },
 		"tile_size": int(source_data.get("tile_size", DEFAULT_TILE_SIZE)),
-		"default_entrance": str(source_data.get("default_entrance", "")),
 		"tiles": [],
 		"terrain": {},
 		"entrances": [],
@@ -129,7 +138,6 @@ func _base_location(source_data: Dictionary, blueprint: RefCounted) -> Dictionar
 		"display_name": str(source_data.get("display_name", "Generated Wild Plain")),
 		"size": { "width": blueprint.width, "height": blueprint.height },
 		"tile_size": int(source_data.get("tile_size", DEFAULT_TILE_SIZE)),
-		"default_entrance": str(source_data.get("default_entrance", "wild_spawn")),
 		"tiles": [],
 		"terrain": _terrain_definitions(),
 		"zones": [
@@ -233,18 +241,28 @@ func _compile_natural_objects(location_data: Dictionary, blueprint: RefCounted) 
 				_add_pickup_object(location_data, object_data, "Fallen Branch", "res://data/items/debug_stick.json", 1)
 
 
-func _compile_entrances(location_data: Dictionary, blueprint: RefCounted) -> void:
-	var entrance_id := str(location_data.get("default_entrance", ""))
-	if entrance_id.is_empty():
-		return
-	if _has_entrance(location_data, entrance_id):
-		return
-	var spawn_cell := Vector2i(int(blueprint.width / 2), int(blueprint.height / 2))
-	if not blueprint.spawn_candidates.is_empty():
-		var primary_spawn: Dictionary = blueprint.spawn_candidates[0] as Dictionary
-		spawn_cell = _cell_from_dict(primary_spawn.get("grid_position", {}) as Dictionary)
-	_add_entrance(location_data, entrance_id, spawn_cell, "right")
-	_add_anchor(location_data, entrance_id, "spawn", spawn_cell, "right")
+func _compile_entrances(location_data: Dictionary, blueprint: RefCounted, source_data: Dictionary) -> Array[String]:
+	var errors: Array[String] = []
+	var used_cells := _used_entrance_cells(location_data)
+	for hint_value in _explicit_entrance_hints(source_data):
+		var hint: Dictionary = hint_value as Dictionary
+		var entrance_id := str(hint.get("entrance_id", hint.get("id", "")))
+		if entrance_id.is_empty():
+			errors.append("wild entrance hint is missing entrance_id")
+			continue
+		if _has_entrance(location_data, entrance_id):
+			continue
+		var entrance_cell := _entry_cell_for_entrance_hint(blueprint, hint, used_cells)
+		if not blueprint.in_bounds(entrance_cell) or blueprint.blocks_at(entrance_cell):
+			errors.append("wild entrance hint could not resolve to a passable cell: %s" % entrance_id)
+			continue
+		var facing := str(hint.get("facing", ""))
+		if facing.is_empty():
+			facing = _facing_into_map_for_side(_side_from_entrance_hint(hint))
+		_add_entrance(location_data, entrance_id, entrance_cell, facing)
+		_add_anchor(location_data, entrance_id, "spawn", entrance_cell, facing)
+		used_cells[_cell_key(entrance_cell)] = true
+	return errors
 
 
 func _compile_exits(location_data: Dictionary, blueprint: RefCounted) -> void:
@@ -393,13 +411,121 @@ func _has_entrance(location_data: Dictionary, entrance_id: String) -> bool:
 	return false
 
 
+func _explicit_entrance_hints(source_data: Dictionary) -> Array[Dictionary]:
+	var hints: Array[Dictionary] = []
+	var generator_data: Dictionary = source_data.get("generator", {}) as Dictionary
+	for hint_value in (source_data.get("entrance_hints", []) as Array):
+		hints.append((hint_value as Dictionary).duplicate(true))
+	for hint_value in (generator_data.get("optional_entrance_hints", []) as Array):
+		hints.append((hint_value as Dictionary).duplicate(true))
+	return hints
+
+
+func _used_entrance_cells(location_data: Dictionary) -> Dictionary:
+	var used := {}
+	for entrance_value in (location_data.get("entrances", []) as Array):
+		var entrance: Dictionary = entrance_value as Dictionary
+		var cell := _cell_from_dict(entrance.get("grid_position", {}) as Dictionary)
+		used[_cell_key(cell)] = true
+	return used
+
+
+func _entry_cell_for_entrance_hint(blueprint: RefCounted, hint: Dictionary, used_cells: Dictionary) -> Vector2i:
+	var explicit_position: Dictionary = hint.get("grid_position", hint.get("cell", {})) as Dictionary
+	if not explicit_position.is_empty():
+		var explicit_cell := _cell_from_dict(explicit_position)
+		if blueprint.in_bounds(explicit_cell) and not blueprint.blocks_at(explicit_cell) and not used_cells.has(_cell_key(explicit_cell)):
+			return explicit_cell
+		return Vector2i(-1, -1)
+
+	var side := _side_from_entrance_hint(hint)
+	if side.is_empty():
+		return Vector2i(-1, -1)
+
+	var target := _side_target_cell(blueprint, side)
+	var best_cell := Vector2i(-1, -1)
+	var best_score := INF
+	for y in range(blueprint.height):
+		for x in range(blueprint.width):
+			var cell := Vector2i(x, y)
+			if blueprint.blocks_at(cell) or used_cells.has(_cell_key(cell)):
+				continue
+			var score := float(cell.distance_squared_to(target))
+			score += blueprint.walk_cost_at(cell) * 8.0
+			score += float(_edge_distance_for_side(blueprint, cell, side)) * 18.0
+			if score < best_score:
+				best_score = score
+				best_cell = cell
+	return best_cell
+
+
+func _side_from_entrance_hint(hint: Dictionary) -> String:
+	var side := str(hint.get("side", hint.get("from_side", "")))
+	if not side.is_empty():
+		return side
+	var facing := str(hint.get("facing", ""))
+	match facing:
+		"right":
+			return "west"
+		"left":
+			return "east"
+		"down":
+			return "north"
+		"up":
+			return "south"
+		_:
+			return ""
+
+
+func _side_target_cell(blueprint: RefCounted, side: String) -> Vector2i:
+	match side:
+		"west":
+			return Vector2i(0, int(blueprint.height / 2))
+		"east":
+			return Vector2i(blueprint.width - 1, int(blueprint.height / 2))
+		"north":
+			return Vector2i(int(blueprint.width / 2), 0)
+		"south":
+			return Vector2i(int(blueprint.width / 2), blueprint.height - 1)
+		_:
+			return Vector2i(int(blueprint.width / 2), int(blueprint.height / 2))
+
+
+func _edge_distance_for_side(blueprint: RefCounted, cell: Vector2i, side: String) -> int:
+	match side:
+		"west":
+			return cell.x
+		"east":
+			return blueprint.width - 1 - cell.x
+		"north":
+			return cell.y
+		"south":
+			return blueprint.height - 1 - cell.y
+		_:
+			return mini(mini(cell.x, blueprint.width - 1 - cell.x), mini(cell.y, blueprint.height - 1 - cell.y))
+
+
+func _facing_into_map_for_side(side: String) -> String:
+	match side:
+		"west":
+			return "right"
+		"east":
+			return "left"
+		"north":
+			return "down"
+		"south":
+			return "up"
+		_:
+			return "down"
+
+
 func _entry_cell_for_exit(blueprint: RefCounted, exit_cell: Vector2i, exit_facing: String) -> Vector2i:
-	var preferred_cell := exit_cell + _facing_vector(exit_facing)
+	var preferred_cell: Vector2i = exit_cell + _facing_vector(exit_facing)
 	if blueprint.in_bounds(preferred_cell) and not blueprint.blocks_at(preferred_cell):
 		return preferred_cell
 
-	var best_cell := exit_cell
-	var best_score := INF
+	var best_cell: Vector2i = exit_cell
+	var best_score: float = INF
 	for candidate_value in [
 		exit_cell + Vector2i.LEFT,
 		exit_cell + Vector2i.RIGHT,
@@ -410,7 +536,7 @@ func _entry_cell_for_exit(blueprint: RefCounted, exit_cell: Vector2i, exit_facin
 		if not blueprint.in_bounds(candidate) or blueprint.blocks_at(candidate):
 			continue
 		var delta: Vector2i = candidate - preferred_cell
-		var score := float(delta.x * delta.x + delta.y * delta.y)
+		var score: float = float(delta.x * delta.x + delta.y * delta.y)
 		if score < best_score:
 			best_score = score
 			best_cell = candidate
@@ -543,3 +669,7 @@ func _cell_from_dict(value: Dictionary) -> Vector2i:
 
 func _dict_cell(cell: Vector2i) -> Dictionary:
 	return { "x": cell.x, "y": cell.y }
+
+
+func _cell_key(cell: Vector2i) -> String:
+	return "%d,%d" % [cell.x, cell.y]

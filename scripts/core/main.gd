@@ -103,6 +103,10 @@ func _on_cancel_requested() -> void:
 		ui_root.close_character_panel()
 		return
 
+	if ui_root.is_region_map_visible():
+		ui_root.close_region_map()
+		return
+
 	if ui_root.is_quest_visible():
 		ui_root.close_quest_panel()
 		return

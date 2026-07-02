@@ -101,14 +101,15 @@ The generated runtime location includes:
 - tree, large rock, and ore vein blockers as structures;
 - naturally sampled herb, berry, and fallen branch pickups when the layer
   conditions and sampling allow them;
-- a `wild_spawn` entrance chosen from passable generated terrain;
+- explicit entrances compiled only from entrance hints or later world spawn
+  facts;
 - runtime exits chosen from passable generated terrain using optional exit
   hints.
 
 The village wild gate now targets:
 
 ```text
-res://scenes/locations/test_wild_plain.tscn / wild_spawn
+res://scenes/locations/test_wild_plain.tscn / explicit entrance id
 ```
 
 The wild location exit returns to the generated village entrance `from_wild`.
@@ -154,7 +155,7 @@ seed/profile/size and load it before regenerating.
 - generated summary tile, biome, water, and wetland fields;
 - riverbank profile water and wetland coverage;
 - forest-edge and foothill profiles change the terrain fingerprint;
-- spawn candidates are passable;
+- spawn candidates are passable but are not treated as entrances;
 - configured exit hints resolve to passable exit candidates;
 - the compiled runtime location loads as a valid `LocationGrid`;
 - the compiled location exposes the blueprint.

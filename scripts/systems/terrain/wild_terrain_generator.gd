@@ -743,19 +743,19 @@ func _select_spawn_candidates() -> Array[Dictionary]:
 	return candidates
 
 
-func _select_exit_candidates(spawn_candidates: Array[Dictionary]) -> Array[Dictionary]:
+func _select_exit_candidates(_spawn_candidates: Array[Dictionary]) -> Array[Dictionary]:
 	var results: Array[Dictionary] = []
-	var reachable_cells := _reachable_cells_for_exit_selection(spawn_candidates)
+	var occupied_exit_cells: Dictionary = {}
 	for hint_value in _exit_hints:
 		var hint: Dictionary = hint_value as Dictionary
 		var scored: Array[Dictionary] = []
-		var target := _hint_target_cell(hint, _default_edge_target(str(hint.get("side", ""))))
+		var target: Vector2i = _hint_target_cell(hint, _default_edge_target(str(hint.get("side", ""))))
 		for y in range(_height):
 			for x in range(_width):
 				var cell := Vector2i(x, y)
 				if _blocks(cell):
 					continue
-				if not reachable_cells.is_empty() and not reachable_cells.has(_cell_key(cell)):
+				if occupied_exit_cells.has(_cell_key(cell)):
 					continue
 				var score := 100.0
 				score -= float(cell.distance_squared_to(target)) * 0.06
@@ -763,6 +763,7 @@ func _select_exit_candidates(spawn_candidates: Array[Dictionary]) -> Array[Dicti
 				score -= _value(_walk_cost_map, cell) * 5.0
 				score -= _value(_slope_map, cell) * 16.0
 				score -= _value(_ridge_map, cell) * 5.0
+				score -= _exit_spacing_penalty(cell, occupied_exit_cells)
 				score += _unit_hash_cell(cell, 421) * 0.1
 				scored.append({ "cell": cell, "score": score })
 		var candidates := _take_top_scored_cells(scored, MAX_EXIT_CANDIDATES_PER_HINT)
@@ -772,6 +773,7 @@ func _select_exit_candidates(spawn_candidates: Array[Dictionary]) -> Array[Dicti
 		for candidate_value in candidates:
 			var candidate: Dictionary = candidate_value as Dictionary
 			var cell := _cell_from_dict(candidate.get("grid_position", {}) as Dictionary)
+			occupied_exit_cells[_cell_key(cell)] = cell
 			results.append({
 				"id": str(hint.get("id", "exit_%02d" % (results.size() + 1))),
 				"grid_position": _dict_cell(cell),
@@ -787,33 +789,18 @@ func _select_exit_candidates(spawn_candidates: Array[Dictionary]) -> Array[Dicti
 	return results
 
 
-func _reachable_cells_for_exit_selection(spawn_candidates: Array[Dictionary]) -> Dictionary:
-	if spawn_candidates.is_empty():
-		return {}
-	var first_spawn: Dictionary = spawn_candidates[0] as Dictionary
-	var start_cell := _cell_from_dict(first_spawn.get("grid_position", {}) as Dictionary)
-	if _blocks(start_cell):
-		return {}
-	return _flood_passable_cells(start_cell)
-
-
-func _flood_passable_cells(start_cell: Vector2i) -> Dictionary:
-	var visited := {}
-	var queue: Array[Vector2i] = [start_cell]
-	visited[_cell_key(start_cell)] = true
-	var read_index := 0
-	while read_index < queue.size():
-		var cell := queue[read_index]
-		read_index += 1
-		for offset_value in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
-			var offset: Vector2i = offset_value as Vector2i
-			var next_cell: Vector2i = cell + offset
-			var key := _cell_key(next_cell)
-			if visited.has(key) or _blocks(next_cell):
-				continue
-			visited[key] = true
-			queue.append(next_cell)
-	return visited
+func _exit_spacing_penalty(cell: Vector2i, occupied_exit_cells: Dictionary) -> float:
+	var penalty := 0.0
+	for occupied_value in occupied_exit_cells.values():
+		var occupied_cell: Vector2i = occupied_value as Vector2i
+		var distance_sq := cell.distance_squared_to(occupied_cell)
+		if distance_sq <= 0:
+			penalty += 10000.0
+			continue
+		var distance := sqrt(float(distance_sq))
+		if distance < 7.0:
+			penalty += (7.0 - distance) * 10.0
+	return penalty
 
 
 func _take_top_scored_cells(scored: Array[Dictionary], limit: int) -> Array[Dictionary]:

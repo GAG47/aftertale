@@ -375,7 +375,6 @@ func _base_location(source_data: Dictionary) -> Dictionary:
 		"display_name": str(source_data.get("display_name", "Generated Village")),
 		"size": { "width": _width, "height": _height },
 		"tile_size": int(source_data.get("tile_size", DEFAULT_TILE_SIZE)),
-		"default_entrance": "plaza",
 		"tiles": [],
 		"terrain": _terrain_definitions(),
 		"zones": [],

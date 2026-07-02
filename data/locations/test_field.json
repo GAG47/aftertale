@@ -3,7 +3,6 @@
   "display_name": "测试田地",
   "size": { "width": 12, "height": 8 },
   "tile_size": 32,
-  "default_entrance": "start",
   "tiles": [
     "gggggggggggg",
     "gggggggggggg",

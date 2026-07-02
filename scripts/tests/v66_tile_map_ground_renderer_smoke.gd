@@ -91,7 +91,6 @@ func _assert_all_configured_terrain_ids_map() -> bool:
 		"display_name": "v66 all configured terrains",
 		"size": { "width": row.length(), "height": 1 },
 		"tile_size": 32,
-		"default_entrance": "start",
 		"tiles": [row],
 		"terrain": terrain_defs,
 		"entrances": [{ "id": "start", "grid_position": { "x": 0, "y": 0 }, "facing": "right" }],
@@ -118,7 +117,6 @@ func _assert_unknown_terrain_fails() -> bool:
 		"display_name": "v66 unknown terrain",
 		"size": { "width": 1, "height": 1 },
 		"tile_size": 32,
-		"default_entrance": "start",
 		"tiles": ["u"],
 		"terrain": {
 			"u": { "id": "unmapped_v66_terrain", "walkable": true },
@@ -282,7 +280,6 @@ func _small_location_data(with_player: bool) -> Dictionary:
 		"display_name": "v66 renderer location",
 		"size": { "width": 4, "height": 3 },
 		"tile_size": 32,
-		"default_entrance": "start",
 		"tiles": [
 			"gggg",
 			"gpgw",

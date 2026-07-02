@@ -7,6 +7,7 @@ signal cancel_requested()
 signal inventory_toggle_requested()
 signal quest_toggle_requested()
 signal character_toggle_requested()
+signal region_map_toggle_requested()
 signal debug_toggle_requested()
 signal save_requested()
 signal load_requested()
@@ -26,6 +27,7 @@ const ACTION_CANCEL := "cancel"
 const ACTION_INVENTORY_TOGGLE := "inventory_toggle"
 const ACTION_QUEST_TOGGLE := "quest_toggle"
 const ACTION_CHARACTER_TOGGLE := "character_toggle"
+const ACTION_REGION_MAP_TOGGLE := "region_map_toggle"
 const ACTION_DEBUG_TOGGLE := "debug_toggle"
 const ACTION_SAVE := "save_game"
 const ACTION_LOAD := "load_game"
@@ -109,6 +111,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 
+	if event.is_action_pressed(ACTION_REGION_MAP_TOGGLE):
+		region_map_toggle_requested.emit()
+		get_viewport().set_input_as_handled()
+		return
+
 	if event.is_action_pressed(ACTION_CANCEL):
 		cancel_requested.emit()
 		get_viewport().set_input_as_handled()
@@ -159,6 +166,7 @@ func _register_default_actions() -> void:
 	_register_key_action(ACTION_INVENTORY_TOGGLE, KEY_B)
 	_register_key_action(ACTION_QUEST_TOGGLE, KEY_J)
 	_register_key_action(ACTION_CHARACTER_TOGGLE, KEY_C)
+	_register_key_action(ACTION_REGION_MAP_TOGGLE, KEY_M)
 	_register_key_action(ACTION_CANCEL, KEY_ESCAPE)
 	_register_key_action(ACTION_DEBUG_TOGGLE, KEY_F3)
 	_register_key_action(ACTION_SAVE, KEY_F5)
