@@ -8,6 +8,8 @@ const DEFAULT_WIDTH := 64
 const DEFAULT_HEIGHT := 64
 const MIN_WIDTH := 16
 const MIN_HEIGHT := 16
+const MIN_PASSABLE_RATIO := 0.30
+const MAX_PASSABLE_RATIO := 0.96
 const MAX_SPAWN_CANDIDATES := 24
 const MAX_EXIT_CANDIDATES_PER_HINT := 1
 
@@ -17,6 +19,7 @@ var _height: int = DEFAULT_HEIGHT
 var _profile: Dictionary = {}
 var _profile_id: String = "plain"
 var _region_patch: Dictionary = {}
+var _local_role: String = ""
 var _spawn_hint: Dictionary = {}
 var _exit_hints: Array = []
 var _warnings: Array[String] = []
@@ -156,7 +159,7 @@ func validate_blueprint(blueprint: RefCounted) -> Array[String]:
 			if not bool((blueprint.blocker_map[y] as Array)[x]):
 				passable_count += 1
 	var passable_ratio := float(passable_count) / maxf(1.0, float(total))
-	if passable_ratio < 0.35 or passable_ratio > 0.90:
+	if passable_ratio < MIN_PASSABLE_RATIO or passable_ratio > MAX_PASSABLE_RATIO:
 		errors.append("passable ratio out of expected smoke range: %.3f" % passable_ratio)
 
 	if blueprint.spawn_candidates.is_empty():
@@ -188,6 +191,7 @@ func _configure(config: Dictionary) -> void:
 	_profile_id = str(config.get("terrain_profile_id", config.get("profile", "plain")))
 	_profile = WildTerrainProfileScript.get_profile(_profile_id)
 	_region_patch = (config.get("region_patch", {}) as Dictionary).duplicate(true)
+	_local_role = str(config.get("local_role", ""))
 	_spawn_hint = (config.get("optional_spawn_hint", {}) as Dictionary).duplicate(true)
 	_exit_hints = (config.get("optional_exit_hints", []) as Array).duplicate(true)
 	_warnings.clear()
@@ -216,33 +220,52 @@ func _configure(config: Dictionary) -> void:
 func _apply_region_patch_to_profile() -> void:
 	if _region_patch.is_empty() or _profile.is_empty():
 		return
-	var center_biome := str(_region_patch.get("center_biome", ""))
+	var hydro_context := str(_region_patch.get("center_hydro_context", ""))
+	var landform_class := str(_region_patch.get("center_landform_class", ""))
+	var vegetation_class := str(_region_patch.get("center_vegetation_class", ""))
+	var surface_class := str(_region_patch.get("center_surface_class", ""))
+	var features := _string_array(_region_patch.get("dominant_features", []) as Array)
 	var water_influence := clampf(float(_region_patch.get("water_influence", 0.0)), 0.0, 1.0)
 	var coast_influence := clampf(float(_region_patch.get("coast_influence", 0.0)), 0.0, 1.0)
 	var river_influence := clampf(float(_region_patch.get("river_influence", 0.0)), 0.0, 1.0)
 	var forest_influence := clampf(float(_region_patch.get("forest_influence", 0.0)), 0.0, 1.0)
 	var rock_influence := clampf(float(_region_patch.get("rock_influence", 0.0)), 0.0, 1.0)
+	var slope_influence := clampf(float(_region_patch.get("slope_influence", 0.0)), 0.0, 1.0)
 	var moisture := clampf(float(_region_patch.get("average_moisture", 0.5)), 0.0, 1.0)
 	var elevation := clampf(float(_region_patch.get("average_elevation", 0.5)), 0.0, 1.0)
 	var water_bias := maxf(water_influence, maxf(coast_influence * 0.72, river_influence * 0.84))
+	var forest_bias := forest_influence
+	if vegetation_class == "forest" or features.has("dense_forest") or _local_role == "forest_path" or _local_role == "forest_entrance":
+		forest_bias = maxf(forest_bias, 0.62)
+	var rock_bias := maxf(rock_influence, slope_influence * 0.75)
+	if surface_class == "rock" or features.has("rocky_slope") or _local_role == "rocky_slope_path":
+		rock_bias = maxf(rock_bias, 0.58)
+	if landform_class == "hills" or landform_class == "highland" or landform_class == "mountain" or features.has("foothill"):
+		rock_bias = maxf(rock_bias, 0.42)
 
 	_profile["moisture_bias"] = clampf(float(_profile.get("moisture_bias", 0.5)) + (moisture - 0.5) * 0.28 + water_bias * 0.12, 0.0, 1.0)
-	_profile["vegetation_bias"] = clampf(float(_profile.get("vegetation_bias", 0.5)) + (forest_influence - 0.5) * 0.22 + maxf(0.0, moisture - 0.5) * 0.10, 0.0, 1.0)
-	_profile["rock_bias"] = clampf(float(_profile.get("rock_bias", 0.25)) + rock_influence * 0.18 + maxf(0.0, elevation - 0.55) * 0.16, 0.0, 1.0)
+	_profile["vegetation_bias"] = clampf(float(_profile.get("vegetation_bias", 0.5)) + (forest_bias - 0.5) * 0.22 + maxf(0.0, moisture - 0.5) * 0.10, 0.0, 1.0)
+	_profile["rock_bias"] = clampf(float(_profile.get("rock_bias", 0.25)) + rock_bias * 0.18 + maxf(0.0, elevation - 0.55) * 0.16, 0.0, 1.0)
 	_profile["base_height"] = clampf(float(_profile.get("base_height", 0.5)) + (elevation - 0.5) * 0.14 - water_bias * 0.06, 0.0, 1.0)
 	_profile["water_level"] = clampf(float(_profile.get("water_level", 0.42)) + water_bias * 0.10 - maxf(0.0, elevation - 0.58) * 0.06, 0.0, 1.0)
 	_profile["river_influence"] = clampf(float(_profile.get("river_influence", 0.0)) + river_influence * 0.62, 0.0, 1.0)
 	_profile["pond_influence"] = clampf(float(_profile.get("pond_influence", 0.0)) + water_bias * 0.24, 0.0, 1.0)
-	_profile["tree_density"] = clampf(float(_profile.get("tree_density", 0.0)) + forest_influence * 0.055 - rock_influence * 0.020, 0.0, 0.35)
-	_profile["rock_density"] = clampf(float(_profile.get("rock_density", 0.0)) + rock_influence * 0.070 + maxf(0.0, elevation - 0.55) * 0.045, 0.0, 0.35)
+	_profile["tree_density"] = clampf(float(_profile.get("tree_density", 0.0)) + forest_bias * 0.070 - rock_bias * 0.012, 0.0, 0.35)
+	_profile["rock_density"] = clampf(float(_profile.get("rock_density", 0.0)) + rock_bias * 0.085 + maxf(0.0, elevation - 0.55) * 0.045, 0.0, 0.35)
 	_profile["herb_density"] = clampf(float(_profile.get("herb_density", 0.0)) + maxf(0.0, moisture - 0.50) * 0.022, 0.0, 0.18)
-	if center_biome == "foothill" or center_biome == "rocky":
+	if features.has("foothill") or features.has("rocky_slope") or landform_class == "hills" or landform_class == "highland" or landform_class == "mountain":
 		_profile["slope_threshold"] = maxf(0.010, float(_profile.get("slope_threshold", 0.016)) - 0.003)
 		_profile["ledge_block_chance"] = clampf(float(_profile.get("ledge_block_chance", 0.04)) + 0.035, 0.0, 0.24)
-	if center_biome == "coast" or coast_influence >= 0.20:
+	if hydro_context == "near_sea" or features.has("near_sea") or coast_influence >= 0.20:
 		_profile["mud_moisture_threshold"] = minf(float(_profile.get("mud_moisture_threshold", 0.56)), 0.52)
-	if center_biome == "forest":
+	if vegetation_class == "forest" or features.has("dense_forest"):
 		_profile["woodland_mass_threshold"] = minf(float(_profile.get("woodland_mass_threshold", 0.55)), 0.48)
+	if _is_open_route_role(_local_role):
+		_profile["roughness_bias"] = maxf(float(_profile.get("roughness_bias", 0.0)), 0.42)
+		_profile["rock_bias"] = maxf(float(_profile.get("rock_bias", 0.0)), 0.34)
+		_profile["tree_density"] = maxf(float(_profile.get("tree_density", 0.0)), 0.22)
+		_profile["rock_density"] = maxf(float(_profile.get("rock_density", 0.0)), 0.18)
+		_profile["ground_blocker_scatter_chance"] = maxf(float(_profile.get("ground_blocker_scatter_chance", 0.0)), 0.045)
 
 
 func _failed_blueprint() -> RefCounted:
@@ -468,6 +491,12 @@ func _derive_tiles() -> void:
 			blocks = bool(elevation_adjustment.get("blocks", blocks))
 			walk_cost = float(elevation_adjustment.get("walk_cost", walk_cost))
 
+			if _should_scatter_ground_blocker(cell, tile_id, blocks):
+				tile_id = "rocky_ground"
+				biome_id = "field_boulder"
+				blocks = true
+				walk_cost = 999.0
+
 			_set_grid_value(_tile_map, cell, tile_id)
 			_set_grid_value(_biome_map, cell, biome_id)
 			_set_grid_value(_blocker_map, cell, blocks)
@@ -649,6 +678,20 @@ func _apply_elevation_semantics_to_tile(
 	}
 
 
+func _should_scatter_ground_blocker(cell: Vector2i, tile_id: String, blocks: bool) -> bool:
+	if blocks:
+		return false
+	if ["deep_water", "shallow_water", "mud"].has(tile_id):
+		return false
+	var chance := clampf(float(_profile.get("ground_blocker_scatter_chance", 0.0)), 0.0, 0.16)
+	if chance <= 0.0:
+		return false
+	var edge_distance: int = mini(mini(cell.x, _width - 1 - cell.x), mini(cell.y, _height - 1 - cell.y))
+	if edge_distance <= 2:
+		return false
+	return _unit_hash_cell(cell, 967) < chance
+
+
 func _sample_natural_objects() -> Array[Dictionary]:
 	var objects: Array[Dictionary] = []
 	var occupied: Dictionary = {}
@@ -702,7 +745,6 @@ func _sample_natural_object_kind(kind: String, occupied: Dictionary) -> Array[Di
 				"landform": _landform_at(cell),
 				"slope": _value(_slope_map, cell),
 				"ridge": _value(_ridge_map, cell),
-				"biome": str(((_biome_map[cell.y] as Array)[cell.x])),
 			},
 		})
 	return results
@@ -853,7 +895,6 @@ func _build_debug_summary(
 	var flat_walk_total := 0.0
 	var flat_walk_count := 0
 	var tile_counts: Dictionary = {}
-	var biome_counts: Dictionary = {}
 	var elevation_counts: Dictionary = {}
 	var landform_counts: Dictionary = {}
 	var slope_threshold := float(_profile.get("slope_threshold", 0.08))
@@ -869,7 +910,6 @@ func _build_debug_summary(
 			var slope_value := _value(_slope_map, cell)
 			var is_water := tile_id == "deep_water" or tile_id == "shallow_water"
 			tile_counts[tile_id] = int(tile_counts.get(tile_id, 0)) + 1
-			biome_counts[biome_id] = int(biome_counts.get(biome_id, 0)) + 1
 			elevation_counts[elevation_id] = int(elevation_counts.get(elevation_id, 0)) + 1
 			landform_counts[landform_id] = int(landform_counts.get(landform_id, 0)) + 1
 			if tile_id == "deep_water" or tile_id == "shallow_water":
@@ -936,7 +976,6 @@ func _build_debug_summary(
 		"slope_walk_cost_avg": _round3(slope_walk_total / maxf(1.0, float(slope_walk_count))),
 		"flat_walk_cost_avg": _round3(flat_walk_total / maxf(1.0, float(flat_walk_count))),
 		"tile_counts": tile_counts,
-		"biome_counts": biome_counts,
 		"elevation_counts": elevation_counts,
 		"landform_counts": landform_counts,
 		"object_counts": object_counts,
@@ -1321,6 +1360,30 @@ func _salt_for_kind(kind: String) -> int:
 			return 857
 		_:
 			return 911
+
+
+func _string_array(values: Array) -> Array[String]:
+	var result: Array[String] = []
+	for value in values:
+		var text := str(value)
+		if not text.is_empty():
+			result.append(text)
+	return result
+
+
+func _is_open_route_role(local_role: String) -> bool:
+	return [
+		"field_entry",
+		"path",
+		"forest_entrance",
+		"forest_path",
+		"foothill_entrance",
+		"riverbank_entry",
+		"shoreline_entry",
+		"wetland_path",
+		"rocky_slope_path",
+		"clearing",
+	].has(local_role)
 
 
 func _round3(value: float) -> float:

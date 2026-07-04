@@ -1,149 +1,101 @@
-# Phase 67 - Region Map World Context
+# v67 区域地貌上下文
 
-v67 establishes a shared regional geography source for generated world nodes.
+v67 建立了“局部地点来自同一张区域事实”的主路径。
 
-The problem before v67 was not visual edge stitching. The deeper problem was
-that each generated location could choose its wild terrain profile
-independently. Adjacent world nodes could therefore look like unrelated random
-maps.
+v70 已经迁移 v67 的数据表达方式：世界级 `RegionMap` 不再保留单一地貌标签图，不再把不同尺度、不同维度的词压进一个字段。
 
-## Main Path
-
-The world graph generation path is now:
+## 当前主路径
 
 ```text
 world_seed
--> RegionMap
--> region-positioned world nodes
--> region-derived generator profiles
--> region-metadata transition edges
--> generated_wild with RegionPatch context
+-> RegionMap 多层事实
+-> RegionArea 大尺度区域块
+-> WorldLocationNode 真实可访问地点
+-> area_type + local_role 派生局部生成模板
+-> generated_wild 接收 RegionPatch / region_context
 ```
 
-`RegionMap` is saved inside generated `world_data`. It is not a debug-only
-artifact.
+`RegionMap` 是世界数据的一部分，不是调试信息。
 
 ## RegionMap
 
-`RegionMapGenerator` creates a low-resolution regional geography map with:
+当前 `RegionMap` 保存这些事实层：
 
 - `elevation_map`
 - `moisture_map`
 - `water_map`
 - `forest_map`
 - `rock_map`
-- `biome_map`
-- `feature_map`
+- `slope_map`
+- `water_distance_map`
 
-Supported region biomes are:
+并保存这些派生层：
 
-- `sea`
-- `coast`
-- `plain`
-- `forest`
-- `riverbank`
-- `foothill`
-- `rocky`
+- `hydro_context_map`
+- `landform_class_map`
+- `vegetation_class_map`
+- `surface_class_map`
+- `local_feature_map`
 
-The biome layer is derived from the continuous numeric layers. It is not chosen
-by independent random rolls per cell.
+不再保存世界级 `biome_map`。
 
-## World Nodes
+## WorldLocationNode
 
-Generated wild world nodes now record:
+生成野外地点记录：
 
+- `parent_region_id`
+- `area_type`
+- `local_role`
 - `region_position`
-- `region_biome`
 - `region_cell`
 - `region_patch`
+- `region_context`
 - `generator_profile_id`
 
-`generator_profile_id` is derived from `region_biome` through
-`biome_profile_map`. Unsupported region biomes or missing generator profiles
-fail explicitly. They do not fall back to `plain`.
+`generator_profile_id` 由 `area_type + local_role` 派生。缺少映射或模板不支持时明确失败，不回退平原。
 
-Current default mapping:
+## WorldTransitionEdge
 
-```text
-coast -> riverbank
-plain -> plain
-forest -> forest_edge
-riverbank -> riverbank
-foothill -> foothill
-rocky -> foothill
-sea -> unplaceable
-```
-
-## World Edges
-
-World graph edges are now chosen from region positions instead of only node
-indices. The connected base graph links nearby region nodes first, then adds
-extra nearby edges according to the configured density.
-
-Each edge records:
+世界边根据真实地点连接，并记录：
 
 - `from_region_position`
 - `to_region_position`
-- `from_biome`
-- `to_biome`
+- `from_area_type`
+- `target_area_type`
+- `area_relation`
 - `transition_kind`
 - `region_distance`
 
-This does not force adjacent maps to be identical. It makes the reason for the
-adjacency explicit.
+世界边不连接 `RegionArea`。
 
-## RegionPatch Into Wild Terrain
+## RegionPatch 进入野外生成
 
-`generated_wild` receives the node `RegionPatch` through the world registry and
-passes it to `WildTerrainGenerator`.
+`generated_wild` 通过世界地点注册器接收 `RegionPatch` 和 `region_context`，再交给局部野外生成器。
 
-The patch adjusts existing wild terrain profile parameters:
+这些上下文影响局部生成倾向，例如：
 
-- coast and river influence increase water and wet terrain tendencies;
-- forest influence increases vegetation and tree density;
-- rock and high-elevation influence increase rocks, slopes, and ledges;
-- moisture adjusts wetness and herb density.
+- 靠水区域提高水与湿地倾向。
+- 森林区域提高树木和植被密度。
+- 岩石和坡度较高区域提高岩石、坡地和高低差语义。
 
-This is an upstream context applied to the existing generator, not a rewrite of
-wild terrain generation.
+这是给现有野外生成器提供上游上下文，不是重写野外生成器。
 
-## Explicit Failure
+## 明确失败
 
-v67 removes the silent profile fallback in `WildTerrainProfile.get_profile`.
+这些情况应失败：
 
-These cases now fail explicitly:
+- `RegionMap` 缺少任意多层事实图。
+- `RegionArea` 缺少 `area_type`。
+- `RegionArea.area_type` 使用山脚、河岸、入口、小路等小尺度词。
+- `WorldLocationNode` 缺少 `area_type`、`local_role`、`region_patch` 或 `region_context`。
+- `area_type + local_role` 没有可用生成模板。
+- 世界边缺少区域类型关系。
 
-- biome maps to a profile not listed by the world profile;
-- biome maps to a profile unsupported by the wild terrain system;
-- generated wild node has no region position;
-- generated wild node has no region patch;
-- generated edge has no region metadata;
-- `WildTerrainGenerator` receives an unsupported terrain profile.
+## 不包含
 
-## Not Included
+v67/v70 不做：
 
-v67 does not implement:
-
-- player-facing world map UI;
-- seamless edge stitching between location maps;
-- exact cross-location river alignment;
-- cross-location roads;
-- loading screen improvements;
-- settlement generation from RegionMap;
-- world transition rewrites.
-
-Those are separate future phases.
-
-## Validation
-
-`scripts/tests/v67_region_map_world_graph_smoke.gd` verifies:
-
-- same seed creates the same RegionMap;
-- different seeds create different RegionMaps;
-- numeric RegionMap layers are continuous;
-- biome facts derive from numeric layers;
-- world nodes have region position, biome, patch, and biome-derived profile;
-- edges carry region and biome transition metadata;
-- generated wild locations receive and apply RegionPatch;
-- unsupported biome/profile mappings fail explicitly;
-- unsupported wild terrain profiles fail explicitly.
+- 跨地点边缘无缝拼接。
+- 河流跨地点精确对齐。
+- 地图点击传送。
+- 重写局部野外生成器。

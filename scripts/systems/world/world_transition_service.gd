@@ -138,6 +138,18 @@ func get_all_edge_specs() -> Array[Dictionary]:
 	return _graph.get_all_edges()
 
 
+func get_region_area_spec(region_id: String) -> Dictionary:
+	if not is_world_active():
+		return {}
+	return _graph.get_region_area_spec(region_id)
+
+
+func get_all_region_area_specs() -> Array[Dictionary]:
+	if not is_world_active():
+		return []
+	return _graph.get_all_region_areas()
+
+
 func get_region_map() -> Dictionary:
 	if not is_world_active():
 		return {}
@@ -148,13 +160,17 @@ func get_region_map_view_data() -> Dictionary:
 	if not is_world_active():
 		return {}
 	var current_location_id := get_current_location_id()
+	var display_current_location_id := _region_map_display_location_id(current_location_id)
+	var current_region_id := _region_id_for_location(display_current_location_id)
 	return {
 		"world_id": get_world_id(),
 		"region_map": get_region_map(),
+		"region_areas": get_all_region_area_specs(),
 		"locations": get_all_location_specs(),
 		"edges": get_all_edge_specs(),
 		"current_location_id": current_location_id,
-		"display_current_location_id": _region_map_display_location_id(current_location_id),
+		"display_current_location_id": display_current_location_id,
+		"current_region_id": current_region_id,
 	}
 
 
@@ -263,6 +279,8 @@ func _enter_location(target_location_id: String, target_spawn_id: String, base_s
 	summary["target_spawn_id"] = target_spawn_id
 	if target_location_id.is_empty():
 		return _fail("Target location id is empty.", summary)
+	if not _graph.get_region_area_spec(target_location_id).is_empty():
+		return _fail("RegionArea is not enterable: %s" % target_location_id, summary)
 	var target_spec: Dictionary = _graph.get_location_spec(target_location_id)
 	if target_spec.is_empty():
 		return _fail("Unknown target location: %s" % target_location_id, summary)
@@ -305,6 +323,8 @@ func _enter_location(target_location_id: String, target_spawn_id: String, base_s
 	summary["target_location_source_type"] = str(target_spec.get("source_type", ""))
 	summary["target_location_kind"] = str(target_spec.get("location_kind", ""))
 	summary["parent_location_id"] = str(target_spec.get("parent_location_id", ""))
+	summary["parent_region_id"] = str(target_spec.get("parent_region_id", ""))
+	summary["local_role"] = str(target_spec.get("local_role", ""))
 	summary["generated_or_loaded"] = str(resolved.get("generated_or_loaded", "loaded"))
 	summary["seed"] = int(resolved.get("seed", 0))
 	summary["scene_path"] = scene_path
@@ -357,6 +377,13 @@ func _region_map_display_location_id(location_id: String) -> String:
 			return cursor
 		cursor = str(spec.get("parent_location_id", ""))
 	return ""
+
+
+func _region_id_for_location(location_id: String) -> String:
+	if location_id.is_empty():
+		return ""
+	var spec: Dictionary = _graph.get_location_spec(location_id)
+	return str(spec.get("parent_region_id", ""))
 
 
 func _location_has_region_position(location_spec: Dictionary) -> bool:

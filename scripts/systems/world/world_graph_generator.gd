@@ -4,22 +4,40 @@ extends RefCounted
 const WorldGenerationProfileScript := preload("res://scripts/systems/world/world_generation_profile.gd")
 const WorldGraphBlueprintScript := preload("res://scripts/systems/world/world_graph_blueprint.gd")
 const RegionMapGeneratorScript := preload("res://scripts/systems/world/region_map_generator.gd")
+const RegionAreaBuilderScript := preload("res://scripts/systems/world/region_area_builder.gd")
 const WildTerrainProfileScript := preload("res://scripts/systems/terrain/wild_terrain_profile.gd")
-const REGION_BIOMES := ["sea", "coast", "plain", "forest", "riverbank", "foothill", "rocky"]
+const AREA_TYPES := [
+	"plain",
+	"forest",
+	"hills",
+	"highland",
+	"mountain",
+	"river_valley",
+	"wetland",
+	"lake_region",
+	"coastland",
+	"rocky_wilds",
+	"settlement_area",
+]
 
 var _rng := RandomNumberGenerator.new()
 var _region_map_generator: RefCounted = RegionMapGeneratorScript.new()
+var _region_area_builder: RefCounted = RegionAreaBuilderScript.new()
 var _config: Dictionary = {}
 var _world_id: String = ""
 var _world_seed: int = 0
 var _region_profile_id: String = ""
 var _region_map: Dictionary = {}
+var _region_areas: Array[Dictionary] = []
+var _region_area_by_id: Dictionary = {}
 var _warnings: Array[String] = []
 var _errors: Array[String] = []
 var _node_rows: Array[Dictionary] = []
 var _spawn_rows: Array[Dictionary] = []
 var _edge_rows: Array[Dictionary] = []
 var _node_region_positions: Array[Vector2i] = []
+var _node_area_ids: Array[String] = []
+var _node_local_roles: Array[String] = []
 var _undirected_pairs: Dictionary = {}
 var _edge_sequence: int = 0
 var _start_spawn_id: String = ""
@@ -48,6 +66,12 @@ func generate_world_data_result(input: Dictionary) -> Dictionary:
 	if not region_errors.is_empty():
 		_errors.append_array(region_errors)
 		return _failure_result()
+	_region_areas = _region_area_builder.build_region_areas(_region_map, _config)
+	_build_region_area_index()
+	var region_area_errors: Array[String] = _region_area_builder.validate_region_areas(_region_map, _region_areas)
+	if not region_area_errors.is_empty():
+		_errors.append_array(region_area_errors)
+		return _failure_result()
 
 	var node_count := _node_count()
 	if node_count <= 0:
@@ -68,15 +92,19 @@ func generate_world_data_result(input: Dictionary) -> Dictionary:
 		"world_seed": _world_seed,
 		"region_profile_id": _region_profile_id,
 		"region_map": _region_map.duplicate(true),
+		"region_areas": _region_areas.duplicate(true),
 		"start_location_id": str(_node_rows[0].get("location_id", "")),
 		"start_spawn_id": _start_spawn_id,
+		"location_nodes": _node_rows.duplicate(true),
+		"transition_edges": _edge_rows.duplicate(true),
 		"locations": _node_rows.duplicate(true),
 		"spawns": _spawn_rows.duplicate(true),
 		"exits": _edge_rows.duplicate(true),
 		"generator_metadata": {
 			"generator": "WorldGraphGenerator",
-			"algorithm": "region_map_seeded_local_connected_graph",
+			"algorithm": "region_area_local_node_graph",
 			"profiles_are_region_derived": true,
+			"region_areas_enabled": true,
 			"region_profile_id": _region_profile_id,
 		},
 	}
@@ -109,10 +137,23 @@ func _reset(input: Dictionary) -> void:
 	_spawn_rows.clear()
 	_edge_rows.clear()
 	_node_region_positions.clear()
+	_node_area_ids.clear()
+	_node_local_roles.clear()
+	_region_areas.clear()
+	_region_area_by_id.clear()
 	_region_map.clear()
 	_undirected_pairs.clear()
 	_edge_sequence = 0
 	_start_spawn_id = ""
+
+
+func _build_region_area_index() -> void:
+	_region_area_by_id.clear()
+	for area_value in _region_areas:
+		var area: Dictionary = area_value as Dictionary
+		var region_id := str(area.get("region_id", ""))
+		if not region_id.is_empty():
+			_region_area_by_id[region_id] = area.duplicate(true)
 
 
 func _validate_config() -> bool:
@@ -163,7 +204,7 @@ func _validate_config() -> bool:
 			total_wild_weight += maxf(0.0, float(wild_weights.get(profile_id, 0.0)))
 		if total_wild_weight <= 0.0:
 			_errors.append("wild_profile_weights has no positive candidate weight")
-	_validate_biome_profile_map()
+	_validate_area_role_profile_map()
 
 	var size_ranges: Dictionary = _config.get("size_ranges", {}) as Dictionary
 	var wild_sizes: Array = size_ranges.get("generated_wild", []) as Array
@@ -184,23 +225,28 @@ func _node_count() -> int:
 
 
 func _place_region_nodes(node_count: int) -> bool:
-	var width := int(_region_map.get("width", 0))
-	var height := int(_region_map.get("height", 0))
 	var candidates: Array[Dictionary] = []
-	for y in range(height):
-		for x in range(width):
-			var cell := Vector2i(x, y)
-			var region_cell: Dictionary = _region_map_generator.cell_at(_region_map, cell)
-			var biome := str(region_cell.get("biome", ""))
-			if not _can_place_node_on_biome(biome):
-				continue
+	for area_value in _region_areas:
+		var area: Dictionary = area_value as Dictionary
+		var region_id := str(area.get("region_id", ""))
+		var area_type := str(area.get("area_type", ""))
+		var node_budget := int(area.get("node_budget", 0))
+		if node_budget <= 0:
+			continue
+		if not _can_place_node_on_area_type(area_type):
+			continue
+		var cells: Array = area.get("cells", []) as Array
+		for cell_value in cells:
+			var cell := _cell_from_dict(cell_value as Dictionary)
 			candidates.append({
 				"position": cell,
-				"biome": biome,
-				"score": _stable_position_jitter(cell, biome, 1217),
+				"area_type": area_type,
+				"region_id": region_id,
+				"node_budget": node_budget,
+				"score": _stable_position_jitter(cell, "%s:%s" % [area_type, region_id], 1217),
 			})
 	if candidates.size() < node_count:
-		_errors.append("RegionMap has only %d placeable cells for %d world nodes" % [candidates.size(), node_count])
+		_errors.append("RegionArea placement has only %d placeable cells for %d world nodes" % [candidates.size(), node_count])
 		return false
 	candidates.sort_custom(func(left: Dictionary, right: Dictionary) -> bool:
 		if float(left.get("score", 0.0)) == float(right.get("score", 0.0)):
@@ -210,9 +256,13 @@ func _place_region_nodes(node_count: int) -> bool:
 		return float(left.get("score", 0.0)) > float(right.get("score", 0.0))
 	)
 
-	var selected: Array[Vector2i] = [candidates[0].get("position", Vector2i.ZERO) as Vector2i]
-	var selected_keys: Dictionary = { _position_key(selected[0]): true }
-	while selected.size() < node_count:
+	var selected_candidates: Array[Dictionary] = [candidates[0] as Dictionary]
+	var selected_positions: Array[Vector2i] = [selected_candidates[0].get("position", Vector2i.ZERO) as Vector2i]
+	var selected_keys: Dictionary = { _position_key(selected_positions[0]): true }
+	var selected_count_by_region: Dictionary = {}
+	var first_region_id := str(selected_candidates[0].get("region_id", ""))
+	selected_count_by_region[first_region_id] = 1
+	while selected_candidates.size() < node_count:
 		var best_index := -1
 		var best_score := -INF
 		for index in range(candidates.size()):
@@ -220,18 +270,44 @@ func _place_region_nodes(node_count: int) -> bool:
 			var position: Vector2i = candidate.get("position", Vector2i.ZERO) as Vector2i
 			if selected_keys.has(_position_key(position)):
 				continue
-			var distance_score := _min_region_distance_to_selected(position, selected)
-			var score := distance_score + float(candidate.get("score", 0.0)) * 0.12
+			var region_id := str(candidate.get("region_id", ""))
+			var used_in_region := int(selected_count_by_region.get(region_id, 0))
+			var node_budget := int(candidate.get("node_budget", 0))
+			if used_in_region >= node_budget:
+				continue
+			var distance_score := _min_region_distance_to_selected(position, selected_positions)
+			var same_region_penalty := float(used_in_region) * 1.75
+			var score := distance_score + float(candidate.get("score", 0.0)) * 0.12 - same_region_penalty
 			if score > best_score:
 				best_score = score
 				best_index = index
 		if best_index < 0:
-			_errors.append("RegionMap node placement failed before selecting all nodes")
+			_errors.append("RegionArea node placement failed before selecting all nodes")
 			return false
-		var next_position: Vector2i = (candidates[best_index] as Dictionary).get("position", Vector2i.ZERO) as Vector2i
-		selected.append(next_position)
+		var next_candidate: Dictionary = candidates[best_index] as Dictionary
+		var next_position: Vector2i = next_candidate.get("position", Vector2i.ZERO) as Vector2i
+		var next_region_id := str(next_candidate.get("region_id", ""))
+		selected_candidates.append(next_candidate.duplicate(true))
+		selected_positions.append(next_position)
 		selected_keys[_position_key(next_position)] = true
-	_node_region_positions = selected
+		selected_count_by_region[next_region_id] = int(selected_count_by_region.get(next_region_id, 0)) + 1
+	_node_region_positions.clear()
+	_node_area_ids.clear()
+	_node_local_roles.clear()
+	var role_index_by_area: Dictionary = {}
+	for selected_value in selected_candidates:
+		var selected: Dictionary = selected_value as Dictionary
+		var position: Vector2i = selected.get("position", Vector2i.ZERO) as Vector2i
+		var area_id := str(selected.get("region_id", ""))
+		var area: Dictionary = _region_area_by_id.get(area_id, {}) as Dictionary
+		var area_node_index := int(role_index_by_area.get(area_id, 0))
+		var role := _local_role_for_area_node(area, area_node_index, position)
+		if role.is_empty():
+			return false
+		_node_region_positions.append(position)
+		_node_area_ids.append(area_id)
+		_node_local_roles.append(role)
+		role_index_by_area[area_id] = area_node_index + 1
 	return true
 
 
@@ -263,19 +339,34 @@ func _add_generated_node(index: int, forced_kind: String = "", is_start: bool = 
 
 func _add_generated_wild_node(index: int, is_start: bool) -> bool:
 	var region_position := _node_region_position(index)
+	var parent_region_id := _node_area_id(index)
+	if parent_region_id.is_empty():
+		_errors.append("world node has no parent RegionArea at index %d" % index)
+		return false
+	var parent_area: Dictionary = _region_area_by_id.get(parent_region_id, {}) as Dictionary
+	if parent_area.is_empty():
+		_errors.append("world node references unknown parent RegionArea: %s" % parent_region_id)
+		return false
+	var area_type := str(parent_area.get("area_type", ""))
+	if area_type.is_empty():
+		_errors.append("world node parent RegionArea has no area_type: %s" % parent_region_id)
+		return false
+	var local_role := _node_local_role(index)
+	if local_role.is_empty():
+		_errors.append("world node has no local_role at index %d" % index)
+		return false
 	var region_cell: Dictionary = _region_map_generator.cell_at(_region_map, region_position)
 	if region_cell.is_empty():
 		_errors.append("world node has no RegionCell at index %d" % index)
 		return false
-	var region_biome := str(region_cell.get("biome", ""))
 	var region_patch: Dictionary = _region_map_generator.patch_for(_region_map, region_position, 1)
 	if region_patch.is_empty():
 		_errors.append("world node has no RegionPatch at index %d" % index)
 		return false
-	var wild_profile_id := _pick_profile_for_biome(region_biome, region_position)
+	var wild_profile_id := _pick_profile_for_area_role(area_type, local_role, region_position)
 	if wild_profile_id.is_empty():
 		return false
-	var display_name := _display_name_for_wild_profile(wild_profile_id, index)
+	var display_name := _display_name_for_local_role(parent_area, local_role, index)
 	if display_name.is_empty():
 		return false
 	var size := _pick_size("generated_wild")
@@ -285,6 +376,15 @@ func _add_generated_wild_node(index: int, is_start: bool) -> bool:
 	var seed := _derive_node_seed(index, wild_profile_id, region_position)
 	var spawn_id := "%s_spawn" % location_id if is_start else "%s_entry" % location_id
 	var spawn_side := _start_side_for_node(index)
+	var region_context := {
+		"area_type": area_type,
+		"parent_region_id": parent_region_id,
+		"parent_region_name": str(parent_area.get("display_name", "")),
+		"area_features": (parent_area.get("features", []) as Array).duplicate(true),
+		"area_context_summary": (parent_area.get("context_summary", {}) as Dictionary).duplicate(true),
+		"region_cell": region_cell.duplicate(true),
+		"region_patch": region_patch.duplicate(true),
+	}
 	_node_rows.append({
 		"location_id": location_id,
 		"display_name": display_name,
@@ -294,16 +394,23 @@ func _add_generated_wild_node(index: int, is_start: bool) -> bool:
 		"generator_profile_id": wild_profile_id,
 		"seed": seed,
 		"size": size,
+		"parent_region_id": parent_region_id,
+		"local_role": local_role,
+		"area_type": area_type,
 		"region_position": _dict_from_cell(region_position),
-		"region_biome": region_biome,
 		"region_cell": region_cell.duplicate(true),
 		"region_patch": region_patch.duplicate(true),
+		"region_context": region_context.duplicate(true),
 		"metadata": {
 			"source": "world_graph_generator",
 			"region_profile_id": _region_profile_id,
+			"parent_region_id": parent_region_id,
+			"parent_region_name": str(parent_area.get("display_name", "")),
+			"local_role": local_role,
+			"area_type": area_type,
 			"region_position": _dict_from_cell(region_position),
-			"region_biome": region_biome,
 			"region_patch": region_patch.duplicate(true),
+			"region_context": region_context.duplicate(true),
 			"world_node_role": _wild_role_for_profile(wild_profile_id),
 			"node_index": index,
 		},
@@ -321,6 +428,7 @@ func _add_generated_wild_node(index: int, is_start: bool) -> bool:
 	})
 	if is_start:
 		_start_spawn_id = spawn_id
+	_append_generated_node_to_area(parent_region_id, location_id)
 	return true
 
 
@@ -416,11 +524,12 @@ func _edge_row(
 ) -> Dictionary:
 	var from_position := _node_region_position(from_index)
 	var target_position := _node_region_position(target_index)
-	var from_cell: Dictionary = _region_map_generator.cell_at(_region_map, from_position)
-	var target_cell: Dictionary = _region_map_generator.cell_at(_region_map, target_position)
-	var from_biome := str(from_cell.get("biome", ""))
-	var target_biome := str(target_cell.get("biome", ""))
-	var transition_kind := "%s_to_%s" % [from_biome, target_biome]
+	var from_region_id := _node_area_id(from_index)
+	var target_region_id := _node_area_id(target_index)
+	var from_area_type := _area_type_for_region_id(from_region_id)
+	var target_area_type := _area_type_for_region_id(target_region_id)
+	var edge_scope := "internal_region" if from_region_id == target_region_id else "between_regions"
+	var area_relation := "%s_to_%s" % [from_area_type, target_area_type]
 	var distance := _region_distance(from_position, target_position)
 	return {
 		"edge_id": exit_id,
@@ -434,18 +543,26 @@ func _edge_row(
 		"paired_exit_id": paired_exit_id,
 		"from_region_position": _dict_from_cell(from_position),
 		"to_region_position": _dict_from_cell(target_position),
-		"from_biome": from_biome,
-		"to_biome": target_biome,
-		"transition_kind": transition_kind,
+		"from_region_id": from_region_id,
+		"target_region_id": target_region_id,
+		"from_area_type": from_area_type,
+		"target_area_type": target_area_type,
+		"transition_kind": area_relation,
+		"edge_scope": edge_scope,
+		"area_relation": area_relation,
 		"region_distance": _round3(distance),
 		"metadata": {
 			"source": "world_graph_generator",
 			"edge_role": edge_role,
+			"edge_scope": edge_scope,
+			"from_region_id": from_region_id,
+			"target_region_id": target_region_id,
 			"region_from": _dict_from_cell(from_position),
 			"region_to": _dict_from_cell(target_position),
-			"biome_from": from_biome,
-			"biome_to": target_biome,
-			"transition_kind": transition_kind,
+			"area_type_from": from_area_type,
+			"area_type_to": target_area_type,
+			"area_relation": area_relation,
+			"transition_kind": area_relation,
 			"region_distance": _round3(distance),
 			"from_side": from_side,
 			"target_side": target_side,
@@ -488,46 +605,74 @@ func _available_wild_profiles() -> Array[String]:
 	return _string_array(_config.get("available_wild_profiles", []) as Array)
 
 
-func _biome_profile_map() -> Dictionary:
-	return (_config.get("biome_profile_map", {}) as Dictionary).duplicate(true)
+func _area_role_profile_map() -> Dictionary:
+	return (_config.get("area_role_profile_map", {}) as Dictionary).duplicate(true)
 
 
-func _unplaceable_region_biomes() -> Array[String]:
-	return _string_array(_config.get("unplaceable_region_biomes", []) as Array)
+func _unplaceable_area_types() -> Array[String]:
+	return _string_array(_config.get("unplaceable_area_types", []) as Array)
 
 
-func _validate_biome_profile_map() -> void:
-	var biome_profile_map := _biome_profile_map()
-	if biome_profile_map.is_empty():
-		_errors.append("biome_profile_map is missing")
+func _validate_area_role_profile_map() -> void:
+	var area_role_profile_map := _area_role_profile_map()
+	if area_role_profile_map.is_empty():
+		_errors.append("area_role_profile_map is missing")
 		return
 	var available_profiles := _available_wild_profiles()
 	var supported_profiles := WildTerrainProfileScript.supported_profile_ids()
-	var unplaceable_biomes := _unplaceable_region_biomes()
-	for biome_value in biome_profile_map.keys():
-		var biome := str(biome_value)
-		if not REGION_BIOMES.has(biome):
-			_errors.append("biome_profile_map contains unsupported region biome: %s" % biome)
-		var profiles := _profiles_for_biome(biome)
-		if unplaceable_biomes.has(biome) and not profiles.is_empty():
-			_errors.append("unplaceable region biome maps to generated profiles: %s" % biome)
-		for profile_id in profiles:
-			if not available_profiles.has(profile_id):
-				_errors.append("biome %s maps to profile not listed in available_wild_profiles: %s" % [biome, profile_id])
-			if not supported_profiles.has(profile_id):
-				_errors.append("biome %s maps to unsupported wild terrain profile: %s" % [biome, profile_id])
-	for biome in REGION_BIOMES:
-		if unplaceable_biomes.has(biome):
+	var unplaceable_area_types := _unplaceable_area_types()
+	for area_type_value in area_role_profile_map.keys():
+		var area_type := str(area_type_value)
+		if not AREA_TYPES.has(area_type):
+			_errors.append("area_role_profile_map contains unsupported area_type: %s" % area_type)
 			continue
-		if not biome_profile_map.has(biome):
-			_errors.append("placeable region biome missing profile mapping: %s" % biome)
+		var role_map: Dictionary = area_role_profile_map.get(area_type, {}) as Dictionary
+		if unplaceable_area_types.has(area_type):
+			if not role_map.is_empty():
+				_errors.append("unplaceable area_type maps to local roles: %s" % area_type)
 			continue
-		if _profiles_for_biome(biome).is_empty():
-			_errors.append("placeable region biome has no generated profile mapping: %s" % biome)
+		if role_map.is_empty():
+			_errors.append("placeable area_type has no local roles: %s" % area_type)
+		for role_value in role_map.keys():
+			var local_role := str(role_value)
+			if local_role.is_empty():
+				_errors.append("area_role_profile_map contains empty local_role for area_type: %s" % area_type)
+				continue
+			var profiles := _profiles_for_area_role(area_type, local_role)
+			if profiles.is_empty():
+				_errors.append("area local_role has no generated profile mapping: %s/%s" % [area_type, local_role])
+			for profile_id in profiles:
+				if not available_profiles.has(profile_id):
+					_errors.append("area local_role %s/%s maps to profile not listed in available_wild_profiles: %s" % [area_type, local_role, profile_id])
+				if not supported_profiles.has(profile_id):
+					_errors.append("area local_role %s/%s maps to unsupported wild terrain profile: %s" % [area_type, local_role, profile_id])
+	for area_type in AREA_TYPES:
+		if unplaceable_area_types.has(area_type):
+			continue
+		if not area_role_profile_map.has(area_type):
+			_errors.append("placeable area_type missing local role profile map: %s" % area_type)
 
 
-func _profiles_for_biome(biome: String) -> Array[String]:
-	var raw_value: Variant = _biome_profile_map().get(biome, [])
+func _can_place_node_on_area_type(area_type: String) -> bool:
+	if _unplaceable_area_types().has(area_type):
+		return false
+	return not _roles_for_area_type(area_type).is_empty()
+
+
+func _roles_for_area_type(area_type: String) -> Array[String]:
+	var role_map: Dictionary = _area_role_profile_map().get(area_type, {}) as Dictionary
+	var result: Array[String] = []
+	for role_value in role_map.keys():
+		var role := str(role_value)
+		if not role.is_empty():
+			result.append(role)
+	result.sort()
+	return result
+
+
+func _profiles_for_area_role(area_type: String, local_role: String) -> Array[String]:
+	var role_map: Dictionary = _area_role_profile_map().get(area_type, {}) as Dictionary
+	var raw_value: Variant = role_map.get(local_role, [])
 	if raw_value is String:
 		var profile_id := str(raw_value)
 		return [profile_id] if not profile_id.is_empty() else []
@@ -536,34 +681,31 @@ func _profiles_for_biome(biome: String) -> Array[String]:
 	return []
 
 
-func _can_place_node_on_biome(biome: String) -> bool:
-	if _unplaceable_region_biomes().has(biome):
-		return false
-	return not _profiles_for_biome(biome).is_empty()
-
-
-func _pick_profile_for_biome(biome: String, region_position: Vector2i) -> String:
-	if not REGION_BIOMES.has(biome):
-		_errors.append("world node uses unsupported region biome: %s" % biome)
+func _pick_profile_for_area_role(area_type: String, local_role: String, region_position: Vector2i) -> String:
+	if not AREA_TYPES.has(area_type):
+		_errors.append("world node uses unsupported area_type: %s" % area_type)
 		return ""
-	var candidates := _profiles_for_biome(biome)
+	if local_role.is_empty():
+		_errors.append("world node local_role is empty for area_type: %s" % area_type)
+		return ""
+	var candidates := _profiles_for_area_role(area_type, local_role)
 	if candidates.is_empty():
-		_errors.append("region biome has no available generator profile: %s" % biome)
+		_errors.append("area local_role has no available generator profile: %s/%s" % [area_type, local_role])
 		return ""
 	var weights := _wild_profile_weights()
 	var total := 0.0
 	for candidate in candidates:
 		total += maxf(0.0, float(weights.get(candidate, 0.0)))
 	if total <= 0.0:
-		_errors.append("region biome profiles have no positive weight: %s" % biome)
+		_errors.append("area local_role profiles have no positive weight: %s/%s" % [area_type, local_role])
 		return ""
-	var roll := _stable_position_jitter(region_position, biome, 941) * total
+	var roll := _stable_position_jitter(region_position, "%s:%s" % [area_type, local_role], 947) * total
 	var cursor := 0.0
 	for candidate in candidates:
 		cursor += maxf(0.0, float(weights.get(candidate, 0.0)))
 		if roll <= cursor:
 			return candidate
-	_errors.append("region biome profile weighted pick failed: %s" % biome)
+	_errors.append("area local_role profile weighted pick failed: %s/%s" % [area_type, local_role])
 	return ""
 
 
@@ -665,6 +807,104 @@ func _node_region_position(index: int) -> Vector2i:
 	return Vector2i(-1, -1)
 
 
+func _node_area_id(index: int) -> String:
+	if index >= 0 and index < _node_area_ids.size():
+		return _node_area_ids[index]
+	return ""
+
+
+func _node_local_role(index: int) -> String:
+	if index >= 0 and index < _node_local_roles.size():
+		return _node_local_roles[index]
+	return ""
+
+
+func _append_generated_node_to_area(region_id: String, location_id: String) -> void:
+	if region_id.is_empty() or location_id.is_empty():
+		return
+	for index in range(_region_areas.size()):
+		var area: Dictionary = _region_areas[index] as Dictionary
+		if str(area.get("region_id", "")) != region_id:
+			continue
+		var generated_ids: Array = (area.get("generated_location_node_ids", []) as Array).duplicate()
+		if not generated_ids.has(location_id):
+			generated_ids.append(location_id)
+		area["generated_location_node_ids"] = generated_ids
+		_region_areas[index] = area
+		_region_area_by_id[region_id] = area.duplicate(true)
+		return
+	_errors.append("generated location references missing RegionArea: %s/%s" % [region_id, location_id])
+
+
+func _area_type_for_region_id(region_id: String) -> String:
+	var area: Dictionary = _region_area_by_id.get(region_id, {}) as Dictionary
+	return str(area.get("area_type", ""))
+
+
+func _local_role_for_area_node(area: Dictionary, area_node_index: int, position: Vector2i) -> String:
+	var area_type := str(area.get("area_type", ""))
+	var roles := _roles_for_area_type(area_type)
+	if roles.is_empty():
+		_errors.append("RegionArea area_type has no local roles: %s" % area_type)
+		return ""
+	var ordered_roles: Array[String] = []
+	if area_node_index == 0:
+		for entrance_role in ["forest_entrance", "foothill_entrance", "riverbank_entry", "shoreline_entry", "field_entry"]:
+			if roles.has(entrance_role):
+				ordered_roles.append(entrance_role)
+	elif area_node_index == 1 and roles.has("path"):
+		ordered_roles.append("path")
+	var features := _string_array(area.get("features", []) as Array)
+	var patch: Dictionary = _region_map_generator.patch_for(_region_map, position, 1)
+	var water_influence := clampf(float(patch.get("water_influence", 0.0)), 0.0, 1.0)
+	var river_influence := clampf(float(patch.get("river_influence", 0.0)), 0.0, 1.0)
+	var coast_influence := clampf(float(patch.get("coast_influence", 0.0)), 0.0, 1.0)
+	var forest_influence := clampf(float(patch.get("forest_influence", 0.0)), 0.0, 1.0)
+	var rock_influence := clampf(float(patch.get("rock_influence", 0.0)), 0.0, 1.0)
+	var slope := clampf(float(patch.get("slope_influence", 0.0)), 0.0, 1.0)
+	var has_water_context := water_influence >= 0.18 or river_influence >= 0.18 or coast_influence >= 0.18 or features.has("riverbank") or features.has("water_influence") or features.has("near_sea")
+	if area_node_index == 0 and has_water_context and roles.has("riverbank_entry"):
+		ordered_roles.insert(0, "riverbank_entry")
+	if roles.has("forest_path") and (area_type == "forest" or forest_influence >= 0.48 or features.has("dense_forest")):
+		ordered_roles.append("forest_path")
+	if roles.has("creek_side") and has_water_context:
+		ordered_roles.append("creek_side")
+	if roles.has("wetland_path") and (area_type == "wetland" or water_influence >= 0.22 or features.has("high_moisture")):
+		ordered_roles.append("wetland_path")
+	if roles.has("rocky_slope_path") and (rock_influence >= 0.34 or slope >= 0.12 or features.has("rocky_slope")):
+		ordered_roles.append("rocky_slope_path")
+	if roles.has("deep_area") and (forest_influence >= 0.52 or rock_influence >= 0.42 or features.has("dense_forest") or features.has("rocky_slope")):
+		ordered_roles.append("deep_area")
+	if roles.has("special_site") and (area_node_index >= 2 or features.has("rocky_slope")):
+		ordered_roles.append("special_site")
+	for candidate_role in [
+		"clearing",
+		"path",
+		"forest_path",
+		"wetland_path",
+		"rocky_slope_path",
+		"deep_area",
+		"creek_side",
+		"special_site",
+		"field_entry",
+		"forest_entrance",
+		"foothill_entrance",
+		"riverbank_entry",
+		"shoreline_entry",
+	]:
+		if roles.has(candidate_role):
+			ordered_roles.append(candidate_role)
+	for role in ordered_roles:
+		if not roles.has(role):
+			continue
+		if _profiles_for_area_role(area_type, role).is_empty():
+			_errors.append("local role cannot resolve generator profile: %s/%s" % [area_type, role])
+			return ""
+		return role
+	_errors.append("RegionArea local role selection failed: %s" % str(area.get("region_id", "")))
+	return ""
+
+
 func _region_distance(a: Vector2i, b: Vector2i) -> float:
 	return sqrt(float(a.distance_squared_to(b)))
 
@@ -690,6 +930,10 @@ func _stable_pair_jitter(index_a: int, index_b: int, numeric_salt: int) -> float
 
 func _dict_from_cell(cell: Vector2i) -> Dictionary:
 	return { "x": cell.x, "y": cell.y }
+
+
+func _cell_from_dict(value: Dictionary) -> Vector2i:
+	return Vector2i(int(value.get("x", -1)), int(value.get("y", -1)))
 
 
 func _position_key(cell: Vector2i) -> String:
@@ -762,6 +1006,81 @@ func _display_name_for_wild_profile(profile_id: String, index: int) -> String:
 	return "%s %02d" % [label, index]
 
 
+func _display_name_for_local_role(parent_area: Dictionary, local_role: String, index: int) -> String:
+	var area_type := str(parent_area.get("area_type", ""))
+	var area_label := _area_type_display_label(area_type)
+	var role_label := _local_role_label(local_role, area_type)
+	if role_label.is_empty():
+		_errors.append("local role has no display label: %s/%s" % [area_type, local_role])
+		return ""
+	if area_label.is_empty():
+		_errors.append("area_type has no display label: %s" % area_type)
+		return ""
+	if ["field_entry", "forest_entrance", "foothill_entrance", "riverbank_entry", "shoreline_entry"].has(local_role):
+		return "%s %02d" % [role_label, index]
+	return "%s%s %02d" % [area_label, role_label, index]
+
+
+func _area_type_display_label(area_type: String) -> String:
+	match area_type:
+		"forest":
+			return "森林"
+		"hills":
+			return "丘陵"
+		"highland":
+			return "高地"
+		"mountain":
+			return "山地"
+		"river_valley":
+			return "河谷"
+		"wetland":
+			return "湿地"
+		"lake_region":
+			return "湖区"
+		"coastland":
+			return "海岸带"
+		"rocky_wilds":
+			return "岩地荒野"
+		"settlement_area":
+			return "聚居地"
+		"plain":
+			return "平原"
+		_:
+			return ""
+
+
+func _local_role_label(local_role: String, area_type: String) -> String:
+	match local_role:
+		"field_entry":
+			return "野地入口"
+		"forest_entrance":
+			return "森林入口"
+		"foothill_entrance":
+			return "山脚入口"
+		"riverbank_entry":
+			return "河岸入口"
+		"shoreline_entry":
+			return "海岸入口"
+		"path":
+			return "小路" if area_type == "forest" else "路径"
+		"forest_path":
+			return "林间小路"
+		"wetland_path":
+			return "湿地小路"
+		"rocky_slope_path":
+			return "岩坡小径"
+		"clearing":
+			return "空地"
+		"creek_side":
+			return "溪流边"
+		"deep_area":
+			return "深处"
+		"special_site":
+			return "遗迹"
+		_:
+			return ""
+
+
 func _wild_role_for_profile(profile_id: String) -> String:
 	match profile_id:
 		"forest_edge":
@@ -777,30 +1096,48 @@ func _wild_role_for_profile(profile_id: String) -> String:
 func _debug_summary(world_data: Dictionary) -> Dictionary:
 	var kind_counts: Dictionary = {}
 	var wild_profile_counts: Dictionary = {}
-	var region_biome_counts: Dictionary = {}
+	var area_type_counts: Dictionary = {}
+	var region_area_counts: Dictionary = {}
+	var local_role_counts: Dictionary = {}
+	var edge_scope_counts: Dictionary = {}
 	var generated_node_ids: Array[String] = []
 	for location_value in (world_data.get("locations", []) as Array):
 		var location: Dictionary = location_value as Dictionary
 		var kind := str(location.get("location_kind", ""))
 		kind_counts[kind] = int(kind_counts.get(kind, 0)) + 1
-		var region_biome := str(location.get("region_biome", ""))
-		if not region_biome.is_empty():
-			region_biome_counts[region_biome] = int(region_biome_counts.get(region_biome, 0)) + 1
+		var area_type := str(location.get("area_type", ""))
+		if not area_type.is_empty():
+			area_type_counts[area_type] = int(area_type_counts.get(area_type, 0)) + 1
+		var parent_region_id := str(location.get("parent_region_id", ""))
+		if not parent_region_id.is_empty():
+			region_area_counts[parent_region_id] = int(region_area_counts.get(parent_region_id, 0)) + 1
+		var local_role := str(location.get("local_role", ""))
+		if not local_role.is_empty():
+			local_role_counts[local_role] = int(local_role_counts.get(local_role, 0)) + 1
 		if str(location.get("source_type", "")) == "generated":
 			generated_node_ids.append(str(location.get("location_id", "")))
 		if kind == "generated_wild":
 			var profile_id := str(location.get("generator_profile_id", ""))
 			wild_profile_counts[profile_id] = int(wild_profile_counts.get(profile_id, 0)) + 1
+	for edge_value in (world_data.get("exits", []) as Array):
+		var edge: Dictionary = edge_value as Dictionary
+		var edge_scope := str(edge.get("edge_scope", ""))
+		if not edge_scope.is_empty():
+			edge_scope_counts[edge_scope] = int(edge_scope_counts.get(edge_scope, 0)) + 1
 	return {
 		"world_id": _world_id,
 		"seed": _world_seed,
 		"region_profile_id": _region_profile_id,
 		"node_count": (world_data.get("locations", []) as Array).size(),
+		"region_area_count": (world_data.get("region_areas", []) as Array).size(),
 		"edge_count": (world_data.get("exits", []) as Array).size(),
 		"undirected_edge_count": _undirected_pairs.size(),
 		"location_kind_counts": kind_counts,
 		"wild_profile_counts": wild_profile_counts,
-		"region_biome_counts": region_biome_counts,
+		"area_type_counts": area_type_counts,
+		"region_area_node_counts": region_area_counts,
+		"local_role_counts": local_role_counts,
+		"edge_scope_counts": edge_scope_counts,
 		"region_map_fingerprint": _region_map_generator.fingerprint(_region_map),
 		"connected": _is_connected(world_data),
 		"start_location_id": str(world_data.get("start_location_id", "")),

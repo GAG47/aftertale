@@ -15,7 +15,7 @@ v68 做的是区域大地图显示层。它让玩家按 `M` 打开当前生成�
 
 v68 后续整理中，区域地图做了以下显示层改进：
 
-- 生成野外节点的 `display_name` 改为中文，例如“平原野地 00”“林缘野地 03”。
+- 生成野外节点的 `display_name` 使用中文展示名；v69 后会优先显示局部角色，例如“森林入口 00”“平原空地 02”。
 - `location_id` 仍然保持系统内部 ID，不改成中文展示名。
 - 区域地图上的地点圆点旁会显示地点展示名，方便玩家直接看懂节点。
 - 正式显示不再绘制整齐调试网格，只保留轻微地貌边界。
@@ -37,16 +37,17 @@ WorldLocationGraph.exits：世界连接边
 WorldTransitionService.current_location_id：玩家当前地点
 ```
 
-地貌底图来自 `region_map.biome_map`。当前支持显示：
+v70 后，地貌底图不再来自单一 `region_map.biome_map`。区域地图从多层区域事实合成显示：
 
 ```text
-sea：海
-coast：海岸
-plain：平原
-forest：森林
-riverbank：河岸 / 水域
-foothill：山脚
-rocky：岩地
+elevation_map：海拔
+moisture_map：湿度
+water_map：水体强度
+forest_map：森林密度
+rock_map：岩石强度
+slope_map：坡度
+water_distance_map：到水体距离
+hydro_context_map / landform_class_map / vegetation_class_map / surface_class_map：派生显示语义
 ```
 
 地点节点使用地点自己的 `region_position`。如果玩家当前在没有区域坐标的子地点，例如室内，地图会显示它的父地点位置；如果找不到带区域坐标的父地点，则不伪造地图位置。

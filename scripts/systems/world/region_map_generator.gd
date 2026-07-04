@@ -1,21 +1,25 @@
 class_name RegionMapGenerator
 extends RefCounted
 
-const BIOME_SEA := "sea"
-const BIOME_COAST := "coast"
-const BIOME_PLAIN := "plain"
-const BIOME_FOREST := "forest"
-const BIOME_RIVERBANK := "riverbank"
-const BIOME_FOOTHILL := "foothill"
-const BIOME_ROCKY := "rocky"
-const SUPPORTED_BIOMES := [
-	BIOME_SEA,
-	BIOME_COAST,
-	BIOME_PLAIN,
-	BIOME_FOREST,
-	BIOME_RIVERBANK,
-	BIOME_FOOTHILL,
-	BIOME_ROCKY,
+const HYDRO_CONTEXTS := ["sea", "near_sea", "lake_or_water", "near_water", "dry"]
+const LANDFORM_CLASSES := ["lowland", "plain", "hills", "highland", "mountain", "valley"]
+const VEGETATION_CLASSES := ["forest", "grassland", "wetland", "sparse"]
+const SURFACE_CLASSES := ["soil", "sand", "rock", "mixed"]
+const REQUIRED_FACT_MAPS := [
+	"elevation_map",
+	"moisture_map",
+	"water_map",
+	"forest_map",
+	"rock_map",
+	"slope_map",
+	"water_distance_map",
+]
+const REQUIRED_DERIVED_MAPS := [
+	"hydro_context_map",
+	"landform_class_map",
+	"vegetation_class_map",
+	"surface_class_map",
+	"local_feature_map",
 ]
 
 
@@ -31,8 +35,11 @@ func generate_region_map(config: Dictionary) -> Dictionary:
 	var water_map := _empty_grid(height, width, 0.0)
 	var forest_map := _empty_grid(height, width, 0.0)
 	var rock_map := _empty_grid(height, width, 0.0)
-	var biome_map := _empty_grid(height, width, "")
-	var feature_map := _empty_grid(height, width, [])
+	var hydro_context_map := _empty_grid(height, width, "")
+	var landform_class_map := _empty_grid(height, width, "")
+	var vegetation_class_map := _empty_grid(height, width, "")
+	var surface_class_map := _empty_grid(height, width, "")
+	var local_feature_map := _empty_grid(height, width, [])
 	var sea_side := int(floor(_unit_hash(seed, profile_id, 701) * 4.0))
 	var river_strength := float(map_config.get("river_strength", lerpf(0.20, 0.72, _unit_hash(seed, profile_id, 709))))
 
@@ -59,22 +66,34 @@ func generate_region_map(config: Dictionary) -> Dictionary:
 			_set_grid_value(forest_map, cell, _round3(forest))
 			_set_grid_value(rock_map, cell, _round3(rock))
 
-	for y in range(height):
-		for x in range(width):
-			var cell := Vector2i(x, y)
-			var biome := _biome_for_cell(cell, elevation_map, moisture_map, water_map, forest_map, rock_map)
-			_set_grid_value(biome_map, cell, biome)
+	var slope_map := _derive_slope_map(elevation_map, width, height)
+	var water_distance_map := _derive_water_distance_map(water_map, width, height)
 
 	for y in range(height):
 		for x in range(width):
 			var cell := Vector2i(x, y)
-			if _map_string(biome_map, cell) != BIOME_SEA and _near_biome(biome_map, cell, BIOME_SEA, 2):
-				_set_grid_value(biome_map, cell, BIOME_COAST)
-
-	for y in range(height):
-		for x in range(width):
-			var cell := Vector2i(x, y)
-			_set_grid_value(feature_map, cell, _features_for_cell(cell, elevation_map, moisture_map, water_map, forest_map, rock_map, biome_map))
+			var hydro_context := _hydro_context_for_cell(cell, elevation_map, water_map, water_distance_map, width, height)
+			var landform_class := _landform_class_for_cell(cell, elevation_map, water_map, slope_map, water_distance_map)
+			var vegetation_class := _vegetation_class_for_cell(cell, moisture_map, water_map, forest_map, rock_map, water_distance_map)
+			var surface_class := _surface_class_for_cell(cell, hydro_context, rock_map, slope_map)
+			_set_grid_value(hydro_context_map, cell, hydro_context)
+			_set_grid_value(landform_class_map, cell, landform_class)
+			_set_grid_value(vegetation_class_map, cell, vegetation_class)
+			_set_grid_value(surface_class_map, cell, surface_class)
+			_set_grid_value(local_feature_map, cell, _local_features_for_cell(
+				cell,
+				hydro_context,
+				landform_class,
+				vegetation_class,
+				surface_class,
+				elevation_map,
+				moisture_map,
+				water_map,
+				forest_map,
+				rock_map,
+				slope_map,
+				water_distance_map
+			))
 
 	return {
 		"width": width,
@@ -86,9 +105,13 @@ func generate_region_map(config: Dictionary) -> Dictionary:
 		"water_map": water_map,
 		"forest_map": forest_map,
 		"rock_map": rock_map,
-		"biome_map": biome_map,
-		"feature_map": feature_map,
-		"supported_biomes": SUPPORTED_BIOMES.duplicate(),
+		"slope_map": slope_map,
+		"water_distance_map": water_distance_map,
+		"hydro_context_map": hydro_context_map,
+		"landform_class_map": landform_class_map,
+		"vegetation_class_map": vegetation_class_map,
+		"surface_class_map": surface_class_map,
+		"local_feature_map": local_feature_map,
 	}
 
 
@@ -98,16 +121,18 @@ func validate_region_map(region_map: Dictionary) -> Array[String]:
 	var height := int(region_map.get("height", 0))
 	if width <= 0 or height <= 0:
 		errors.append("RegionMap has invalid size")
-	for key in ["elevation_map", "moisture_map", "water_map", "forest_map", "rock_map", "biome_map"]:
+	if region_map.has("biome_map"):
+		errors.append("RegionMap contains removed biome_map world semantic path")
+	for key in REQUIRED_FACT_MAPS:
 		if not _map_has_size(region_map.get(key, []) as Array, width, height):
 			errors.append("RegionMap %s size mismatch" % key)
-	var biome_map: Array = region_map.get("biome_map", []) as Array
-	for y in range(biome_map.size()):
-		var row: Array = biome_map[y] as Array
-		for x in range(row.size()):
-			var biome := str(row[x])
-			if not SUPPORTED_BIOMES.has(biome):
-				errors.append("RegionMap contains unsupported biome: %s at %s" % [biome, str(Vector2i(x, y))])
+	for key in REQUIRED_DERIVED_MAPS:
+		if not _map_has_size(region_map.get(key, []) as Array, width, height):
+			errors.append("RegionMap %s size mismatch" % key)
+	_validate_class_map(region_map.get("hydro_context_map", []) as Array, HYDRO_CONTEXTS, "hydro_context", errors)
+	_validate_class_map(region_map.get("landform_class_map", []) as Array, LANDFORM_CLASSES, "landform_class", errors)
+	_validate_class_map(region_map.get("vegetation_class_map", []) as Array, VEGETATION_CLASSES, "vegetation_class", errors)
+	_validate_class_map(region_map.get("surface_class_map", []) as Array, SURFACE_CLASSES, "surface_class", errors)
 	return errors
 
 
@@ -121,8 +146,13 @@ func cell_at(region_map: Dictionary, position: Vector2i) -> Dictionary:
 		"water": _map_value(region_map.get("water_map", []) as Array, position),
 		"forest": _map_value(region_map.get("forest_map", []) as Array, position),
 		"rock": _map_value(region_map.get("rock_map", []) as Array, position),
-		"biome": _map_string(region_map.get("biome_map", []) as Array, position),
-		"features": _map_array(region_map.get("feature_map", []) as Array, position),
+		"slope": _map_value(region_map.get("slope_map", []) as Array, position),
+		"water_distance": _map_value(region_map.get("water_distance_map", []) as Array, position),
+		"hydro_context": _map_string(region_map.get("hydro_context_map", []) as Array, position),
+		"landform_class": _map_string(region_map.get("landform_class_map", []) as Array, position),
+		"vegetation_class": _map_string(region_map.get("vegetation_class_map", []) as Array, position),
+		"surface_class": _map_string(region_map.get("surface_class_map", []) as Array, position),
+		"local_features": _map_array(region_map.get("local_feature_map", []) as Array, position),
 	}
 
 
@@ -130,12 +160,17 @@ func patch_for(region_map: Dictionary, center: Vector2i, radius: int = 1) -> Dic
 	if not _in_bounds(region_map, center):
 		return {}
 	var positions: Array[Vector2i] = []
-	var neighbor_biomes: Dictionary = {}
+	var hydro_counts: Dictionary = {}
+	var landform_counts: Dictionary = {}
+	var vegetation_counts: Dictionary = {}
+	var surface_counts: Dictionary = {}
 	var elevation_total := 0.0
 	var moisture_total := 0.0
 	var water_total := 0.0
 	var forest_total := 0.0
 	var rock_total := 0.0
+	var slope_total := 0.0
+	var water_distance_total := 0.0
 	var coast_influence := 0.0
 	var river_influence := 0.0
 	var features: Dictionary = {}
@@ -145,30 +180,46 @@ func patch_for(region_map: Dictionary, center: Vector2i, radius: int = 1) -> Dic
 			if not _in_bounds(region_map, cell):
 				continue
 			positions.append(cell)
-			var biome := _map_string(region_map.get("biome_map", []) as Array, cell)
-			neighbor_biomes[biome] = int(neighbor_biomes.get(biome, 0)) + 1
+			var hydro_context := _map_string(region_map.get("hydro_context_map", []) as Array, cell)
+			var landform_class := _map_string(region_map.get("landform_class_map", []) as Array, cell)
+			var vegetation_class := _map_string(region_map.get("vegetation_class_map", []) as Array, cell)
+			var surface_class := _map_string(region_map.get("surface_class_map", []) as Array, cell)
+			hydro_counts[hydro_context] = int(hydro_counts.get(hydro_context, 0)) + 1
+			landform_counts[landform_class] = int(landform_counts.get(landform_class, 0)) + 1
+			vegetation_counts[vegetation_class] = int(vegetation_counts.get(vegetation_class, 0)) + 1
+			surface_counts[surface_class] = int(surface_counts.get(surface_class, 0)) + 1
 			elevation_total += _map_value(region_map.get("elevation_map", []) as Array, cell)
 			moisture_total += _map_value(region_map.get("moisture_map", []) as Array, cell)
 			water_total += _map_value(region_map.get("water_map", []) as Array, cell)
 			forest_total += _map_value(region_map.get("forest_map", []) as Array, cell)
 			rock_total += _map_value(region_map.get("rock_map", []) as Array, cell)
-			if biome == BIOME_COAST or biome == BIOME_SEA:
+			slope_total += _map_value(region_map.get("slope_map", []) as Array, cell)
+			water_distance_total += _map_value(region_map.get("water_distance_map", []) as Array, cell)
+			if ["sea", "near_sea"].has(hydro_context):
 				coast_influence += 1.0
-			if biome == BIOME_RIVERBANK:
-				river_influence += 1.0
-			for feature in _map_array(region_map.get("feature_map", []) as Array, cell):
+			for feature in _map_array(region_map.get("local_feature_map", []) as Array, cell):
 				var feature_id := str(feature)
 				features[feature_id] = int(features.get(feature_id, 0)) + 1
+				if ["riverbank", "creek_side"].has(feature_id):
+					river_influence += 1.0
 	var count := maxf(1.0, float(positions.size()))
 	return {
 		"center_position": _dict_from_cell(center),
-		"center_biome": _map_string(region_map.get("biome_map", []) as Array, center),
-		"neighbor_biomes": neighbor_biomes,
+		"center_hydro_context": _map_string(region_map.get("hydro_context_map", []) as Array, center),
+		"center_landform_class": _map_string(region_map.get("landform_class_map", []) as Array, center),
+		"center_vegetation_class": _map_string(region_map.get("vegetation_class_map", []) as Array, center),
+		"center_surface_class": _map_string(region_map.get("surface_class_map", []) as Array, center),
+		"hydro_context_counts": _clean_counts(hydro_counts),
+		"landform_class_counts": _clean_counts(landform_counts),
+		"vegetation_class_counts": _clean_counts(vegetation_counts),
+		"surface_class_counts": _clean_counts(surface_counts),
 		"average_elevation": _round3(elevation_total / count),
 		"average_moisture": _round3(moisture_total / count),
 		"water_influence": _round3(water_total / count),
 		"forest_influence": _round3(forest_total / count),
 		"rock_influence": _round3(rock_total / count),
+		"slope_influence": _round3(slope_total / count),
+		"water_distance": _round3(water_distance_total / count),
 		"coast_influence": _round3(coast_influence / count),
 		"river_influence": _round3(river_influence / count),
 		"dominant_features": _dominant_features(features),
@@ -182,61 +233,199 @@ func fingerprint(region_map: Dictionary) -> String:
 		str(region_map.get("height", "")),
 		str(region_map.get("seed", "")),
 	]
-	for key in ["elevation_map", "moisture_map", "water_map", "forest_map", "rock_map", "biome_map"]:
+	for key in REQUIRED_FACT_MAPS + REQUIRED_DERIVED_MAPS:
 		parts.append(JSON.stringify(region_map.get(key, [])))
 	return "|".join(parts)
 
 
-func _biome_for_cell(
-	cell: Vector2i,
-	elevation_map: Array,
-	moisture_map: Array,
-	water_map: Array,
-	forest_map: Array,
-	rock_map: Array
-) -> String:
+func _derive_slope_map(elevation_map: Array, width: int, height: int) -> Array:
+	var slope_map := _empty_grid(height, width, 0.0)
+	for y in range(height):
+		for x in range(width):
+			var cell := Vector2i(x, y)
+			var center := _map_value(elevation_map, cell)
+			var max_delta := 0.0
+			var total_delta := 0.0
+			var samples := 0.0
+			for offset in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+				var other: Vector2i = cell + offset
+				if other.x < 0 or other.y < 0 or other.x >= width or other.y >= height:
+					continue
+				var delta := absf(center - _map_value(elevation_map, other))
+				max_delta = maxf(max_delta, delta)
+				total_delta += delta
+				samples += 1.0
+			var average_delta := total_delta / maxf(1.0, samples)
+			_set_grid_value(slope_map, cell, _round3(clampf(max_delta * 1.35 + average_delta * 1.10, 0.0, 1.0)))
+	return slope_map
+
+
+func _derive_water_distance_map(water_map: Array, width: int, height: int) -> Array:
+	var water_cells: Array[Vector2i] = []
+	for y in range(height):
+		for x in range(width):
+			var cell := Vector2i(x, y)
+			if _map_value(water_map, cell) >= 0.42:
+				water_cells.append(cell)
+	var result := _empty_grid(height, width, 1.0)
+	var max_distance := maxf(1.0, sqrt(float(width * width + height * height)))
+	for y in range(height):
+		for x in range(width):
+			var cell := Vector2i(x, y)
+			if water_cells.is_empty():
+				_set_grid_value(result, cell, 1.0)
+				continue
+			var best := INF
+			for water_cell in water_cells:
+				best = minf(best, sqrt(float(cell.distance_squared_to(water_cell))))
+			_set_grid_value(result, cell, _round3(clampf(best / max_distance, 0.0, 1.0)))
+	return result
+
+
+func _hydro_context_for_cell(cell: Vector2i, elevation_map: Array, water_map: Array, water_distance_map: Array, width: int, height: int) -> String:
 	var elevation := _map_value(elevation_map, cell)
+	var water := _map_value(water_map, cell)
+	var water_distance := _map_value(water_distance_map, cell)
+	if _is_sea_cell(cell, elevation, water, width, height):
+		return "sea"
+	if _near_sea_cell(cell, elevation_map, water_map, width, height, 2):
+		return "near_sea"
+	if water >= 0.48:
+		return "lake_or_water"
+	if water_distance <= 0.18:
+		return "near_water"
+	return "dry"
+
+
+func _landform_class_for_cell(cell: Vector2i, elevation_map: Array, water_map: Array, slope_map: Array, water_distance_map: Array) -> String:
+	var elevation := _map_value(elevation_map, cell)
+	var water := _map_value(water_map, cell)
+	var slope := _map_value(slope_map, cell)
+	var water_distance := _map_value(water_distance_map, cell)
+	if water_distance <= 0.16 and elevation <= 0.48 and water < 0.78:
+		return "valley"
+	if elevation >= 0.76 and slope >= 0.26:
+		return "mountain"
+	if elevation >= 0.66:
+		return "highland"
+	if elevation >= 0.55 or slope >= 0.22:
+		return "hills"
+	if elevation <= 0.38:
+		return "lowland"
+	return "plain"
+
+
+func _vegetation_class_for_cell(cell: Vector2i, moisture_map: Array, water_map: Array, forest_map: Array, rock_map: Array, water_distance_map: Array) -> String:
 	var moisture := _map_value(moisture_map, cell)
 	var water := _map_value(water_map, cell)
 	var forest := _map_value(forest_map, cell)
 	var rock := _map_value(rock_map, cell)
-	if water >= 0.76 and elevation <= 0.46:
-		return BIOME_SEA
-	if water >= 0.42 and moisture >= 0.45:
-		return BIOME_RIVERBANK
-	if rock >= 0.66 and elevation >= 0.52:
-		return BIOME_ROCKY
-	if elevation >= 0.63:
-		return BIOME_FOOTHILL
-	if forest >= 0.58 and moisture >= 0.38:
-		return BIOME_FOREST
-	return BIOME_PLAIN
+	var water_distance := _map_value(water_distance_map, cell)
+	if moisture >= 0.62 and water_distance <= 0.20 and water < 0.84:
+		return "wetland"
+	if forest >= 0.58 and water < 0.70:
+		return "forest"
+	if forest <= 0.25 or moisture <= 0.24 or rock >= 0.72:
+		return "sparse"
+	return "grassland"
 
 
-func _features_for_cell(
+func _surface_class_for_cell(cell: Vector2i, hydro_context: String, rock_map: Array, slope_map: Array) -> String:
+	var rock := _map_value(rock_map, cell)
+	var slope := _map_value(slope_map, cell)
+	if rock >= 0.62 or (rock >= 0.50 and slope >= 0.26):
+		return "rock"
+	if hydro_context == "near_sea" and rock <= 0.46:
+		return "sand"
+	if rock >= 0.42:
+		return "mixed"
+	return "soil"
+
+
+func _local_features_for_cell(
 	cell: Vector2i,
+	hydro_context: String,
+	landform_class: String,
+	vegetation_class: String,
+	surface_class: String,
 	elevation_map: Array,
 	moisture_map: Array,
 	water_map: Array,
 	forest_map: Array,
 	rock_map: Array,
-	biome_map: Array
+	slope_map: Array,
+	water_distance_map: Array
 ) -> Array[String]:
 	var features: Array[String] = []
-	var biome := _map_string(biome_map, cell)
-	if biome == BIOME_COAST or _near_biome(biome_map, cell, BIOME_SEA, 2):
+	var elevation := _map_value(elevation_map, cell)
+	var moisture := _map_value(moisture_map, cell)
+	var water := _map_value(water_map, cell)
+	var forest := _map_value(forest_map, cell)
+	var rock := _map_value(rock_map, cell)
+	var slope := _map_value(slope_map, cell)
+	var water_distance := _map_value(water_distance_map, cell)
+	if hydro_context == "near_sea":
 		features.append("near_sea")
-	if biome == BIOME_RIVERBANK or _near_biome(biome_map, cell, BIOME_RIVERBANK, 1):
-		features.append("near_river")
-	if _map_value(moisture_map, cell) >= 0.62:
-		features.append("high_moisture")
-	if _map_value(forest_map, cell) >= 0.66:
-		features.append("dense_forest")
-	if _map_value(rock_map, cell) >= 0.64 and _map_value(elevation_map, cell) >= 0.52:
-		features.append("rocky_slope")
-	if _map_value(water_map, cell) >= 0.48:
+		if surface_class == "sand":
+			features.append("beach")
+	if ["near_water", "lake_or_water"].has(hydro_context) and water < 0.82:
 		features.append("water_influence")
-	return features
+		if water_distance <= 0.12 or landform_class == "valley":
+			features.append("riverbank")
+		if water_distance <= 0.16 and ["forest", "wetland"].has(vegetation_class):
+			features.append("creek_side")
+	if moisture >= 0.62:
+		features.append("high_moisture")
+	if forest >= 0.66:
+		features.append("dense_forest")
+	if ["hills", "highland"].has(landform_class) and elevation >= 0.48 and elevation <= 0.74 and slope >= 0.16:
+		features.append("foothill")
+	if (rock >= 0.60 and slope >= 0.18) or surface_class == "rock":
+		features.append("rocky_slope")
+	if vegetation_class == "forest" and forest <= 0.70 and moisture >= 0.36:
+		features.append("clearing")
+	return _unique_strings(features)
+
+
+func _is_sea_cell(cell: Vector2i, elevation: float, water: float, width: int, height: int) -> bool:
+	if water < 0.70 or elevation > 0.50:
+		return false
+	if water >= 0.84 and elevation <= 0.46:
+		return true
+	return _edge_distance(cell, width, height) <= 3
+
+
+func _near_sea_cell(cell: Vector2i, elevation_map: Array, water_map: Array, width: int, height: int, radius: int) -> bool:
+	for y in range(cell.y - radius, cell.y + radius + 1):
+		for x in range(cell.x - radius, cell.x + radius + 1):
+			var other := Vector2i(x, y)
+			if other == cell or other.x < 0 or other.y < 0 or other.x >= width or other.y >= height:
+				continue
+			if _is_sea_cell(other, _map_value(elevation_map, other), _map_value(water_map, other), width, height):
+				return true
+	return false
+
+
+func _edge_distance(cell: Vector2i, width: int, height: int) -> int:
+	return mini(mini(cell.x, cell.y), mini(width - 1 - cell.x, height - 1 - cell.y))
+
+
+func _validate_class_map(map_data: Array, allowed_values: Array, label: String, errors: Array[String]) -> void:
+	for y in range(map_data.size()):
+		var row: Array = map_data[y] as Array
+		for x in range(row.size()):
+			var value := str(row[x])
+			if not allowed_values.has(value):
+				errors.append("RegionMap contains unsupported %s: %s at %s" % [label, value, str(Vector2i(x, y))])
+
+
+func _clean_counts(counts: Dictionary) -> Dictionary:
+	var result: Dictionary = {}
+	for key_value in counts.keys():
+		var key := str(key_value)
+		if not key.is_empty():
+			result[key] = int(counts.get(key_value, 0))
+	return result
 
 
 func _dominant_features(features: Dictionary) -> Array[String]:
@@ -338,17 +527,6 @@ func _unit_hash_xy(seed: int, profile_id: String, x: int, y: int, salt: int) -> 
 	return value - floor(value)
 
 
-func _near_biome(biome_map: Array, cell: Vector2i, biome_id: String, radius: int) -> bool:
-	for y in range(cell.y - radius, cell.y + radius + 1):
-		for x in range(cell.x - radius, cell.x + radius + 1):
-			var other := Vector2i(x, y)
-			if other == cell:
-				continue
-			if _map_string(biome_map, other) == biome_id:
-				return true
-	return false
-
-
 func _empty_grid(height: int, width: int, value: Variant) -> Array:
 	var result: Array = []
 	for _y in range(height):
@@ -410,6 +588,14 @@ func _set_grid_value(map_data: Array, cell: Vector2i, value: Variant) -> void:
 
 func _dict_from_cell(cell: Vector2i) -> Dictionary:
 	return { "x": cell.x, "y": cell.y }
+
+
+func _unique_strings(values: Array[String]) -> Array[String]:
+	var result: Array[String] = []
+	for value in values:
+		if not value.is_empty() and not result.has(value):
+			result.append(value)
+	return result
 
 
 func _round3(value: float) -> float:

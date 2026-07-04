@@ -30,6 +30,8 @@ func resolve_location(graph: Variant, runtime: Variant, location_id: String) -> 
 		return _failure("world registry requires graph and runtime")
 	if location_id.is_empty():
 		return _failure("target location_id is empty")
+	if graph.has_method("get_region_area_spec") and not graph.get_region_area_spec(location_id).is_empty():
+		return _failure("RegionArea is not a materializable location: %s" % location_id)
 
 	var spec: Dictionary = graph.get_location_spec(location_id)
 	if spec.is_empty():
@@ -88,10 +90,16 @@ func resolve_location(graph: Variant, runtime: Variant, location_id: String) -> 
 	}
 	if spec.has("region_position"):
 		metadata["region_position"] = (spec.get("region_position", {}) as Dictionary).duplicate(true)
-	if spec.has("region_biome"):
-		metadata["region_biome"] = str(spec.get("region_biome", ""))
+	if spec.has("area_type"):
+		metadata["area_type"] = str(spec.get("area_type", ""))
 	if spec.has("region_patch"):
 		metadata["region_patch"] = (spec.get("region_patch", {}) as Dictionary).duplicate(true)
+	if spec.has("region_context"):
+		metadata["region_context"] = (spec.get("region_context", {}) as Dictionary).duplicate(true)
+	if spec.has("parent_region_id"):
+		metadata["parent_region_id"] = str(spec.get("parent_region_id", ""))
+	if spec.has("local_role"):
+		metadata["local_role"] = str(spec.get("local_role", ""))
 	runtime.register_location(location_id, location_data, metadata, generated_or_loaded == "generated")
 
 	return {
@@ -274,10 +282,20 @@ func _wild_source_data(graph: Variant, spec: Dictionary) -> Dictionary:
 	if spec.has("region_patch"):
 		generator_data["region_patch"] = (spec.get("region_patch", {}) as Dictionary).duplicate(true)
 		source_data["region_patch"] = (spec.get("region_patch", {}) as Dictionary).duplicate(true)
-	if spec.has("region_biome"):
-		source_data["region_biome"] = str(spec.get("region_biome", ""))
+	if spec.has("area_type"):
+		generator_data["area_type"] = str(spec.get("area_type", ""))
+		source_data["area_type"] = str(spec.get("area_type", ""))
+	if spec.has("region_context"):
+		generator_data["region_context"] = (spec.get("region_context", {}) as Dictionary).duplicate(true)
+		source_data["region_context"] = (spec.get("region_context", {}) as Dictionary).duplicate(true)
 	if spec.has("region_position"):
 		source_data["region_position"] = (spec.get("region_position", {}) as Dictionary).duplicate(true)
+	if spec.has("parent_region_id"):
+		generator_data["parent_region_id"] = str(spec.get("parent_region_id", ""))
+		source_data["parent_region_id"] = str(spec.get("parent_region_id", ""))
+	if spec.has("local_role"):
+		generator_data["local_role"] = str(spec.get("local_role", ""))
+		source_data["local_role"] = str(spec.get("local_role", ""))
 	var entrance_hints := _wild_entrance_hints_from_graph(graph, str(spec.get("location_id", "")))
 	if not entrance_hints.is_empty():
 		generator_data["optional_entrance_hints"] = entrance_hints
@@ -368,10 +386,16 @@ func _wild_generation_context(spec: Dictionary) -> Dictionary:
 		context["size"] = (spec.get("size", {}) as Dictionary).duplicate(true)
 	if spec.has("region_patch"):
 		context["region_patch"] = (spec.get("region_patch", {}) as Dictionary).duplicate(true)
-	if spec.has("region_biome"):
-		context["region_biome"] = str(spec.get("region_biome", ""))
+	if spec.has("area_type"):
+		context["area_type"] = str(spec.get("area_type", ""))
+	if spec.has("region_context"):
+		context["region_context"] = (spec.get("region_context", {}) as Dictionary).duplicate(true)
 	if spec.has("region_position"):
 		context["region_position"] = (spec.get("region_position", {}) as Dictionary).duplicate(true)
+	if spec.has("parent_region_id"):
+		context["parent_region_id"] = str(spec.get("parent_region_id", ""))
+	if spec.has("local_role"):
+		context["local_role"] = str(spec.get("local_role", ""))
 	return context
 
 

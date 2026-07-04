@@ -8,6 +8,7 @@ var world_seed: int = 0
 var start_location_id: String = ""
 var start_spawn_id: String = ""
 var source_data: Dictionary = {}
+var region_areas_by_id: Dictionary = {}
 var locations_by_id: Dictionary = {}
 var spawns_by_location: Dictionary = {}
 var exits_by_location_and_id: Dictionary = {}
@@ -23,6 +24,7 @@ func configure(data: Dictionary) -> Array[String]:
 	world_seed = int(data.get("world_seed", data.get("seed", 0)))
 	start_location_id = str(data.get("start_location_id", ""))
 	start_spawn_id = str(data.get("start_spawn_id", ""))
+	region_areas_by_id.clear()
 	locations_by_id.clear()
 	spawns_by_location.clear()
 	exits_by_location_and_id.clear()
@@ -35,11 +37,25 @@ func configure(data: Dictionary) -> Array[String]:
 	if world_id.is_empty():
 		errors.append("world_id is missing")
 
+	for area_value in (data.get("region_areas", []) as Array):
+		var area: Dictionary = area_value as Dictionary
+		var region_id := str(area.get("region_id", ""))
+		if region_id.is_empty():
+			errors.append("RegionArea missing region_id")
+			continue
+		if region_areas_by_id.has(region_id):
+			errors.append("duplicate RegionArea id: %s" % region_id)
+			continue
+		region_areas_by_id[region_id] = area.duplicate(true)
+
 	for location_value in (data.get("locations", []) as Array):
 		var location_spec := WorldLocationSpecScript.normalize_location(location_value as Dictionary)
 		var location_id := str(location_spec.get("location_id", ""))
 		if location_id.is_empty():
 			errors.append("location spec missing location_id")
+			continue
+		if region_areas_by_id.has(location_id):
+			errors.append("RegionArea cannot be used as location spec: %s" % location_id)
 			continue
 		locations_by_id[location_id] = location_spec
 		var parent_location_id := str(location_spec.get("parent_location_id", ""))
@@ -74,6 +90,12 @@ func configure(data: Dictionary) -> Array[String]:
 		if exit_id.is_empty() or from_location_id.is_empty():
 			errors.append("exit spec missing exit_id or from_location_id")
 			continue
+		if region_areas_by_id.has(from_location_id):
+			errors.append("exit source cannot be RegionArea: %s/%s" % [from_location_id, exit_id])
+			continue
+		if region_areas_by_id.has(target_location_id):
+			errors.append("exit target cannot be RegionArea: %s/%s" % [exit_id, target_location_id])
+			continue
 		if not locations_by_id.has(from_location_id):
 			errors.append("exit references unknown source location: %s/%s" % [from_location_id, exit_id])
 			continue
@@ -93,6 +115,8 @@ func configure(data: Dictionary) -> Array[String]:
 
 	if start_location_id.is_empty():
 		errors.append("start_location_id is missing")
+	elif region_areas_by_id.has(start_location_id):
+		errors.append("start_location_id cannot be RegionArea: %s" % start_location_id)
 	elif not locations_by_id.has(start_location_id):
 		errors.append("start_location_id references unknown location: %s" % start_location_id)
 	if start_spawn_id.is_empty():
@@ -138,6 +162,22 @@ func get_region_map() -> Dictionary:
 	return (source_data.get("region_map", {}) as Dictionary).duplicate(true)
 
 
+func get_region_area_spec(region_id: String) -> Dictionary:
+	return (region_areas_by_id.get(region_id, {}) as Dictionary).duplicate(true)
+
+
+func get_all_region_areas() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	var region_ids: Array = region_areas_by_id.keys()
+	region_ids.sort()
+	for region_id_value in region_ids:
+		var region_id := str(region_id_value)
+		var spec: Dictionary = region_areas_by_id.get(region_id, {}) as Dictionary
+		if not spec.is_empty():
+			result.append(spec.duplicate(true))
+	return result
+
+
 func get_spawn_spec(location_id: String, spawn_id: String) -> Dictionary:
 	var spawns: Dictionary = spawns_by_location.get(location_id, {}) as Dictionary
 	return (spawns.get(spawn_id, {}) as Dictionary).duplicate(true)
@@ -160,6 +200,8 @@ func upsert_location_spec(value: Dictionary) -> Array[String]:
 	var location_id := str(spec.get("location_id", ""))
 	if location_id.is_empty():
 		return ["location spec missing location_id"]
+	if region_areas_by_id.has(location_id):
+		return ["RegionArea cannot be used as location spec: %s" % location_id]
 
 	var old_spec: Dictionary = locations_by_id.get(location_id, {}) as Dictionary
 	if not old_spec.is_empty():
@@ -194,6 +236,10 @@ func upsert_exit_spec(value: Dictionary) -> Array[String]:
 	var target_spawn_id := str(spec.get("target_spawn_id", ""))
 	if exit_id.is_empty() or from_location_id.is_empty():
 		return ["exit spec missing exit_id or from_location_id"]
+	if region_areas_by_id.has(from_location_id):
+		return ["exit source cannot be RegionArea: %s/%s" % [from_location_id, exit_id]]
+	if region_areas_by_id.has(target_location_id):
+		return ["exit target cannot be RegionArea: %s/%s" % [exit_id, target_location_id]]
 	if not locations_by_id.has(from_location_id):
 		return ["exit references unknown source location: %s/%s" % [from_location_id, exit_id]]
 	if not locations_by_id.has(target_location_id):
@@ -264,6 +310,7 @@ func get_debug_summary() -> Dictionary:
 		child_counts[str(parent_id)] = (child_locations_by_parent_id[parent_id] as Array).size()
 	return {
 		"world_id": world_id,
+		"region_area_count": region_areas_by_id.size(),
 		"location_count": locations_by_id.size(),
 		"child_counts": child_counts,
 		"edge_count": exits_by_location_and_id.size(),

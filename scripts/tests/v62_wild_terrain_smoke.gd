@@ -71,8 +71,14 @@ func _run() -> void:
 	if not (summary.get("tile_counts", {}) is Dictionary):
 		_fail("v62 debug summary missing tile_counts")
 		return
-	if not (summary.get("biome_counts", {}) is Dictionary):
-		_fail("v62 debug summary missing biome_counts")
+	if summary.has("biome_counts"):
+		_fail("v62 debug summary still exposes removed biome_counts")
+		return
+	if not (summary.get("elevation_counts", {}) is Dictionary):
+		_fail("v62 debug summary missing elevation_counts")
+		return
+	if not (summary.get("landform_counts", {}) is Dictionary):
+		_fail("v62 debug summary missing landform_counts")
 		return
 	if not summary.has("wetland_ratio"):
 		_fail("v62 debug summary missing wetland_ratio")

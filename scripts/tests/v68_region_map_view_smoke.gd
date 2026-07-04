@@ -203,18 +203,11 @@ func _assert_default_world_start_exits_compile_without_overlap() -> bool:
 
 
 func _assert_generated_location_display_names(world_data: Dictionary) -> bool:
-	var profile_labels := {
-		"plain": "平原野地",
-		"forest_edge": "林缘野地",
-		"riverbank": "河岸野地",
-		"foothill": "山脚野地",
-	}
 	for location_value in (world_data.get("locations", []) as Array):
 		var location: Dictionary = location_value as Dictionary
 		if str(location.get("location_kind", "")) != "generated_wild":
 			continue
 		var location_id := str(location.get("location_id", ""))
-		var profile_id := str(location.get("generator_profile_id", ""))
 		var display_name := str(location.get("display_name", ""))
 		if location_id.is_empty():
 			_fail("v68 generated location has no location_id")
@@ -225,11 +218,11 @@ func _assert_generated_location_display_names(world_data: Dictionary) -> bool:
 		if display_name.contains("Wild"):
 			_fail("v68 generated location display name still uses English Wild label: %s" % display_name)
 			return false
-		if not profile_labels.has(profile_id):
-			_fail("v68 generated location profile has no Chinese display label in test: %s" % profile_id)
+		if str(location.get("parent_region_id", "")).is_empty():
+			_fail("v68 generated location has no parent RegionArea: %s" % location_id)
 			return false
-		if not display_name.begins_with(str(profile_labels.get(profile_id, ""))):
-			_fail("v68 generated location display name does not match its profile: %s -> %s" % [profile_id, display_name])
+		if str(location.get("local_role", "")).is_empty():
+			_fail("v68 generated location has no local role: %s" % location_id)
 			return false
 	return true
 
@@ -240,6 +233,9 @@ func _assert_view_data_matches_world(view_data: Dictionary, world_data: Dictiona
 		return false
 	if (view_data.get("region_map", {}) as Dictionary).is_empty():
 		_fail("v68 map view data has no RegionMap")
+		return false
+	if (view_data.get("region_areas", []) as Array).is_empty():
+		_fail("v68 map view data has no RegionArea rows")
 		return false
 	if (view_data.get("locations", []) as Array).size() != (world_data.get("locations", []) as Array).size():
 		_fail("v68 map view data location count mismatch")
@@ -257,9 +253,25 @@ func _assert_view_data_matches_world(view_data: Dictionary, world_data: Dictiona
 	if int(region_map.get("width", 0)) <= 0 or int(region_map.get("height", 0)) <= 0:
 		_fail("v68 RegionMap has invalid size")
 		return false
-	var biome_map: Array = region_map.get("biome_map", []) as Array
-	if biome_map.is_empty():
-		_fail("v68 RegionMap has no biome map")
+	for map_key in [
+		"elevation_map",
+		"moisture_map",
+		"water_map",
+		"forest_map",
+		"rock_map",
+		"slope_map",
+		"water_distance_map",
+		"hydro_context_map",
+		"landform_class_map",
+		"vegetation_class_map",
+		"surface_class_map",
+		"local_feature_map",
+	]:
+		if (region_map.get(map_key, []) as Array).is_empty():
+			_fail("v68 RegionMap missing layered map: %s" % map_key)
+			return false
+	if region_map.has("biome_map"):
+		_fail("v68 RegionMap still exposes removed world biome map")
 		return false
 	return true
 

@@ -26,6 +26,12 @@ func generate_location(source_data: Dictionary, context: Dictionary = {}) -> Dic
 	summary["type"] = "wild_terrain"
 	summary["generator"] = "WildTerrainGenerator"
 	summary["compiler"] = "WildLocationCompiler"
+	if generator_data.has("parent_region_id"):
+		summary["parent_region_id"] = str(generator_data.get("parent_region_id", ""))
+		location_data["parent_region_id"] = str(generator_data.get("parent_region_id", ""))
+	if generator_data.has("local_role"):
+		summary["local_role"] = str(generator_data.get("local_role", ""))
+		location_data["local_role"] = str(generator_data.get("local_role", ""))
 	if not compile_errors.is_empty():
 		var generation_errors: Array = (summary.get("generation_errors", []) as Array).duplicate()
 		generation_errors.append_array(compile_errors)
@@ -35,6 +41,10 @@ func generate_location(source_data: Dictionary, context: Dictionary = {}) -> Dic
 	state["generation"] = "wild_terrain"
 	state["wild_seed"] = blueprint.seed
 	state["terrain_profile_id"] = blueprint.terrain_profile_id
+	if generator_data.has("parent_region_id"):
+		state["parent_region_id"] = str(generator_data.get("parent_region_id", ""))
+	if generator_data.has("local_role"):
+		state["local_role"] = str(generator_data.get("local_role", ""))
 	state["generated_size"] = { "width": blueprint.width, "height": blueprint.height }
 	location_data["state"] = state
 	return location_data
@@ -88,6 +98,10 @@ func _apply_context_overrides(generator_data: Dictionary, context: Dictionary) -
 		generator_data["size"] = (context.get("size", {}) as Dictionary).duplicate(true)
 	if context.has("region_patch"):
 		generator_data["region_patch"] = (context.get("region_patch", {}) as Dictionary).duplicate(true)
+	if context.has("parent_region_id"):
+		generator_data["parent_region_id"] = str(context.get("parent_region_id", ""))
+	if context.has("local_role"):
+		generator_data["local_role"] = str(context.get("local_role", ""))
 
 
 func _failed_location(source_data: Dictionary, blueprint: RefCounted, errors: Array[String]) -> Dictionary:

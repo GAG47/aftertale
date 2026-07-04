@@ -48,12 +48,16 @@ a usable skeleton toward presentable generated places:
 - formal ground rendering through a TileMapLayer-backed ground renderer instead
   of whole-map DebugTileRenderer drawing in the normal location path.
 - a shared RegionMap world geography fact that positions generated world nodes
-  on one regional terrain map, derives each node's wild profile from its region
-  biome, records biome transition metadata on edges, and passes RegionPatch
-  context into generated wild locations.
+  on one regional terrain map, stores layered area facts, derives RegionArea
+  and local node roles from those facts, records area relations on edges, and
+  passes RegionPatch context into generated wild locations.
 - explicit location entry rules that require a concrete entrance for every
   scene load and world transition, with generated wild entrances compiled from
   world spawn facts instead of default or first-candidate fallbacks.
+- a region-map UI that separates large-scale RegionArea reading from zoomed
+  local WorldLocationNode reading, without making RegionArea enterable.
+- a v70 world geography migration that removes the world-level single-label
+  biome path from RegionMap, RegionArea, world graph edges, and region map UI.
 
 ## Battle Deepening Roadmap
 
@@ -78,9 +82,12 @@ a usable skeleton toward presentable generated places:
 | v65 | Complete | `doc/phase_65_world_graph_generator.md` | Add a seed-driven local world graph generator with region profiles, generated location node specs, spawn points, paired transition edges, graph compilation, debug summaries, and generated-wild materialization through the existing world transition service. |
 | v65.1 | Complete | `doc/phase_65_1_world_graph_generator_cleanup.md` | Remove the v65 fixture loop and fallback paths: generated worlds no longer start from test village data, generated edges no longer use fixed gate ids, unsupported location kinds fail explicitly, and world-active transitions do not continue through legacy scene paths. |
 | v66 | Complete | `doc/phase_66_tile_map_ground_renderer.md` | Move formal location ground rendering to a TileMapLayer-backed renderer, keep DebugTileRenderer debug-only, expose rebuild/update statistics, and support single-cell terrain updates without player or camera movement causing full ground rebuilds. |
-| v67 | Complete | `doc/phase_67_region_map_world_context.md` | Add a shared RegionMap as generated world geography, derive generated wild node profiles from region biomes, record region/biome transition metadata on edges, and pass RegionPatch context into generated wild terrain without requiring visual edge stitching. |
+| v67 | Complete | `doc/phase_67_region_map_world_context.md` | Add a shared RegionMap as generated world geography, place generated world nodes on regional facts, and pass RegionPatch context into generated wild terrain without requiring visual edge stitching. |
 | v67.1 | Complete | `doc/phase_67_1_explicit_location_entry.md` | 地点加载和世界转移必须带明确入口；generated_wild 入口由世界出生点事实编译；删除旧入场兜底和第一个可站点兜底；测试玩家会落在请求的入口。 |
 | v68 | Complete | `doc/phase_68_region_map_view.md` | 新增区域大地图显示层：按 M 打开/关闭，读取 RegionMap、世界地点和世界边，绘制地貌底图、地点节点、连接线和当前地点高亮，不改变生成、转场或入口规则。 |
+| v69 | Complete | `doc/phase_69_region_area_local_nodes.md` | 在世界数据中区分 RegionArea 区域块和 WorldLocationNode 可访问地点，区域只作为父地理结构，地点才进入转场图。 |
+| v69.1 | Complete | `doc/phase_69_1_region_map_zoom_layers.md` | 区域地图通过缩放平滑切换层级：远景看 RegionArea，近景只看聚焦区域内的 WorldLocationNode，不做地图传送。 |
+| v70 | Complete | `doc/phase_70_region_map_layers_region_area.md` | 将世界 RegionMap 迁移为多层地貌事实，RegionArea 使用大尺度 area_type，WorldLocationNode 使用 local_role，世界边使用 area_relation，区域地图 UI 不再读取或展示粗略地貌标签。 |
 
 ## Dependency Order
 
@@ -106,6 +113,10 @@ v50 skill effect data model
 -> v66 TileMapLayer ground rendering
 -> v67 RegionMap world context
 -> v67.1 explicit location entry rules
+-> v68 region map view
+-> v69 RegionArea and local node hierarchy
+-> v69.1 zoomed region map layers
+-> v70 layered RegionMap and RegionArea semantic migration
 ```
 
 ## Minimum Tactical Slice
