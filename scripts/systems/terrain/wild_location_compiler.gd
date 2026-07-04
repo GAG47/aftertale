@@ -76,8 +76,6 @@ func _apply_context_overrides(generator_data: Dictionary, context: Dictionary) -
 		generator_data["terrain_profile_id"] = str(context.get("wild_terrain_profile_id", generator_data.get("terrain_profile_id", "")))
 	if context.has("size"):
 		generator_data["size"] = (context.get("size", {}) as Dictionary).duplicate(true)
-	if context.has("region_patch"):
-		generator_data["region_patch"] = (context.get("region_patch", {}) as Dictionary).duplicate(true)
 
 
 func _failed_location(source_data: Dictionary, blueprint: RefCounted, errors: Array[String]) -> Dictionary:

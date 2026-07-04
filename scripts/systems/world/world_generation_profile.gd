@@ -41,21 +41,8 @@ static func _default_profile() -> Dictionary:
 		"profile_id": DEFAULT_PROFILE_ID,
 		"node_count_range": [4, 6],
 		"start_location_policy": "generated_wild",
-		"region_map": {
-			"size": { "width": 18, "height": 12 },
-		},
 		"available_location_kinds": ["generated_wild"],
 		"available_wild_profiles": ["plain", "forest_edge", "riverbank", "foothill"],
-		"unplaceable_region_biomes": ["sea"],
-		"biome_profile_map": {
-			"coast": ["riverbank"],
-			"plain": ["plain"],
-			"forest": ["forest_edge"],
-			"riverbank": ["riverbank"],
-			"foothill": ["foothill"],
-			"rocky": ["foothill"],
-			"sea": [],
-		},
 		"location_kind_weights": {
 			"generated_wild": 1.0,
 		},

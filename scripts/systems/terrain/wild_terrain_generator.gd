@@ -16,7 +16,6 @@ var _width: int = DEFAULT_WIDTH
 var _height: int = DEFAULT_HEIGHT
 var _profile: Dictionary = {}
 var _profile_id: String = "plain"
-var _region_patch: Dictionary = {}
 var _spawn_hint: Dictionary = {}
 var _exit_hints: Array = []
 var _warnings: Array[String] = []
@@ -76,8 +75,6 @@ func generate_blueprint(config: Dictionary) -> RefCounted:
 		"elevation_semantics": "v63_lowland_midland_highland_slope_ridge",
 		"landform_semantics": "v63_2_contiguous_lowland_upland_woodland_open_ground",
 		"profiles_are_natural_parameters": true,
-		"region_patch_applied": not _region_patch.is_empty(),
-		"region_patch": _region_patch.duplicate(true),
 		"spawn_hint_used_for_selection_only": not _spawn_hint.is_empty(),
 		"exit_hints_used_for_selection_only": _exit_hints.size(),
 	}
@@ -187,7 +184,6 @@ func _configure(config: Dictionary) -> void:
 	_seed = int(config.get("seed", 6201))
 	_profile_id = str(config.get("terrain_profile_id", config.get("profile", "plain")))
 	_profile = WildTerrainProfileScript.get_profile(_profile_id)
-	_region_patch = (config.get("region_patch", {}) as Dictionary).duplicate(true)
 	_spawn_hint = (config.get("optional_spawn_hint", {}) as Dictionary).duplicate(true)
 	_exit_hints = (config.get("optional_exit_hints", []) as Array).duplicate(true)
 	_warnings.clear()
@@ -196,7 +192,6 @@ func _configure(config: Dictionary) -> void:
 		_errors.append("unsupported wild terrain profile: %s" % _profile_id)
 	else:
 		_profile_id = str(_profile.get("id", _profile_id))
-		_apply_region_patch_to_profile()
 	_height_map = _empty_grid(0.0)
 	_moisture_map = _empty_grid(0.0)
 	_roughness_map = _empty_grid(0.0)
@@ -212,39 +207,6 @@ func _configure(config: Dictionary) -> void:
 	_blocker_map = _empty_grid(false)
 	_walk_cost_map = _empty_grid(1.0)
 
-
-func _apply_region_patch_to_profile() -> void:
-	if _region_patch.is_empty() or _profile.is_empty():
-		return
-	var center_biome := str(_region_patch.get("center_biome", ""))
-	var water_influence := clampf(float(_region_patch.get("water_influence", 0.0)), 0.0, 1.0)
-	var coast_influence := clampf(float(_region_patch.get("coast_influence", 0.0)), 0.0, 1.0)
-	var river_influence := clampf(float(_region_patch.get("river_influence", 0.0)), 0.0, 1.0)
-	var forest_influence := clampf(float(_region_patch.get("forest_influence", 0.0)), 0.0, 1.0)
-	var rock_influence := clampf(float(_region_patch.get("rock_influence", 0.0)), 0.0, 1.0)
-	var moisture := clampf(float(_region_patch.get("average_moisture", 0.5)), 0.0, 1.0)
-	var elevation := clampf(float(_region_patch.get("average_elevation", 0.5)), 0.0, 1.0)
-	var water_bias := maxf(water_influence, maxf(coast_influence * 0.72, river_influence * 0.84))
-
-	_profile["moisture_bias"] = clampf(float(_profile.get("moisture_bias", 0.5)) + (moisture - 0.5) * 0.28 + water_bias * 0.12, 0.0, 1.0)
-	_profile["vegetation_bias"] = clampf(float(_profile.get("vegetation_bias", 0.5)) + (forest_influence - 0.5) * 0.22 + maxf(0.0, moisture - 0.5) * 0.10, 0.0, 1.0)
-	_profile["rock_bias"] = clampf(float(_profile.get("rock_bias", 0.25)) + rock_influence * 0.18 + maxf(0.0, elevation - 0.55) * 0.16, 0.0, 1.0)
-	_profile["base_height"] = clampf(float(_profile.get("base_height", 0.5)) + (elevation - 0.5) * 0.14 - water_bias * 0.06, 0.0, 1.0)
-	_profile["water_level"] = clampf(float(_profile.get("water_level", 0.42)) + water_bias * 0.10 - maxf(0.0, elevation - 0.58) * 0.06, 0.0, 1.0)
-	_profile["river_influence"] = clampf(float(_profile.get("river_influence", 0.0)) + river_influence * 0.62, 0.0, 1.0)
-	_profile["pond_influence"] = clampf(float(_profile.get("pond_influence", 0.0)) + water_bias * 0.24, 0.0, 1.0)
-	_profile["tree_density"] = clampf(float(_profile.get("tree_density", 0.0)) + forest_influence * 0.055 - rock_influence * 0.020, 0.0, 0.35)
-	_profile["rock_density"] = clampf(float(_profile.get("rock_density", 0.0)) + rock_influence * 0.070 + maxf(0.0, elevation - 0.55) * 0.045, 0.0, 0.35)
-	_profile["herb_density"] = clampf(float(_profile.get("herb_density", 0.0)) + maxf(0.0, moisture - 0.50) * 0.022, 0.0, 0.18)
-	if center_biome == "foothill" or center_biome == "rocky":
-		_profile["slope_threshold"] = maxf(0.010, float(_profile.get("slope_threshold", 0.016)) - 0.003)
-		_profile["ledge_block_chance"] = clampf(float(_profile.get("ledge_block_chance", 0.04)) + 0.035, 0.0, 0.24)
-	if center_biome == "coast" or coast_influence >= 0.20:
-		_profile["mud_moisture_threshold"] = minf(float(_profile.get("mud_moisture_threshold", 0.56)), 0.52)
-	if center_biome == "forest":
-		_profile["woodland_mass_threshold"] = minf(float(_profile.get("woodland_mass_threshold", 0.55)), 0.48)
-
-
 func _failed_blueprint() -> RefCounted:
 	var blueprint: RefCounted = WildTerrainBlueprintScript.new()
 	blueprint.width = _width
@@ -255,16 +217,12 @@ func _failed_blueprint() -> RefCounted:
 	blueprint.generation_metadata = {
 		"generator": "wild_terrain",
 		"algorithm": "failed_before_layer_generation",
-		"region_patch_applied": not _region_patch.is_empty(),
-		"region_patch": _region_patch.duplicate(true),
 		"generation_errors": _errors.duplicate(),
 	}
 	blueprint.debug_summary = {
 		"seed": _seed,
 		"profile": _profile_id,
 		"size": { "width": _width, "height": _height },
-		"region_patch_applied": not _region_patch.is_empty(),
-		"region_patch": _region_patch.duplicate(true),
 		"generation_errors": _errors.duplicate(),
 	}
 	return blueprint
@@ -955,8 +913,6 @@ func _build_debug_summary(
 		"object_counts": object_counts,
 		"spawn_candidate_count": spawn_candidates.size(),
 		"exit_candidate_count": exit_candidates.size(),
-		"region_patch_applied": not _region_patch.is_empty(),
-		"region_patch": _region_patch.duplicate(true),
 		"generation_warnings": _warnings.duplicate(),
 		"generation_errors": _errors.duplicate(),
 	}

@@ -2,21 +2,8 @@
   "profile_id": "temperate_frontier",
   "node_count_range": [5, 8],
   "start_location_policy": "generated_wild",
-  "region_map": {
-    "size": { "width": 20, "height": 14 }
-  },
   "available_location_kinds": ["generated_wild"],
   "available_wild_profiles": ["plain", "forest_edge", "riverbank", "foothill"],
-  "unplaceable_region_biomes": ["sea"],
-  "biome_profile_map": {
-    "coast": ["riverbank"],
-    "plain": ["plain"],
-    "forest": ["forest_edge"],
-    "riverbank": ["riverbank"],
-    "foothill": ["foothill"],
-    "rocky": ["foothill"],
-    "sea": []
-  },
   "location_kind_weights": {
     "generated_wild": 1.0
   },

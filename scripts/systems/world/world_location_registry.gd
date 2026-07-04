@@ -86,12 +86,6 @@ func resolve_location(graph: Variant, runtime: Variant, location_id: String) -> 
 		"scene_path": _scene_path_for_spec(spec),
 		"data_path": str(spec.get("data_path", "")),
 	}
-	if spec.has("region_position"):
-		metadata["region_position"] = (spec.get("region_position", {}) as Dictionary).duplicate(true)
-	if spec.has("region_biome"):
-		metadata["region_biome"] = str(spec.get("region_biome", ""))
-	if spec.has("region_patch"):
-		metadata["region_patch"] = (spec.get("region_patch", {}) as Dictionary).duplicate(true)
 	runtime.register_location(location_id, location_data, metadata, generated_or_loaded == "generated")
 
 	return {
@@ -271,13 +265,6 @@ func _wild_source_data(graph: Variant, spec: Dictionary) -> Dictionary:
 		generator_data["terrain_profile_id"] = str(spec.get("generator_profile_id", ""))
 	if spec.has("size"):
 		generator_data["size"] = (spec.get("size", {}) as Dictionary).duplicate(true)
-	if spec.has("region_patch"):
-		generator_data["region_patch"] = (spec.get("region_patch", {}) as Dictionary).duplicate(true)
-		source_data["region_patch"] = (spec.get("region_patch", {}) as Dictionary).duplicate(true)
-	if spec.has("region_biome"):
-		source_data["region_biome"] = str(spec.get("region_biome", ""))
-	if spec.has("region_position"):
-		source_data["region_position"] = (spec.get("region_position", {}) as Dictionary).duplicate(true)
 	var exit_hints := _wild_exit_hints_from_graph(graph, str(spec.get("location_id", "")))
 	if not exit_hints.is_empty():
 		generator_data["optional_exit_hints"] = exit_hints
@@ -349,12 +336,6 @@ func _wild_generation_context(spec: Dictionary) -> Dictionary:
 		context["terrain_profile_id"] = str(spec.get("generator_profile_id", ""))
 	if spec.has("size"):
 		context["size"] = (spec.get("size", {}) as Dictionary).duplicate(true)
-	if spec.has("region_patch"):
-		context["region_patch"] = (spec.get("region_patch", {}) as Dictionary).duplicate(true)
-	if spec.has("region_biome"):
-		context["region_biome"] = str(spec.get("region_biome", ""))
-	if spec.has("region_position"):
-		context["region_position"] = (spec.get("region_position", {}) as Dictionary).duplicate(true)
 	return context
 
 

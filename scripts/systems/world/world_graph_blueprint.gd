@@ -1,8 +1,6 @@
 class_name WorldGraphBlueprint
 extends RefCounted
 
-const RegionMapGeneratorScript := preload("res://scripts/systems/world/region_map_generator.gd")
-
 var world_data: Dictionary = {}
 
 
@@ -31,12 +29,6 @@ func validate() -> Array[String]:
 		errors.append("world_id is missing")
 	if str(world_data.get("start_location_id", "")).is_empty():
 		errors.append("start_location_id is missing")
-	var region_map: Dictionary = world_data.get("region_map", {}) as Dictionary
-	if region_map.is_empty():
-		errors.append("region_map is missing")
-	else:
-		var region_generator: RefCounted = RegionMapGeneratorScript.new()
-		errors.append_array(region_generator.validate_region_map(region_map))
 
 	for location_value in locations:
 		var location: Dictionary = location_value as Dictionary
@@ -55,12 +47,6 @@ func validate() -> Array[String]:
 				errors.append("generated_wild node missing seed: %s" % location_id)
 			if (location.get("size", {}) as Dictionary).is_empty():
 				errors.append("generated_wild node missing size: %s" % location_id)
-			if (location.get("region_position", {}) as Dictionary).is_empty():
-				errors.append("generated_wild node missing region_position: %s" % location_id)
-			if str(location.get("region_biome", "")).is_empty():
-				errors.append("generated_wild node missing region_biome: %s" % location_id)
-			if (location.get("region_patch", {}) as Dictionary).is_empty():
-				errors.append("generated_wild node missing region_patch: %s" % location_id)
 
 	for spawn_value in spawns:
 		var spawn: Dictionary = spawn_value as Dictionary
@@ -94,16 +80,6 @@ func validate() -> Array[String]:
 			errors.append("transition edge references unknown target location: %s/%s" % [exit_id, target_location_id])
 		if not spawn_keys.has("%s::%s" % [target_location_id, target_spawn_id]):
 			errors.append("transition edge references unknown target spawn: %s/%s" % [target_location_id, target_spawn_id])
-		if (edge.get("from_region_position", {}) as Dictionary).is_empty():
-			errors.append("transition edge missing from_region_position: %s" % exit_id)
-		if (edge.get("to_region_position", {}) as Dictionary).is_empty():
-			errors.append("transition edge missing to_region_position: %s" % exit_id)
-		if str(edge.get("from_biome", "")).is_empty():
-			errors.append("transition edge missing from_biome: %s" % exit_id)
-		if str(edge.get("to_biome", "")).is_empty():
-			errors.append("transition edge missing to_biome: %s" % exit_id)
-		if str(edge.get("transition_kind", "")).is_empty():
-			errors.append("transition edge missing transition_kind: %s" % exit_id)
 
 	if not location_ids.has(str(world_data.get("start_location_id", ""))):
 		errors.append("start_location_id references unknown location")
