@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "region_id": "region.frontier.town_region.oak_crossing.rg_0001",
+  "region_slug": "oak_crossing",
+  "display_name": "Oak Crossing",
+  "region_type": "town_region",
+  "seed": 6701,
+  "coarse_context": {
+    "terrain_context": "plain",
+    "political_context": "kingdom",
+    "scale": "small"
+  },
+  "required_roles": [
+    "settlement_core",
+    "main_exit",
+    "support_area"
+  ],
+  "optional_role_pool": [
+    "farmland",
+    "landmark",
+    "market",
+    "shrine",
+    "forest_boundary",
+    "river_edge"
+  ],
+  "external_connection_intents": [
+    {
+      "intent_id": "east_road",
+      "direction_hint": "east",
+      "travel_type": "road",
+      "exit_style": "road_exit"
+    }
+  ]
+}

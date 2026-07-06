@@ -47,6 +47,10 @@ a usable skeleton toward presentable generated places:
   scene-path door logic.
 - formal ground rendering through a TileMapLayer-backed ground renderer instead
   of whole-map DebugTileRenderer drawing in the normal location path.
+- a v67.1 RegionInput schema and compiler entry that takes over new-game startup
+  from the older direct world graph generator path, fails explicitly at the
+  v67.2 semantic-role boundary, and removes the old `test_world.json` fixture
+  from main data.
 
 ## Battle Deepening Roadmap
 
@@ -71,6 +75,7 @@ a usable skeleton toward presentable generated places:
 | v65 | Complete | `doc/phase_65_world_graph_generator.md` | Add a seed-driven local world graph generator with region profiles, generated location node specs, spawn points, paired transition edges, graph compilation, debug summaries, and generated-wild materialization through the existing world transition service. |
 | v65.1 | Complete | `doc/phase_65_1_world_graph_generator_cleanup.md` | Remove the v65 fixture loop and fallback paths: generated worlds no longer start from test village data, generated edges no longer use fixed gate ids, unsupported location kinds fail explicitly, and world-active transitions do not continue through legacy scene paths. |
 | v66 | Complete | `doc/phase_66_tile_map_ground_renderer.md` | Move formal location ground rendering to a TileMapLayer-backed renderer, keep DebugTileRenderer debug-only, expose rebuild/update statistics, and support single-cell terrain updates without player or camera movement causing full ground rebuilds. |
+| v67.1 | Complete | `doc/phase_67_1_region_input_compiler_entry.md` | Add RegionInput schema validation and the Region -> Location Graph compiler entry, move new-game startup to that entry, delete the old `test_world.json` graph fixture, and fail explicitly at the v67.2 semantic-role boundary instead of using an old fallback. |
 
 ## Dependency Order
 
@@ -94,6 +99,7 @@ v50 skill effect data model
 -> v65 local world graph generation
 -> v65.1 world graph generator cleanup
 -> v66 TileMapLayer ground rendering
+-> v67.1 RegionInput compiler entry
 ```
 
 ## Minimum Tactical Slice

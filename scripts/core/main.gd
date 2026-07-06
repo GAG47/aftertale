@@ -1,10 +1,8 @@
 extends Node
 
-const WorldGraphGeneratorScript := preload("res://scripts/systems/world/world_graph_generator.gd")
+const RegionLocationGraphCompilerScript := preload("res://scripts/systems/regions/region_location_graph_compiler.gd")
 
-const DEFAULT_WORLD_ID := "generated_default_world"
-const DEFAULT_WORLD_SEED := 6501
-const DEFAULT_REGION_PROFILE_ID := "temperate_frontier"
+const DEFAULT_REGION_INPUT_PATH := "res://data/regions/frontier_town_region.json"
 
 @onready var world_root: Node = $WorldRoot
 @onready var ui_root: UIRoot = $UILayer/UIRoot
@@ -36,40 +34,27 @@ func _start_new_game() -> void:
 	TimeManager.set_paused(false)
 
 	var world_service: Variant = _world_transition_service()
-	var world_result: Dictionary = _load_default_world(world_service) if world_service != null else {
-		"success": false,
-		"error": "WorldTransitionService autoload is unavailable.",
-	}
-	if not bool(world_result.get("success", false)):
-		push_error("World load failed: %s" % str(world_result.get("error", "")))
+	if world_service != null:
+		world_service.reset_world()
+
+	var compile_result: Dictionary = _compile_default_region_location_graph()
+	if not bool(compile_result.get("success", false)):
+		push_error("Region Location Graph compile failed: %s" % str(compile_result.get("errors", [])))
 		return
-	var start_result: Dictionary = world_service.start_world(true)
-	if not bool(start_result.get("success", false)):
-		push_error("World start failed: %s" % str(start_result.get("error", "")))
+
+	push_error("Region Location Graph compiler returned success before the v67.5 runtime adapter exists.")
 
 
-func _load_default_world(world_service: Variant) -> Dictionary:
-	var generator: RefCounted = WorldGraphGeneratorScript.new()
-	var generation_result: Dictionary = generator.generate_world_data_result({
-		"world_id": DEFAULT_WORLD_ID,
-		"world_seed": DEFAULT_WORLD_SEED,
-		"region_profile_id": DEFAULT_REGION_PROFILE_ID,
-	})
-	if not bool(generation_result.get("success", false)):
+func _compile_default_region_location_graph() -> Dictionary:
+	var region_input: Dictionary = DefinitionLoader.load_json_resource(DEFAULT_REGION_INPUT_PATH, "region input")
+	if region_input.is_empty():
 		return {
 			"success": false,
-			"error": "Default world generation failed: %s" % str(generation_result.get("errors", [])),
-			"warnings": generation_result.get("warnings", []),
+			"errors": ["Default RegionInput is missing or invalid JSON: %s" % DEFAULT_REGION_INPUT_PATH],
+			"warnings": [],
 		}
-	var world_data: Dictionary = generation_result.get("world_data", {}) as Dictionary
-	var result: Dictionary = world_service.load_world_from_data(world_data)
-	if not bool(result.get("success", false)):
-		return {
-			"success": false,
-			"error": str(result.get("error", "")),
-			"warnings": result.get("warnings", []),
-		}
-	return result
+	var compiler: RefCounted = RegionLocationGraphCompilerScript.new()
+	return compiler.compile_to_location_graph_result(region_input)
 
 
 func _world_transition_service() -> Variant:
