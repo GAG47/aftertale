@@ -14,7 +14,7 @@ func _ready() -> void:
 func _run() -> void:
 	if not _assert_default_region_input_valid():
 		return
-	if not _assert_compile_entry_exposes_v67_2_boundary():
+	if not _assert_compile_entry_exposes_current_location_node_boundary():
 		return
 	if not _assert_invalid_inputs_fail():
 		return
@@ -42,17 +42,17 @@ func _assert_default_region_input_valid() -> bool:
 	return true
 
 
-func _assert_compile_entry_exposes_v67_2_boundary() -> bool:
+func _assert_compile_entry_exposes_current_location_node_boundary() -> bool:
 	var compiler: RefCounted = RegionLocationGraphCompilerScript.new()
 	var result: Dictionary = compiler.compile_to_location_graph_result(_load_json(DEFAULT_REGION_INPUT_PATH))
 	if bool(result.get("success", false)):
-		_fail("v67.1 compiler must not pretend to produce a Location Graph before v67.2")
+		_fail("v67.1 compiler entry must not pretend to produce a Location Graph before role-to-node support")
 		return false
 	var errors_text := str(result.get("errors", []))
-	if not errors_text.contains("v67.2 semantic role expansion is not implemented"):
-		_fail("v67.1 compiler did not expose the v67.2 boundary: %s" % errors_text)
+	if not errors_text.contains("v67.3 role-to-location-node expansion is not implemented"):
+		_fail("v67.1 compiler entry did not expose the current role-to-node boundary: %s" % errors_text)
 		return false
-	if str(result.get("stage", "")) != "semantic_roles_to_location_graph":
+	if str(result.get("stage", "")) != "semantic_roles_to_location_nodes":
 		_fail("v67.1 compiler failed at the wrong stage: %s" % str(result.get("stage", "")))
 		return false
 	return true

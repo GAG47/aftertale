@@ -25,14 +25,6 @@ func _ready() -> void:
 
 
 func _start_new_game() -> void:
-	GameState.start_new_session()
-	NpcScheduleSystem.reset_schedule_state()
-	PartySystem.reset_party("debug_player")
-	GameState.set_scene_context("boot", "none")
-
-	TimeManager.reset()
-	TimeManager.set_paused(false)
-
 	var world_service: Variant = _world_transition_service()
 	if world_service != null:
 		world_service.reset_world()
@@ -41,6 +33,14 @@ func _start_new_game() -> void:
 	if not bool(compile_result.get("success", false)):
 		push_error("Region Location Graph compile failed: %s" % str(compile_result.get("errors", [])))
 		return
+
+	GameState.start_new_session()
+	NpcScheduleSystem.reset_schedule_state()
+	PartySystem.reset_party("debug_player")
+	GameState.set_scene_context("boot", "none")
+
+	TimeManager.reset()
+	TimeManager.set_paused(false)
 
 	push_error("Region Location Graph compiler returned success before the v67.5 runtime adapter exists.")
 

@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "region_id": "region.frontier.forest_region.glimmerwood.rg_0002",
+  "region_slug": "glimmerwood",
+  "display_name": "Glimmerwood",
+  "region_type": "forest_region",
+  "seed": 6721,
+  "coarse_context": {
+    "terrain_context": "forest",
+    "political_context": "wilderness",
+    "scale": "small"
+  },
+  "required_roles": [
+    "entrance",
+    "common_woods",
+    "inner_area"
+  ],
+  "optional_role_pool": [
+    "clearing",
+    "hut",
+    "ruin",
+    "stream",
+    "hidden_grove",
+    "forest_shrine"
+  ],
+  "forced_role_specs": [],
+  "external_connection_intents": [
+    {
+      "intent_id": "west_path",
+      "direction_hint": "west",
+      "travel_type": "path",
+      "exit_style": "forest_gap"
+    }
+  ]
+}

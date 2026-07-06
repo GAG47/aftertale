@@ -74,6 +74,7 @@ static func validate_data(data: Dictionary) -> Array[String]:
 
 	errors.append_array(_validate_role_list(data, "required_roles", true))
 	errors.append_array(_validate_role_list(data, "optional_role_pool", false))
+	errors.append_array(_validate_forced_role_specs(data.get("forced_role_specs", null)))
 	errors.append_array(_validate_external_connection_intents(data.get("external_connection_intents", null)))
 	return errors
 
@@ -119,15 +120,51 @@ static func _validate_role_list(data: Dictionary, key: String, require_non_empty
 		errors.append("RegionInput.%s must contain at least one role" % key)
 	var seen: Dictionary = {}
 	for index in range(values.size()):
-		var role_id := _role_id(values[index])
-		if role_id.is_empty():
-			errors.append("RegionInput.%s[%d] is missing a role id" % [key, index])
+		var role_type := _role_type(values[index])
+		if role_type.is_empty():
+			errors.append("RegionInput.%s[%d] is missing a role_type" % [key, index])
 			continue
-		if not _is_system_token(role_id):
-			errors.append("RegionInput.%s[%d] role id must be a lowercase system token: %s" % [key, index, role_id])
-		if seen.has(role_id):
-			errors.append("RegionInput.%s contains duplicate role id: %s" % [key, role_id])
-		seen[role_id] = true
+		if not _is_system_token(role_type):
+			errors.append("RegionInput.%s[%d] role_type must be a lowercase system token: %s" % [key, index, role_type])
+		if seen.has(role_type):
+			errors.append("RegionInput.%s contains duplicate role_type: %s" % [key, role_type])
+		seen[role_type] = true
+	return errors
+
+
+static func _validate_forced_role_specs(value: Variant) -> Array[String]:
+	var errors: Array[String] = []
+	if value == null:
+		errors.append("RegionInput.forced_role_specs is missing")
+		return errors
+	if not (value is Array):
+		errors.append("RegionInput.forced_role_specs must be an array")
+		return errors
+	var specs: Array = value as Array
+	var seen: Dictionary = {}
+	for index in range(specs.size()):
+		if not (specs[index] is Dictionary):
+			errors.append("RegionInput.forced_role_specs[%d] must be an object" % index)
+			continue
+		var spec: Dictionary = specs[index] as Dictionary
+		if spec.has("role_id"):
+			errors.append("RegionInput.forced_role_specs[%d] must not include role_id; semantic role ids are compiler output" % index)
+		var role_type := str(spec.get("role_type", ""))
+		var role_slug := str(spec.get("role_slug", ""))
+		if role_type.is_empty():
+			errors.append("RegionInput.forced_role_specs[%d].role_type is missing" % index)
+		elif not _is_system_token(role_type):
+			errors.append("RegionInput.forced_role_specs[%d].role_type must be a lowercase system token: %s" % [index, role_type])
+		if role_slug.is_empty():
+			errors.append("RegionInput.forced_role_specs[%d].role_slug is missing" % index)
+		elif not _is_system_token(role_slug):
+			errors.append("RegionInput.forced_role_specs[%d].role_slug must be a lowercase system token: %s" % [index, role_slug])
+		if spec.has("role_tags") and not _string_array_is_valid(spec.get("role_tags")):
+			errors.append("RegionInput.forced_role_specs[%d].role_tags must be an array of lowercase system tokens" % index)
+		if not role_slug.is_empty():
+			if seen.has(role_slug):
+				errors.append("RegionInput.forced_role_specs contains duplicate role_slug: %s" % role_slug)
+			seen[role_slug] = true
 	return errors
 
 
@@ -160,12 +197,12 @@ static func _validate_external_connection_intents(value: Variant) -> Array[Strin
 	return errors
 
 
-static func _role_id(value: Variant) -> String:
+static func _role_type(value: Variant) -> String:
 	if value is String:
 		return str(value)
 	if value is Dictionary:
 		var role: Dictionary = value as Dictionary
-		return str(role.get("role_id", role.get("id", "")))
+		return str(role.get("role_type", ""))
 	return ""
 
 
@@ -195,5 +232,15 @@ static func _is_system_token(value: String) -> bool:
 		var is_digit := code >= 48 and code <= 57
 		var is_lower := code >= 97 and code <= 122
 		if not is_digit and not is_lower and code != 95:
+			return false
+	return true
+
+
+static func _string_array_is_valid(value: Variant) -> bool:
+	if not (value is Array):
+		return false
+	for item in (value as Array):
+		var text := str(item)
+		if text.is_empty() or not _is_system_token(text):
 			return false
 	return true

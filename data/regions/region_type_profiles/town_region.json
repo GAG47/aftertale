@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "region_type": "town_region",
+  "required_role_types": [
+    "settlement_core",
+    "main_exit",
+    "support_area"
+  ],
+  "optional_role_types": [
+    "farmland",
+    "landmark",
+    "market",
+    "shrine",
+    "forest_boundary",
+    "river_edge"
+  ],
+  "external_intent_role_type": "external_connection",
+  "scale_optional_counts": {
+    "small": [1, 2],
+    "medium": [2, 3],
+    "large": [3, 4]
+  },
+  "role_weights": {
+    "farmland": 1.0,
+    "landmark": 0.8,
+    "market": 0.6,
+    "shrine": 0.45,
+    "forest_boundary": 0.55,
+    "river_edge": 0.5
+  },
+  "context_weight_modifiers": {
+    "terrain_context": {
+      "plain": {
+        "farmland": 1.8,
+        "forest_boundary": 0.7
+      },
+      "forest": {
+        "forest_boundary": 1.8,
+        "farmland": 0.6
+      },
+      "river_near": {
+        "river_edge": 1.9,
+        "farmland": 1.2
+      }
+    },
+    "political_context": {
+      "kingdom": {
+        "market": 1.3,
+        "shrine": 1.1
+      },
+      "border": {
+        "forest_boundary": 1.2
+      }
+    }
+  },
+  "role_definitions": {
+    "settlement_core": {
+      "role_tags": ["core", "settlement", "social"],
+      "allowed_sources": ["required"],
+      "allow_multiple": false
+    },
+    "main_exit": {
+      "role_tags": ["boundary", "travel", "public"],
+      "allowed_sources": ["required"],
+      "allow_multiple": false
+    },
+    "support_area": {
+      "role_tags": ["support", "settlement"],
+      "allowed_sources": ["required"],
+      "allow_multiple": false
+    },
+    "farmland": {
+      "role_tags": ["resource", "food", "settlement_support"],
+      "allowed_sources": ["optional"],
+      "allow_multiple": false
+    },
+    "landmark": {
+      "role_tags": ["landmark", "memory"],
+      "allowed_sources": ["optional", "forced"],
+      "allow_multiple": true
+    },
+    "market": {
+      "role_tags": ["commerce", "social"],
+      "allowed_sources": ["optional"],
+      "allow_multiple": false
+    },
+    "shrine": {
+      "role_tags": ["landmark", "ritual"],
+      "allowed_sources": ["optional", "forced"],
+      "allow_multiple": false
+    },
+    "forest_boundary": {
+      "role_tags": ["boundary", "forest", "transition"],
+      "allowed_sources": ["optional"],
+      "allow_multiple": false
+    },
+    "river_edge": {
+      "role_tags": ["boundary", "water", "resource"],
+      "allowed_sources": ["optional"],
+      "allow_multiple": false
+    },
+    "external_connection": {
+      "role_tags": ["boundary", "external"],
+      "allowed_sources": ["external"],
+      "allow_multiple": true
+    }
+  }
+}

@@ -94,3 +94,6 @@ scripts/tests/v67_1_region_input_compiler_entry_smoke.tscn
 On this local Windows Godot build, direct `--script` and `--scene` test launches
 crashed in the engine before project code ran, while normal project startup
 completed and reported the expected compiler-boundary error.
+
+Later v67.2 work advances the current runtime boundary to v67.3. This file
+records the v67.1 state.

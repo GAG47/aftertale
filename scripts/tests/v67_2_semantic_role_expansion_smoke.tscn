@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/tests/v67_2_semantic_role_expansion_smoke.gd" id="1"]
+
+[node name="V672SemanticRoleExpansionSmoke" type="Node"]
+script = ExtResource("1")
