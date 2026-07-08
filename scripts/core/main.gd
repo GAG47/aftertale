@@ -2,7 +2,11 @@ extends Node
 
 const RegionLocationGraphCompilerScript := preload("res://scripts/systems/regions/region_location_graph_compiler.gd")
 
-const DEFAULT_REGION_INPUT_PATH := "res://data/regions/frontier_town_region.json"
+const DEFAULT_REGION_INPUT_PATHS := [
+	"res://data/regions/frontier_town_region.json",
+	"res://data/regions/frontier_forest_region.json",
+]
+const DEFAULT_EDGE_PROFILE_PATH := "res://data/location_graph/edge_contract_profiles/default.json"
 
 @onready var world_root: Node = $WorldRoot
 @onready var ui_root: UIRoot = $UILayer/UIRoot
@@ -31,9 +35,17 @@ func _start_new_game() -> void:
 
 	var compile_result: Dictionary = _compile_default_region_location_graph()
 	if not bool(compile_result.get("success", false)):
-		var location_node_result: Dictionary = compile_result.get("location_node_result", {}) as Dictionary
-		if not location_node_result.is_empty():
-			ui_root.set_raw_debug_data(location_node_result)
+		var edge_contract_result: Dictionary = compile_result.get("edge_contract_result", {}) as Dictionary
+		if not edge_contract_result.is_empty():
+			ui_root.set_raw_debug_data(edge_contract_result)
+		else:
+			var location_node_results: Array = compile_result.get("location_node_results", []) as Array
+			if not location_node_results.is_empty() and location_node_results[0] is Dictionary:
+				ui_root.set_raw_debug_data(location_node_results[0] as Dictionary)
+			else:
+				var location_node_result: Dictionary = compile_result.get("location_node_result", {}) as Dictionary
+				if not location_node_result.is_empty():
+					ui_root.set_raw_debug_data(location_node_result)
 		push_error("Region Location Graph compile failed: %s" % str(compile_result.get("errors", [])))
 		return
 
@@ -49,15 +61,18 @@ func _start_new_game() -> void:
 
 
 func _compile_default_region_location_graph() -> Dictionary:
-	var region_input: Dictionary = DefinitionLoader.load_json_resource(DEFAULT_REGION_INPUT_PATH, "region input")
-	if region_input.is_empty():
-		return {
-			"success": false,
-			"errors": ["Default RegionInput is missing or invalid JSON: %s" % DEFAULT_REGION_INPUT_PATH],
-			"warnings": [],
-		}
+	var region_inputs: Array[Dictionary] = []
+	for resource_path in DEFAULT_REGION_INPUT_PATHS:
+		var region_input: Dictionary = DefinitionLoader.load_json_resource(resource_path, "region input")
+		if region_input.is_empty():
+			return {
+				"success": false,
+				"errors": ["Default RegionInput is missing or invalid JSON: %s" % resource_path],
+				"warnings": [],
+			}
+		region_inputs.append(region_input)
 	var compiler: RefCounted = RegionLocationGraphCompilerScript.new()
-	return compiler.compile_to_location_graph_result(region_input)
+	return compiler.compile_to_location_graph_result(region_inputs, DEFAULT_EDGE_PROFILE_PATH)
 
 
 func _world_transition_service() -> Variant:

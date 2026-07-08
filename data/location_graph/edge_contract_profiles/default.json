@@ -1,0 +1,327 @@
+{
+  "schema_version": 1,
+  "profile_id": "default_location_edges",
+  "allowed_edge_types": [
+    "road",
+    "path",
+    "hidden_path"
+  ],
+  "allowed_access_rules": [
+    "always"
+  ],
+  "allowed_traversal_tags": [
+    "walk"
+  ],
+  "allowed_validation_flags": [
+    "required_connection",
+    "hidden_connection"
+  ],
+  "rules": [
+    {
+      "rule_id": "town_core_to_gate",
+      "activation": "required",
+      "match_mode": "unique_pair",
+      "from_selector": {
+        "location_types": ["town_center"]
+      },
+      "to_selector": {
+        "location_types": ["road_gate"]
+      },
+      "edge": {
+        "edge_type": "road",
+        "bidirectional": true,
+        "access_rule": "always",
+        "traversal_tags": ["walk"],
+        "validation_flags": ["required_connection"]
+      }
+    },
+    {
+      "rule_id": "town_core_to_support",
+      "activation": "required",
+      "match_mode": "unique_pair",
+      "from_selector": {
+        "location_types": ["town_center"]
+      },
+      "to_selector": {
+        "location_types": ["settlement_support"]
+      },
+      "edge": {
+        "edge_type": "path",
+        "bidirectional": true,
+        "access_rule": "always",
+        "traversal_tags": ["walk"],
+        "validation_flags": ["required_connection"]
+      }
+    },
+    {
+      "rule_id": "town_core_to_farmland",
+      "activation": "when_both_present",
+      "match_mode": "one_to_each",
+      "from_selector": {
+        "location_types": ["town_center"]
+      },
+      "to_selector": {
+        "location_types": ["farmland"]
+      },
+      "edge": {
+        "edge_type": "path",
+        "bidirectional": true,
+        "access_rule": "always",
+        "traversal_tags": ["walk"],
+        "validation_flags": []
+      }
+    },
+    {
+      "rule_id": "town_core_to_landmark",
+      "activation": "when_both_present",
+      "match_mode": "one_to_each",
+      "from_selector": {
+        "location_types": ["town_center"]
+      },
+      "to_selector": {
+        "location_types": ["landmark_site"]
+      },
+      "edge": {
+        "edge_type": "path",
+        "bidirectional": true,
+        "access_rule": "always",
+        "traversal_tags": ["walk"],
+        "validation_flags": []
+      }
+    },
+    {
+      "rule_id": "town_core_to_market",
+      "activation": "when_both_present",
+      "match_mode": "unique_pair",
+      "from_selector": {
+        "location_types": ["town_center"]
+      },
+      "to_selector": {
+        "location_types": ["market_square"]
+      },
+      "edge": {
+        "edge_type": "road",
+        "bidirectional": true,
+        "access_rule": "always",
+        "traversal_tags": ["walk"],
+        "validation_flags": []
+      }
+    },
+    {
+      "rule_id": "town_core_to_shrine",
+      "activation": "when_both_present",
+      "match_mode": "unique_pair",
+      "from_selector": {
+        "location_types": ["town_center"]
+      },
+      "to_selector": {
+        "location_types": ["shrine_site"]
+      },
+      "edge": {
+        "edge_type": "path",
+        "bidirectional": true,
+        "access_rule": "always",
+        "traversal_tags": ["walk"],
+        "validation_flags": []
+      }
+    },
+    {
+      "rule_id": "town_gate_to_forest_edge",
+      "activation": "when_both_present",
+      "match_mode": "unique_pair",
+      "from_selector": {
+        "location_types": ["road_gate"]
+      },
+      "to_selector": {
+        "location_types": ["forest_edge"]
+      },
+      "edge": {
+        "edge_type": "path",
+        "bidirectional": true,
+        "access_rule": "always",
+        "traversal_tags": ["walk"],
+        "validation_flags": []
+      }
+    },
+    {
+      "rule_id": "town_core_to_riverbank",
+      "activation": "when_both_present",
+      "match_mode": "unique_pair",
+      "from_selector": {
+        "location_types": ["town_center"]
+      },
+      "to_selector": {
+        "location_types": ["riverbank"]
+      },
+      "edge": {
+        "edge_type": "path",
+        "bidirectional": true,
+        "access_rule": "always",
+        "traversal_tags": ["walk"],
+        "validation_flags": []
+      }
+    },
+    {
+      "rule_id": "forest_entrance_to_common_woods",
+      "activation": "required",
+      "match_mode": "unique_pair",
+      "from_selector": {
+        "location_types": ["forest_entrance"]
+      },
+      "to_selector": {
+        "location_types": ["common_woods"]
+      },
+      "edge": {
+        "edge_type": "path",
+        "bidirectional": true,
+        "access_rule": "always",
+        "traversal_tags": ["walk"],
+        "validation_flags": ["required_connection"]
+      }
+    },
+    {
+      "rule_id": "common_woods_to_deep_forest",
+      "activation": "required",
+      "match_mode": "unique_pair",
+      "from_selector": {
+        "location_types": ["common_woods"]
+      },
+      "to_selector": {
+        "location_types": ["deep_forest"]
+      },
+      "edge": {
+        "edge_type": "path",
+        "bidirectional": true,
+        "access_rule": "always",
+        "traversal_tags": ["walk"],
+        "validation_flags": ["required_connection"]
+      }
+    },
+    {
+      "rule_id": "common_woods_to_clearing",
+      "activation": "when_both_present",
+      "match_mode": "one_to_each",
+      "from_selector": {
+        "location_types": ["common_woods"]
+      },
+      "to_selector": {
+        "location_types": ["forest_clearing"]
+      },
+      "edge": {
+        "edge_type": "path",
+        "bidirectional": true,
+        "access_rule": "always",
+        "traversal_tags": ["walk"],
+        "validation_flags": []
+      }
+    },
+    {
+      "rule_id": "deep_forest_to_hut",
+      "activation": "when_both_present",
+      "match_mode": "one_to_each",
+      "from_selector": {
+        "location_types": ["deep_forest"]
+      },
+      "to_selector": {
+        "location_types": ["hut_site"]
+      },
+      "edge": {
+        "edge_type": "path",
+        "bidirectional": true,
+        "access_rule": "always",
+        "traversal_tags": ["walk"],
+        "validation_flags": []
+      }
+    },
+    {
+      "rule_id": "deep_forest_to_ruin",
+      "activation": "when_both_present",
+      "match_mode": "one_to_each",
+      "from_selector": {
+        "location_types": ["deep_forest"]
+      },
+      "to_selector": {
+        "location_types": ["ruin_site"]
+      },
+      "edge": {
+        "edge_type": "path",
+        "bidirectional": true,
+        "access_rule": "always",
+        "traversal_tags": ["walk"],
+        "validation_flags": []
+      }
+    },
+    {
+      "rule_id": "common_woods_to_stream",
+      "activation": "when_both_present",
+      "match_mode": "one_to_each",
+      "from_selector": {
+        "location_types": ["common_woods"]
+      },
+      "to_selector": {
+        "location_types": ["forest_stream"]
+      },
+      "edge": {
+        "edge_type": "path",
+        "bidirectional": true,
+        "access_rule": "always",
+        "traversal_tags": ["walk"],
+        "validation_flags": []
+      }
+    },
+    {
+      "rule_id": "deep_forest_to_hidden_grove",
+      "activation": "when_both_present",
+      "match_mode": "one_to_each",
+      "from_selector": {
+        "location_types": ["deep_forest"]
+      },
+      "to_selector": {
+        "location_types": ["hidden_grove"]
+      },
+      "edge": {
+        "edge_type": "hidden_path",
+        "bidirectional": true,
+        "access_rule": "always",
+        "traversal_tags": ["walk"],
+        "validation_flags": ["hidden_connection"]
+      }
+    },
+    {
+      "rule_id": "deep_forest_to_shrine",
+      "activation": "when_both_present",
+      "match_mode": "one_to_each",
+      "from_selector": {
+        "location_types": ["deep_forest"]
+      },
+      "to_selector": {
+        "location_types": ["forest_shrine_site"]
+      },
+      "edge": {
+        "edge_type": "path",
+        "bidirectional": true,
+        "access_rule": "always",
+        "traversal_tags": ["walk"],
+        "validation_flags": []
+      }
+    },
+    {
+      "rule_id": "road_gate_to_forest_entrance",
+      "activation": "when_both_present",
+      "match_mode": "unique_pair",
+      "from_selector": {
+        "location_types": ["road_gate"]
+      },
+      "to_selector": {
+        "location_types": ["forest_entrance"]
+      },
+      "edge": {
+        "edge_type": "road",
+        "bidirectional": true,
+        "access_rule": "always",
+        "traversal_tags": ["walk"],
+        "validation_flags": []
+      }
+    }
+  ]
+}

@@ -4,7 +4,8 @@ extends RefCounted
 const RegionInputScript := preload("res://scripts/systems/regions/region_input.gd")
 const SemanticRoleExpanderScript := preload("res://scripts/systems/regions/semantic_role_expander.gd")
 const LocationNodeExpanderScript := preload("res://scripts/systems/regions/location_node_expander.gd")
-const COMPILER_VERSION := "v67.3"
+const EdgeContractGeneratorScript := preload("res://scripts/systems/regions/edge_contract_generator.gd")
+const COMPILER_VERSION := "v67.4"
 
 
 func validate_region_input_result(input: Dictionary) -> Dictionary:
@@ -34,14 +35,35 @@ func compile_location_nodes_result(input: Dictionary) -> Dictionary:
 	return node_expander.expand_locations_result(role_result.get("semantic_role_result", {}) as Dictionary)
 
 
-func compile_to_location_graph_result(input: Dictionary) -> Dictionary:
-	var node_result := compile_location_nodes_result(input)
-	if not bool(node_result.get("success", false)):
-		return node_result
-	return _failure("location_nodes_to_edge_contracts", [
-		"v67.4 edge contract generation is not implemented; LocationNodeResult is valid, but v67.3 cannot produce a Location Graph.",
+func compile_edge_contracts_result(inputs: Array, edge_profile_path: String) -> Dictionary:
+	if inputs.is_empty():
+		return _failure("compile_location_nodes", ["At least one RegionInput is required"], {})
+	var location_node_results: Array[Dictionary] = []
+	for index in range(inputs.size()):
+		if not (inputs[index] is Dictionary):
+			return _failure("compile_location_nodes", ["RegionInput[%d] must be an object" % index], {})
+		var node_result := compile_location_nodes_result(inputs[index] as Dictionary)
+		if not bool(node_result.get("success", false)):
+			node_result["region_input_index"] = index
+			return node_result
+		location_node_results.append((node_result.get("location_node_result", {}) as Dictionary).duplicate(true))
+	return compile_edge_contracts_from_location_nodes_result(location_node_results, edge_profile_path)
+
+
+func compile_edge_contracts_from_location_nodes_result(location_node_results: Array, edge_profile_path: String) -> Dictionary:
+	var generator: RefCounted = EdgeContractGeneratorScript.new()
+	return generator.generate_edges_result(location_node_results, edge_profile_path)
+
+
+func compile_to_location_graph_result(inputs: Array, edge_profile_path: String) -> Dictionary:
+	var edge_result := compile_edge_contracts_result(inputs, edge_profile_path)
+	if not bool(edge_result.get("success", false)):
+		return edge_result
+	return _failure("edge_contracts_to_location_graph_snapshot", [
+		"v67.5 Location Graph Snapshot generation is not implemented; EdgeContractResult is valid, but v67.4 does not produce a Location Graph Snapshot.",
 	], {
-		"location_node_result": node_result.get("location_node_result", {}),
+		"edge_contract_result": edge_result.get("edge_contract_result", {}),
+		"location_node_results": edge_result.get("location_node_results", []),
 	})
 
 
