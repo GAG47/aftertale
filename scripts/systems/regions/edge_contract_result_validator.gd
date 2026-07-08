@@ -1,6 +1,8 @@
 class_name EdgeContractResultValidator
 extends RefCounted
 
+const CanonicalDataSerializerScript := preload("res://scripts/systems/regions/canonical_data_serializer.gd")
+
 const SCHEMA_VERSION := 1
 const RESULT_KEYS := {
 	"schema_version": true,
@@ -11,6 +13,7 @@ const RESULT_KEYS := {
 	"location_node_set_hash": true,
 	"source_location_node_hashes": true,
 	"edge_contracts": true,
+	"result_hash": true,
 }
 const SOURCE_HASH_KEYS := {
 	"region_id": true,
@@ -40,9 +43,13 @@ func validate(result: Dictionary, location_node_results: Array, profile: RefCoun
 		errors.append("EdgeContractResult.schema_version is unsupported: %s" % str(result.get("schema_version", "")))
 	if str(result.get("stage", "")) != "edge_contracts":
 		errors.append("EdgeContractResult.stage must be edge_contracts")
-	for key in ["compiler_version", "profile_id", "profile_path", "location_node_set_hash"]:
+	for key in ["compiler_version", "profile_id", "profile_path", "location_node_set_hash", "result_hash"]:
 		if str(result.get(key, "")).is_empty():
 			errors.append("EdgeContractResult.%s is missing" % key)
+	var declared_result_hash := str(result.get("result_hash", ""))
+	var calculated_result_hash: String = CanonicalDataSerializerScript.edge_contract_result_hash(result)
+	if declared_result_hash.is_empty() or calculated_result_hash.is_empty() or declared_result_hash != calculated_result_hash:
+		errors.append("EdgeContractResult.result_hash does not match canonical content")
 	if profile == null:
 		errors.append("EdgeContractProfile is required")
 	elif str(result.get("profile_id", "")) != profile.profile_id():
@@ -51,7 +58,7 @@ func validate(result: Dictionary, location_node_results: Array, profile: RefCoun
 	var node_records: Array = source_result.get("node_records", []) as Array
 	var nodes_by_id: Dictionary = source_result.get("nodes_by_id", {}) as Dictionary
 	_validate_source_hashes(result, location_node_results, errors)
-	if str(result.get("location_node_set_hash", "")) != _source_hash(location_node_results):
+	if str(result.get("location_node_set_hash", "")) != CanonicalDataSerializerScript.location_node_result_set_hash(location_node_results):
 		errors.append("EdgeContractResult.location_node_set_hash does not match LocationNodeResult inputs")
 	if not (result.get("edge_contracts", null) is Array):
 		errors.append("EdgeContractResult.edge_contracts must be an array")
@@ -125,7 +132,7 @@ func _validate_source_hashes(result: Dictionary, location_node_results: Array, e
 		var source: Dictionary = value as Dictionary
 		expected.append({
 			"region_id": str(source.get("region_id", "")),
-			"location_node_result_hash": _source_hash(source),
+			"location_node_result_hash": str(source.get("result_hash", "")),
 		})
 	expected.sort_custom(_sort_source_hashes)
 	var actual: Array = result.get("source_location_node_hashes", []) as Array
@@ -134,7 +141,7 @@ func _validate_source_hashes(result: Dictionary, location_node_results: Array, e
 			errors.append("EdgeContractResult.source_location_node_hashes[%d] must be an object" % index)
 			continue
 		_validate_known_keys(actual[index] as Dictionary, SOURCE_HASH_KEYS, "EdgeContractResult.source_location_node_hashes[%d]" % index, errors)
-	if _canonical_value(actual) != _canonical_value(expected):
+	if CanonicalDataSerializerScript.serialize(actual) != CanonicalDataSerializerScript.serialize(expected):
 		errors.append("EdgeContractResult.source_location_node_hashes do not match LocationNodeResult inputs")
 
 
@@ -274,7 +281,7 @@ func _validate_edges(edges: Array, nodes_by_id: Dictionary, expected_edges: Dict
 			errors.append("%s does not match an edge required by its source rule" % path)
 			continue
 		var expected: Dictionary = expected_edges.get(expected_key, {}) as Dictionary
-		if _canonical_value(edge) != _canonical_value(expected):
+		if _canonical_edge_text(edge) != _canonical_edge_text(expected):
 			errors.append("%s does not match its source rule output" % path)
 	for expected_key_value in expected_edges.keys():
 		var expected_key := str(expected_key_value)
@@ -370,34 +377,20 @@ static func _contains_any(values: Dictionary, excluded: Dictionary) -> bool:
 	return false
 
 
-static func _source_hash(data: Variant) -> String:
-	return "sh_%d" % _stable_text_hash(_canonical_value(data))
-
-
 static func _stable_text_hash(text: String) -> int:
 	var value := 2166136261
 	for index in range(text.length()):
 		value = int((value ^ text.unicode_at(index)) * 16777619) % 2147483647
 	return abs(value)
-
-
-static func _canonical_value(value: Variant) -> String:
-	if value is Dictionary:
-		var dictionary: Dictionary = value as Dictionary
-		var keys: Array[String] = []
-		for key_value in dictionary.keys():
-			keys.append(str(key_value))
-		keys.sort()
-		var parts: Array[String] = []
-		for key in keys:
-			parts.append("%s:%s" % [JSON.stringify(key), _canonical_value(dictionary.get(key))])
-		return "{%s}" % ",".join(parts)
-	if value is Array:
-		var parts: Array[String] = []
-		for item in (value as Array):
-			parts.append(_canonical_value(item))
-		return "[%s]" % ",".join(parts)
-	return JSON.stringify(value)
+static func _canonical_edge_text(edge: Dictionary) -> String:
+	var wrapper := {
+		"edge_contracts": [edge],
+	}
+	var normalized: Dictionary = CanonicalDataSerializerScript.normalize_edge_contract_result(wrapper)
+	var edges: Array = normalized.get("edge_contracts", []) as Array
+	if edges.is_empty():
+		return ""
+	return CanonicalDataSerializerScript.serialize(edges[0])
 
 
 static func _is_system_token(value: String) -> bool:

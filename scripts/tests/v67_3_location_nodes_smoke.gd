@@ -9,6 +9,7 @@ const TOWN_REGION_INPUT_PATH := "res://data/regions/frontier_town_region.json"
 const FOREST_REGION_INPUT_PATH := "res://data/regions/frontier_forest_region.json"
 const TOWN_LOCATION_PROFILE_PATH := "res://data/regions/location_node_profiles/town_region.json"
 const EDGE_PROFILE_PATH := "res://data/location_graph/edge_contract_profiles/default.json"
+const GRAPH_ID := "graph.frontier.test_town.lg_0001"
 
 
 func _ready() -> void:
@@ -199,18 +200,12 @@ func _assert_validator_rejects_invalid_results() -> bool:
 
 func _assert_location_graph_boundary() -> bool:
 	var compiler: RefCounted = RegionLocationGraphCompilerScript.new()
-	var result: Dictionary = compiler.compile_to_location_graph_result([_load_json(TOWN_REGION_INPUT_PATH)], EDGE_PROFILE_PATH)
-	if bool(result.get("success", false)):
-		_fail("v67.3 compile_to_location_graph_result unexpectedly succeeded")
+	var result: Dictionary = compiler.compile_to_location_graph_result([_load_json(TOWN_REGION_INPUT_PATH)], EDGE_PROFILE_PATH, GRAPH_ID)
+	if not bool(result.get("success", false)):
+		_fail("v67.3 current Location Graph compilation failed: %s" % str(result.get("errors", [])))
 		return false
-	if str(result.get("stage", "")) != "edge_contracts_to_location_graph_snapshot":
-		_fail("v67.3 Location Graph boundary failed at wrong stage: %s" % str(result.get("stage", "")))
-		return false
-	if not str(result.get("errors", [])).contains("v67.5 Location Graph Snapshot generation is not implemented"):
-		_fail("v67.3 Location Graph boundary did not expose v67.5: %s" % str(result.get("errors", [])))
-		return false
-	if (result.get("edge_contract_result", {}) as Dictionary).is_empty():
-		_fail("v67.3 Location Graph boundary did not include the valid EdgeContractResult")
+	if (result.get("location_graph_snapshot", {}) as Dictionary).is_empty():
+		_fail("v67.3 current Location Graph compilation did not include LocationGraphSnapshot")
 		return false
 	return true
 

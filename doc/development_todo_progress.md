@@ -63,6 +63,10 @@ a usable skeleton toward presentable generated places:
   values, applies explicit global node-to-node rules without Region connection
   declarations, emits stable EdgeContractResult data, rejects ambiguous
   endpoint matching, and stops before v67.5 Location Graph Snapshot generation.
+- a v67.5 Location Graph Snapshot stage that canonically freezes validated
+  nodes and edges, verifies upstream result hashes, records real profile content
+  hashes, produces stable SHA-256 snapshot identity, supports only explicit
+  save/load paths, and stops before v67.6 Runtime adaptation.
 
 ## Battle Deepening Roadmap
 
@@ -91,6 +95,7 @@ a usable skeleton toward presentable generated places:
 | v67.2 | Complete | `doc/phase_67_2_semantic_role_expansion.md` | Add data-driven semantic role expansion from RegionInput and RegionTypeProfile, supporting town and forest region types, seed-stable optional role selection, forced roles, SemanticRoleResult validation, and an explicit v67.3 role-to-location-node boundary. |
 | v67.3 | Complete | `doc/phase_67_3_location_nodes.md` | Add data-driven role-to-location-node expansion from SemanticRoleResult and LocationNodeProfile, validate one node per role with source_role_id traceability, reject external connection artifacts, and stop explicitly at the v67.4 Edge Contract boundary. |
 | v67.4 | Complete | `doc/phase_67_4_edge_contracts.md` | Generate stable node-to-node EdgeContractResult data from one or more LocationNodeResult values and an explicit global profile, reject Region selectors, missing required endpoints and ambiguous matches, derive same-region or cross-region status only after endpoint selection, and stop explicitly at the v67.5 Location Graph Snapshot boundary. |
+| v67.5 | Complete | `doc/phase_67_5_location_graph_snapshot.md` | Canonically freeze LocationNodeResult and EdgeContractResult data into a self-contained LocationGraphSnapshot, recheck upstream result hashes, hash every participating profile, reject incompatible or modified snapshots, require explicit persistence paths, and stop before v67.6 Runtime adaptation. |
 
 ## Dependency Order
 
@@ -118,6 +123,7 @@ v50 skill effect data model
 -> v67.2 semantic role expansion
 -> v67.3 Location Nodes
 -> v67.4 Edge Contracts
+-> v67.5 Location Graph Snapshot
 ```
 
 ## Minimum Tactical Slice

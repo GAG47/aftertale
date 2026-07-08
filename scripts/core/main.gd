@@ -7,6 +7,7 @@ const DEFAULT_REGION_INPUT_PATHS := [
 	"res://data/regions/frontier_forest_region.json",
 ]
 const DEFAULT_EDGE_PROFILE_PATH := "res://data/location_graph/edge_contract_profiles/default.json"
+const DEFAULT_GRAPH_ID := "graph.frontier.overworld.lg_0001"
 
 @onready var world_root: Node = $WorldRoot
 @onready var ui_root: UIRoot = $UILayer/UIRoot
@@ -48,6 +49,11 @@ func _start_new_game() -> void:
 					ui_root.set_raw_debug_data(location_node_result)
 		push_error("Region Location Graph compile failed: %s" % str(compile_result.get("errors", [])))
 		return
+	var location_graph_snapshot: Dictionary = compile_result.get("location_graph_snapshot", {}) as Dictionary
+	if location_graph_snapshot.is_empty():
+		push_error("Region Location Graph compiler returned success without a LocationGraphSnapshot.")
+		return
+	ui_root.set_raw_debug_data(location_graph_snapshot)
 
 	GameState.start_new_session()
 	NpcScheduleSystem.reset_schedule_state()
@@ -57,7 +63,7 @@ func _start_new_game() -> void:
 	TimeManager.reset()
 	TimeManager.set_paused(false)
 
-	push_error("Region Location Graph compiler returned success before the v67.5 runtime adapter exists.")
+	push_error("v67.6 Runtime adapter is not implemented; LocationGraphSnapshot is valid and no snapshot file was written.")
 
 
 func _compile_default_region_location_graph() -> Dictionary:
@@ -72,7 +78,7 @@ func _compile_default_region_location_graph() -> Dictionary:
 			}
 		region_inputs.append(region_input)
 	var compiler: RefCounted = RegionLocationGraphCompilerScript.new()
-	return compiler.compile_to_location_graph_result(region_inputs, DEFAULT_EDGE_PROFILE_PATH)
+	return compiler.compile_to_location_graph_result(region_inputs, DEFAULT_EDGE_PROFILE_PATH, DEFAULT_GRAPH_ID)
 
 
 func _world_transition_service() -> Variant:

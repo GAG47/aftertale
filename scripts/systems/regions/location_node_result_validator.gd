@@ -1,6 +1,8 @@
 class_name LocationNodeResultValidator
 extends RefCounted
 
+const CanonicalDataSerializerScript := preload("res://scripts/systems/regions/canonical_data_serializer.gd")
+
 const SCHEMA_VERSION := 1
 const FORBIDDEN_NEXT_STAGE_KEYS := {
 	"edge_id": true,
@@ -42,9 +44,13 @@ func validate(result: Dictionary, semantic_role_result: Dictionary = {}, profile
 		errors.append("LocationNodeResult.schema_version is unsupported: %s" % str(result.get("schema_version", "")))
 	if str(result.get("stage", "")) != "location_nodes":
 		errors.append("LocationNodeResult.stage must be location_nodes")
-	for key in ["compiler_version", "region_id", "region_type", "region_slug", "source_hash", "semantic_role_source_hash"]:
+	for key in ["compiler_version", "region_id", "region_type", "region_slug", "source_hash", "semantic_role_source_hash", "result_hash"]:
 		if str(result.get(key, "")).is_empty():
 			errors.append("LocationNodeResult.%s is missing" % key)
+	var declared_result_hash := str(result.get("result_hash", ""))
+	var calculated_result_hash: String = CanonicalDataSerializerScript.location_node_result_hash(result)
+	if declared_result_hash.is_empty() or calculated_result_hash.is_empty() or declared_result_hash != calculated_result_hash:
+		errors.append("LocationNodeResult.result_hash does not match canonical content")
 	if not result.has("seed"):
 		errors.append("LocationNodeResult.seed is missing")
 	if profile == null:

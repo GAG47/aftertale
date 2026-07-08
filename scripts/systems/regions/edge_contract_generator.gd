@@ -3,6 +3,7 @@ extends RefCounted
 
 const EdgeContractProfileScript := preload("res://scripts/systems/regions/edge_contract_profile.gd")
 const EdgeContractResultValidatorScript := preload("res://scripts/systems/regions/edge_contract_result_validator.gd")
+const CanonicalDataSerializerScript := preload("res://scripts/systems/regions/canonical_data_serializer.gd")
 
 const SCHEMA_VERSION := 1
 const COMPILER_VERSION := "v67.4"
@@ -39,10 +40,17 @@ func generate_edges_result(location_node_results: Array, profile_path: String) -
 		"stage": "edge_contracts",
 		"profile_id": profile.profile_id(),
 		"profile_path": profile_path,
-		"location_node_set_hash": _source_hash(location_node_results),
+		"location_node_set_hash": CanonicalDataSerializerScript.location_node_result_set_hash(location_node_results),
 		"source_location_node_hashes": source_result.get("source_hashes", []),
 		"edge_contracts": generation_result.get("edge_contracts", []),
 	}
+	edge_contract_result["result_hash"] = CanonicalDataSerializerScript.edge_contract_result_hash(edge_contract_result)
+	if str(edge_contract_result.get("result_hash", "")).is_empty():
+		return _failure("hash_edge_contract_result", ["EdgeContractResult could not be canonically hashed"], {
+			"location_node_results": location_node_results,
+			"edge_contract_result": edge_contract_result,
+			"profile_path": profile_path,
+		})
 	var validator: RefCounted = EdgeContractResultValidatorScript.new()
 	var validation_errors: Array[String] = validator.validate(edge_contract_result, location_node_results, profile)
 	if not validation_errors.is_empty():
@@ -75,6 +83,10 @@ func _collect_source_nodes(location_node_results: Array) -> Dictionary:
 		var result_path := "LocationNodeResult[%d]" % result_index
 		if str(result.get("stage", "")) != "location_nodes":
 			errors.append("%s.stage must be location_nodes" % result_path)
+		var declared_result_hash := str(result.get("result_hash", ""))
+		var calculated_result_hash: String = CanonicalDataSerializerScript.location_node_result_hash(result)
+		if declared_result_hash.is_empty() or calculated_result_hash.is_empty() or declared_result_hash != calculated_result_hash:
+			errors.append("%s.result_hash does not match canonical content" % result_path)
 		var region_id := str(result.get("region_id", ""))
 		if region_id.is_empty():
 			errors.append("%s.region_id is missing" % result_path)
@@ -111,7 +123,7 @@ func _collect_source_nodes(location_node_results: Array) -> Dictionary:
 			})
 		source_hashes.append({
 			"region_id": region_id,
-			"location_node_result_hash": _source_hash(result),
+			"location_node_result_hash": declared_result_hash,
 		})
 	node_records.sort_custom(_sort_node_records)
 	source_hashes.sort_custom(_sort_source_hashes)
@@ -313,31 +325,8 @@ static func _contains_any(values: Dictionary, excluded: Dictionary) -> bool:
 	return false
 
 
-static func _source_hash(data: Variant) -> String:
-	return "sh_%d" % _stable_text_hash(_canonical_value(data))
-
-
 static func _stable_text_hash(text: String) -> int:
 	var value := 2166136261
 	for index in range(text.length()):
 		value = int((value ^ text.unicode_at(index)) * 16777619) % 2147483647
 	return abs(value)
-
-
-static func _canonical_value(value: Variant) -> String:
-	if value is Dictionary:
-		var dictionary: Dictionary = value as Dictionary
-		var keys: Array[String] = []
-		for key_value in dictionary.keys():
-			keys.append(str(key_value))
-		keys.sort()
-		var parts: Array[String] = []
-		for key in keys:
-			parts.append("%s:%s" % [JSON.stringify(key), _canonical_value(dictionary.get(key))])
-		return "{%s}" % ",".join(parts)
-	if value is Array:
-		var parts: Array[String] = []
-		for item in (value as Array):
-			parts.append(_canonical_value(item))
-		return "[%s]" % ",".join(parts)
-	return JSON.stringify(value)

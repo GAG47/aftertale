@@ -19,20 +19,12 @@ or graph connectivity.
 ```text
 compile_semantic_roles_result(input)
 compile_location_nodes_result(input)
-compile_to_location_graph_result(input)
 ```
 
 `compile_location_nodes_result()` first produces a valid `SemanticRoleResult`,
 then expands it into a valid `LocationNodeResult`.
 
-`compile_to_location_graph_result()` now runs through v67.3 and stops at the
-next boundary:
-
-```text
-v67.4 edge contract generation is not implemented
-```
-
-The failure payload includes the valid `LocationNodeResult`.
+The method does not generate Edge Contracts or later-stage products.
 
 ## LocationNodeProfile
 
@@ -69,10 +61,17 @@ region_slug
 seed
 source_hash
 semantic_role_source_hash
+profile_path
+semantic_role_profile_path
+result_hash
 location_nodes
 role_node_bindings
 debug_summary
 ```
+
+`result_hash` is the SHA-256 hash of the canonical `LocationNodeResult` with
+the `result_hash` field excluded. The validator recomputes it before accepting
+the result.
 
 Each location node records:
 

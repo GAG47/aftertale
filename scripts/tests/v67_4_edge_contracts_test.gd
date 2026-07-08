@@ -3,10 +3,12 @@ extends SceneTree
 const EdgeContractProfileScript := preload("res://scripts/systems/regions/edge_contract_profile.gd")
 const EdgeContractResultValidatorScript := preload("res://scripts/systems/regions/edge_contract_result_validator.gd")
 const RegionLocationGraphCompilerScript := preload("res://scripts/systems/regions/region_location_graph_compiler.gd")
+const CanonicalDataSerializerScript := preload("res://scripts/systems/regions/canonical_data_serializer.gd")
 
 const TOWN_REGION_INPUT_PATH := "res://data/regions/frontier_town_region.json"
 const FOREST_REGION_INPUT_PATH := "res://data/regions/frontier_forest_region.json"
 const EDGE_PROFILE_PATH := "res://data/location_graph/edge_contract_profiles/default.json"
+const GRAPH_ID := "graph.frontier.test_overworld.lg_0001"
 
 
 func _initialize() -> void:
@@ -108,6 +110,7 @@ func _assert_missing_required_endpoint_fails() -> bool:
 		if str(node.get("location_type", "")) != "road_gate":
 			filtered_nodes.append(node)
 	source["location_nodes"] = filtered_nodes
+	source["result_hash"] = CanonicalDataSerializerScript.location_node_result_hash(source)
 	var result: Dictionary = compiler.compile_edge_contracts_from_location_nodes_result([source], EDGE_PROFILE_PATH)
 	if bool(result.get("success", false)):
 		return _fail("v67.4 generated edges after a required endpoint was removed")
@@ -139,8 +142,17 @@ func _assert_ambiguous_matching_fails() -> bool:
 
 func _assert_unmatched_node_does_not_gain_default_edge() -> bool:
 	var isolated_result := {
+		"schema_version": 1,
+		"compiler_version": "v67.3",
 		"stage": "location_nodes",
 		"region_id": "region.frontier.special_region.isolated_site.rg_0099",
+		"region_type": "special_region",
+		"region_slug": "isolated_site",
+		"seed": 6799,
+		"source_hash": "fixture_source",
+		"semantic_role_source_hash": "fixture_role_source",
+		"profile_path": "res://data/regions/location_node_profiles/town_region.json",
+		"semantic_role_profile_path": "res://data/regions/region_type_profiles/town_region.json",
 		"location_nodes": [
 			{
 				"location_id": "loc.frontier.special_region.isolated_site.landmark.ln_0001",
@@ -150,7 +162,10 @@ func _assert_unmatched_node_does_not_gain_default_edge() -> bool:
 				"node_tags": ["landmark"],
 			}
 		],
+		"role_node_bindings": [],
+		"debug_summary": {},
 	}
+	isolated_result["result_hash"] = CanonicalDataSerializerScript.location_node_result_hash(isolated_result)
 	var compiler: RefCounted = RegionLocationGraphCompilerScript.new()
 	var result: Dictionary = compiler.compile_edge_contracts_from_location_nodes_result([isolated_result], EDGE_PROFILE_PATH)
 	if not bool(result.get("success", false)):
@@ -188,15 +203,11 @@ func _assert_snapshot_boundary() -> bool:
 	var result: Dictionary = compiler.compile_to_location_graph_result([
 		_load_json(TOWN_REGION_INPUT_PATH),
 		_load_json(FOREST_REGION_INPUT_PATH),
-	], EDGE_PROFILE_PATH)
-	if bool(result.get("success", false)):
-		return _fail("v67.4 compile_to_location_graph_result unexpectedly produced a snapshot")
-	if str(result.get("stage", "")) != "edge_contracts_to_location_graph_snapshot":
-		return _fail("v67.4 stopped at the wrong boundary: %s" % str(result.get("stage", "")))
-	if (result.get("edge_contract_result", {}) as Dictionary).is_empty():
-		return _fail("v67.4 snapshot boundary did not preserve EdgeContractResult")
-	if not str(result.get("errors", [])).contains("v67.5 Location Graph Snapshot generation is not implemented"):
-		return _fail("v67.4 snapshot boundary did not expose v67.5 clearly")
+	], EDGE_PROFILE_PATH, GRAPH_ID)
+	if not bool(result.get("success", false)):
+		return _fail("v67.4 current Location Graph compilation failed: %s" % str(result.get("errors", [])))
+	if (result.get("location_graph_snapshot", {}) as Dictionary).is_empty():
+		return _fail("v67.4 current Location Graph compilation did not preserve a valid snapshot")
 	return true
 
 

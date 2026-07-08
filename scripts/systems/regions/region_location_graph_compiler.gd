@@ -5,7 +5,8 @@ const RegionInputScript := preload("res://scripts/systems/regions/region_input.g
 const SemanticRoleExpanderScript := preload("res://scripts/systems/regions/semantic_role_expander.gd")
 const LocationNodeExpanderScript := preload("res://scripts/systems/regions/location_node_expander.gd")
 const EdgeContractGeneratorScript := preload("res://scripts/systems/regions/edge_contract_generator.gd")
-const COMPILER_VERSION := "v67.4"
+const LocationGraphSnapshotBuilderScript := preload("res://scripts/systems/regions/location_graph_snapshot_builder.gd")
+const COMPILER_VERSION := "v67.5"
 
 
 func validate_region_input_result(input: Dictionary) -> Dictionary:
@@ -55,16 +56,27 @@ func compile_edge_contracts_from_location_nodes_result(location_node_results: Ar
 	return generator.generate_edges_result(location_node_results, edge_profile_path)
 
 
-func compile_to_location_graph_result(inputs: Array, edge_profile_path: String) -> Dictionary:
+func compile_location_graph_snapshot_result(inputs: Array, edge_profile_path: String, graph_id: String) -> Dictionary:
 	var edge_result := compile_edge_contracts_result(inputs, edge_profile_path)
 	if not bool(edge_result.get("success", false)):
 		return edge_result
-	return _failure("edge_contracts_to_location_graph_snapshot", [
-		"v67.5 Location Graph Snapshot generation is not implemented; EdgeContractResult is valid, but v67.4 does not produce a Location Graph Snapshot.",
-	], {
-		"edge_contract_result": edge_result.get("edge_contract_result", {}),
-		"location_node_results": edge_result.get("location_node_results", []),
-	})
+	var builder: RefCounted = LocationGraphSnapshotBuilderScript.new()
+	var snapshot_result: Dictionary = builder.build_snapshot_result(
+		graph_id,
+		edge_result.get("location_node_results", []) as Array,
+		edge_result.get("edge_contract_result", {}) as Dictionary
+	)
+	if not bool(snapshot_result.get("success", false)):
+		snapshot_result["edge_contract_result"] = edge_result.get("edge_contract_result", {})
+		snapshot_result["location_node_results"] = edge_result.get("location_node_results", [])
+		return snapshot_result
+	snapshot_result["edge_contract_result"] = edge_result.get("edge_contract_result", {})
+	snapshot_result["location_node_results"] = edge_result.get("location_node_results", [])
+	return snapshot_result
+
+
+func compile_to_location_graph_result(inputs: Array, edge_profile_path: String, graph_id: String) -> Dictionary:
+	return compile_location_graph_snapshot_result(inputs, edge_profile_path, graph_id)
 
 
 func _failure(stage: String, errors: Array[String], extra: Dictionary) -> Dictionary:

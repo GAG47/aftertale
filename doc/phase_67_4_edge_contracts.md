@@ -71,7 +71,12 @@ profile_path
 location_node_set_hash
 source_location_node_hashes
 edge_contracts
+result_hash
 ```
+
+`location_node_set_hash` uses canonical ordering of its
+`LocationNodeResult` inputs. `result_hash` covers the complete canonical
+`EdgeContractResult` with the `result_hash` field excluded.
 
 每条边包含：
 
@@ -154,15 +159,13 @@ compile_edge_contracts_result(inputs, edge_profile_path)
 compile_edge_contracts_from_location_nodes_result(location_node_results, edge_profile_path)
 ```
 
-`compile_to_location_graph_result()` 完成 v67.4 后明确停在：
+v67.4 交付给后续阶段的产物是：
 
 ```text
-edge_contracts_to_location_graph_snapshot
+EdgeContractResult
 ```
 
-失败结果保留有效 `EdgeContractResult`，并说明 v67.5 的 Location Graph Snapshot 尚未实现。
-
-主程序将这份原始 `EdgeContractResult` 直接交给现有原始数据面板，不生成阶段说明、解释摘要或验收报告。
+该产物不包含 Snapshot、Runtime 或 Scene 数据。
 
 ## 验证
 

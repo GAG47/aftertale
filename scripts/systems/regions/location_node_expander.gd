@@ -4,6 +4,7 @@ extends RefCounted
 const LocationNodeProfileScript := preload("res://scripts/systems/regions/location_node_profile.gd")
 const LocationNodeResultValidatorScript := preload("res://scripts/systems/regions/location_node_result_validator.gd")
 const SemanticRoleResultValidatorScript := preload("res://scripts/systems/regions/semantic_role_result_validator.gd")
+const CanonicalDataSerializerScript := preload("res://scripts/systems/regions/canonical_data_serializer.gd")
 
 const SCHEMA_VERSION := 1
 const COMPILER_VERSION := "v67.3"
@@ -50,6 +51,12 @@ func expand_locations_result(semantic_role_result: Dictionary) -> Dictionary:
 		"role_node_bindings": role_node_bindings,
 		"debug_summary": _debug_summary(location_nodes),
 	}
+	result["result_hash"] = CanonicalDataSerializerScript.location_node_result_hash(result)
+	if str(result.get("result_hash", "")).is_empty():
+		return _failure("hash_location_node_result", ["LocationNodeResult could not be canonically hashed"], {
+			"semantic_role_result": semantic_role_result,
+			"location_node_result": result,
+		})
 	var validator: RefCounted = LocationNodeResultValidatorScript.new()
 	var validation_errors: Array[String] = validator.validate(result, semantic_role_result, profile)
 	if not validation_errors.is_empty():

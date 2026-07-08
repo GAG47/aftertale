@@ -13,15 +13,17 @@ RegionInput[]
 -> SemanticRoleResult[]
 -> LocationNodeResult[]
 -> EdgeContractResult
--> v67.5 boundary
+-> LocationGraphSnapshot
+-> v67.6 boundary
 ```
 
-The current implementation does not generate graph snapshots, runtime graph
-registration, graph travel, scene exits, or generated Location Scenes.
+The current implementation does not register the snapshot with Runtime, perform
+graph travel, create scene exits, or generate Location Scenes.
 
 The current v67.3 record is:
 
 ```text
 doc/phase_67_3_location_nodes.md
 doc/phase_67_4_edge_contracts.md
+doc/phase_67_5_location_graph_snapshot.md
 ```
