@@ -3,7 +3,8 @@ extends RefCounted
 
 const RegionInputScript := preload("res://scripts/systems/regions/region_input.gd")
 const SemanticRoleExpanderScript := preload("res://scripts/systems/regions/semantic_role_expander.gd")
-const COMPILER_VERSION := "v67.2"
+const LocationNodeExpanderScript := preload("res://scripts/systems/regions/location_node_expander.gd")
+const COMPILER_VERSION := "v67.3"
 
 
 func validate_region_input_result(input: Dictionary) -> Dictionary:
@@ -25,14 +26,22 @@ func compile_semantic_roles_result(input: Dictionary) -> Dictionary:
 	return expander.expand_roles_result(input)
 
 
-func compile_to_location_graph_result(input: Dictionary) -> Dictionary:
+func compile_location_nodes_result(input: Dictionary) -> Dictionary:
 	var role_result := compile_semantic_roles_result(input)
 	if not bool(role_result.get("success", false)):
 		return role_result
-	return _failure("semantic_roles_to_location_nodes", [
-		"v67.3 role-to-location-node expansion is not implemented; SemanticRoleResult is valid, but v67.2 cannot produce a Location Graph.",
+	var node_expander: RefCounted = LocationNodeExpanderScript.new()
+	return node_expander.expand_locations_result(role_result.get("semantic_role_result", {}) as Dictionary)
+
+
+func compile_to_location_graph_result(input: Dictionary) -> Dictionary:
+	var node_result := compile_location_nodes_result(input)
+	if not bool(node_result.get("success", false)):
+		return node_result
+	return _failure("location_nodes_to_edge_contracts", [
+		"v67.4 edge contract generation is not implemented; LocationNodeResult is valid, but v67.3 cannot produce a Location Graph.",
 	], {
-		"semantic_role_result": role_result.get("semantic_role_result", {}),
+		"location_node_result": node_result.get("location_node_result", {}),
 	})
 
 

@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "region_type": "town_region",
+  "role_to_location_rules": {
+    "settlement_core": {
+      "location_type": "town_center",
+      "node_tags": ["core", "settlement", "public"],
+      "count": 1
+    },
+    "main_exit": {
+      "location_type": "road_gate",
+      "node_tags": ["boundary", "travel", "public"],
+      "count": 1,
+      "boundary": true
+    },
+    "support_area": {
+      "location_type": "settlement_support",
+      "node_tags": ["support", "settlement"],
+      "count": 1
+    },
+    "farmland": {
+      "location_type": "farmland",
+      "node_tags": ["resource", "food"],
+      "count": 1
+    },
+    "landmark": {
+      "location_type": "landmark_site",
+      "node_tags": ["landmark", "memory"],
+      "count": 1
+    },
+    "market": {
+      "location_type": "market_square",
+      "node_tags": ["commerce", "social"],
+      "count": 1
+    },
+    "shrine": {
+      "location_type": "shrine_site",
+      "node_tags": ["ritual", "landmark"],
+      "count": 1
+    },
+    "forest_boundary": {
+      "location_type": "forest_edge",
+      "node_tags": ["boundary", "forest", "transition"],
+      "count": 1,
+      "boundary": true
+    },
+    "river_edge": {
+      "location_type": "riverbank",
+      "node_tags": ["boundary", "water", "resource"],
+      "count": 1,
+      "boundary": true
+    },
+    "external_connection": {
+      "location_type": "region_boundary",
+      "node_tags": ["boundary", "external"],
+      "count": 1,
+      "boundary": true
+    }
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "region_type": "forest_region",
+  "role_to_location_rules": {
+    "entrance": {
+      "location_type": "forest_entrance",
+      "node_tags": ["boundary", "forest", "travel"],
+      "count": 1,
+      "boundary": true
+    },
+    "common_woods": {
+      "location_type": "common_woods",
+      "node_tags": ["common", "forest"],
+      "count": 1
+    },
+    "inner_area": {
+      "location_type": "deep_forest",
+      "node_tags": ["inner", "forest"],
+      "count": 1
+    },
+    "clearing": {
+      "location_type": "forest_clearing",
+      "node_tags": ["landmark", "open_area"],
+      "count": 1
+    },
+    "hut": {
+      "location_type": "hut_site",
+      "node_tags": ["shelter", "npc_candidate"],
+      "count": 1
+    },
+    "ruin": {
+      "location_type": "ruin_site",
+      "node_tags": ["landmark", "history", "danger_candidate"],
+      "count": 1
+    },
+    "stream": {
+      "location_type": "forest_stream",
+      "node_tags": ["water", "resource"],
+      "count": 1
+    },
+    "hidden_grove": {
+      "location_type": "hidden_grove",
+      "node_tags": ["hidden", "landmark"],
+      "count": 1
+    },
+    "forest_shrine": {
+      "location_type": "forest_shrine_site",
+      "node_tags": ["ritual", "landmark"],
+      "count": 1
+    },
+    "external_connection": {
+      "location_type": "forest_boundary",
+      "node_tags": ["boundary", "external"],
+      "count": 1,
+      "boundary": true
+    }
+  }
+}

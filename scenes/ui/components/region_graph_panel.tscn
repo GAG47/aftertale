@@ -1,0 +1,53 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/region_graph_panel.gd" id="1"]
+
+[node name="RegionGraphPanel" type="PanelContainer"]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 456.0
+offset_top = 108.0
+offset_right = -24.0
+offset_bottom = -96.0
+mouse_filter = 0
+script = ExtResource("1")
+
+[node name="MarginContainer" type="MarginContainer" parent="."]
+layout_mode = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 18
+
+[node name="Content" type="VBoxContainer" parent="MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="TitleLabel" type="Label" parent="MarginContainer/Content"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "Location"
+
+[node name="IdLabel" type="Label" parent="MarginContainer/Content"]
+layout_mode = 2
+text = "location_id"
+autowrap_mode = 2
+
+[node name="MetaLabel" type="Label" parent="MarginContainer/Content"]
+layout_mode = 2
+text = "type | role | source"
+autowrap_mode = 2
+
+[node name="ExitScroll" type="ScrollContainer" parent="MarginContainer/Content"]
+custom_minimum_size = Vector2(0, 220)
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="ExitBox" type="VBoxContainer" parent="MarginContainer/Content/ExitScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8

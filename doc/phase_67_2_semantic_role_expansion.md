@@ -14,17 +14,17 @@ runtime graph.
 
 ## Main Path Rule
 
-New game startup still enters through `RegionLocationGraphCompiler`, but the
-compiler now performs real semantic role expansion before failing at the next
-unsupported boundary:
+New game startup still enters through `RegionLocationGraphCompiler`. This phase
+made semantic role expansion a real compiler stage:
 
 ```text
-v67.3 role-to-location-node expansion is not implemented
+compile_semantic_roles_result(input)
+-> SemanticRoleResult
 ```
 
-Startup no longer starts `GameState`, resets party state, or unpauses time before
-the Region compiler has succeeded. This avoids the v67.1 half-started empty
-world state.
+The full `compile_to_location_graph_result()` boundary has since advanced in
+v67.3. The semantic role result remains independently testable through
+`compile_semantic_roles_result()`.
 
 ## RegionInput Update
 
@@ -118,7 +118,7 @@ v67.2 validates and rejects:
 
 The compiler does not add missing roles to make invalid input pass.
 
-## Explicitly Not Supported Yet
+## Explicitly Not Supported In v67.2
 
 v67.2 does not implement:
 
@@ -129,8 +129,8 @@ v67.2 does not implement:
 - runtime adapter travel through the new graph;
 - scene generation or scene exits.
 
-`compile_to_location_graph_result()` includes the valid `SemanticRoleResult` in
-its failure payload, then stops at the v67.3 boundary.
+v67.3 implements the next Location Nodes stage and moves the full graph boundary
+forward to v67.4 Edge Contracts.
 
 ## Verification
 
@@ -140,7 +140,8 @@ Verified with default project startup:
 Godot --headless --path D:\godotproject\aftertale --quit-after 2
 ```
 
-The startup reaches a valid SemanticRoleResult and fails at the expected v67.3
+The semantic-role smoke test reaches a valid `SemanticRoleResult`. Current full
+startup now reaches v67.3 Location Nodes and fails at the expected v67.4
 boundary instead of loading any old world graph.
 
 Additional capability coverage lives at:
@@ -151,7 +152,7 @@ scripts/tests/v67_2_semantic_role_expansion_smoke.tscn
 
 The smoke test checks town and forest RegionInputs, same-seed reproducibility,
 different-seed optional role variation, invalid input failures, semantic-only
-result fields, and the v67.3 Location Graph boundary. On this local Windows
+result fields, and the current Location Graph boundary. On this local Windows
 Godot build, direct `--scene` and `--script` test launches still crash in the
 engine before project code runs, so the default startup path is the executable
 verification used here.

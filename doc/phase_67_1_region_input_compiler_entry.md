@@ -95,5 +95,5 @@ On this local Windows Godot build, direct `--script` and `--scene` test launches
 crashed in the engine before project code ran, while normal project startup
 completed and reported the expected compiler-boundary error.
 
-Later v67.2 work advances the current runtime boundary to v67.3. This file
-records the v67.1 state.
+Later v67.2 and v67.3 work advance the current runtime boundary to v67.4 Edge
+Contracts. This file records the v67.1 state.

@@ -46,13 +46,13 @@ func _assert_compile_entry_exposes_current_location_node_boundary() -> bool:
 	var compiler: RefCounted = RegionLocationGraphCompilerScript.new()
 	var result: Dictionary = compiler.compile_to_location_graph_result(_load_json(DEFAULT_REGION_INPUT_PATH))
 	if bool(result.get("success", false)):
-		_fail("v67.1 compiler entry must not pretend to produce a Location Graph before role-to-node support")
+		_fail("v67.1 compiler entry must not pretend to produce a Location Graph before edge contract support")
 		return false
 	var errors_text := str(result.get("errors", []))
-	if not errors_text.contains("v67.3 role-to-location-node expansion is not implemented"):
-		_fail("v67.1 compiler entry did not expose the current role-to-node boundary: %s" % errors_text)
+	if not errors_text.contains("v67.4 edge contract generation is not implemented"):
+		_fail("v67.1 compiler entry did not expose the current edge-contract boundary: %s" % errors_text)
 		return false
-	if str(result.get("stage", "")) != "semantic_roles_to_location_nodes":
+	if str(result.get("stage", "")) != "location_nodes_to_edge_contracts":
 		_fail("v67.1 compiler failed at the wrong stage: %s" % str(result.get("stage", "")))
 		return false
 	return true
