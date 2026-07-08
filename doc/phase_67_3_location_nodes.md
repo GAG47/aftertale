@@ -71,7 +71,6 @@ source_hash
 semantic_role_source_hash
 location_nodes
 role_node_bindings
-external_connection_bindings
 debug_summary
 ```
 
@@ -108,37 +107,6 @@ duplicate node_slug -> fail
 
 The compiler does not silently create `*_2`, `*_copy`, or other repaired slugs.
 
-## External Connections
-
-An external semantic role becomes a boundary location node and an
-`external_connection_binding`.
-
-The binding means:
-
-```text
-external intent -> boundary location node
-```
-
-It is not an edge. It may preserve future edge inputs such as:
-
-```text
-direction_hint
-travel_type
-exit_style
-access_rule
-```
-
-It must not include:
-
-```text
-target_location_id
-target_region_id
-edge_id
-resolved_connection
-from_location_id
-to_location_id
-```
-
 ## Validation Rules
 
 `LocationNodeResultValidator` rejects:
@@ -150,10 +118,11 @@ to_location_id
 - duplicate `node_slug`;
 - unsupported role mappings;
 - `location_type` values that do not match the active `LocationNodeProfile`;
-- external roles without boundary bindings;
-- non-boundary nodes used as external bindings;
 - next-stage fields such as `edge_id`, `scene_path`, `spawn_id`, `tilemap`,
   `target_location_id`, `target_region_id`, and `start_location_id`.
+- external connection artifacts such as `external_connection_bindings`,
+  `external_connection_intents`, `source_intent_id`, `boundary_location_id`,
+  `intent_id`, `direction_hint`, `travel_type`, `exit_style`, and `access_rule`.
 
 The validator only rejects invalid results. It does not add missing nodes or
 repair malformed bindings.
@@ -181,6 +150,6 @@ scripts/tests/v67_3_location_nodes_smoke.tscn
 ```
 
 The smoke test checks town and forest location node expansion, same-seed
-stability, forced role slug behavior, external boundary bindings, invalid
-profile and mapping failures, validator rejection of duplicate slugs and edge
-fields, and the explicit v67.4 boundary.
+stability, forced role slug behavior, absence of external connection artifacts,
+invalid profile and mapping failures, validator rejection of duplicate slugs and
+next-stage fields, and the explicit v67.4 boundary.

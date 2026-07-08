@@ -42,8 +42,11 @@ func _assert_region_types_expand() -> bool:
 	if _role_type_signature(town_roles) == _role_type_signature(forest_roles):
 		_fail("v67.2 town_region and forest_region produced the same role type signature")
 		return false
-	if not _has_role_source(town_roles, "required") or not _has_role_source(town_roles, "optional") or not _has_role_source(town_roles, "external"):
-		_fail("v67.2 town_region did not include required, optional, and external role sources")
+	if not _has_role_source(town_roles, "required") or not _has_role_source(town_roles, "optional"):
+		_fail("v67.2 town_region did not include required and optional role sources")
+		return false
+	if _has_role_source(town_roles, "external") or JSON.stringify(town_roles).contains("external_connection"):
+		_fail("v67.2 SemanticRoleResult must not contain external connection roles or intents")
 		return false
 	return true
 
@@ -116,14 +119,15 @@ func _assert_invalid_inputs_fail() -> bool:
 	if not _fails_with(compiler.compile_semantic_roles_result(forced_unsupported), "unsupported role_type"):
 		return false
 
-	var external_missing_field := _load_json(TOWN_REGION_INPUT_PATH)
-	var intents: Array = external_missing_field.get("external_connection_intents", []) as Array
-	var first_intent: Dictionary = intents[0] as Dictionary
-	first_intent.erase("exit_style")
-	intents[0] = first_intent
-	external_missing_field["external_connection_intents"] = intents
-	if not _fails_with(compiler.compile_semantic_roles_result(external_missing_field), "exit_style is missing"):
+	var external_field := _load_json(TOWN_REGION_INPUT_PATH)
+	external_field["external_connection_intents"] = [
+		{
+			"intent_id": "east_road"
+		}
+	]
+	if not _fails_with(compiler.compile_semantic_roles_result(external_field), "external_connection_intents is not supported"):
 		return false
+
 	return true
 
 

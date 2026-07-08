@@ -18,6 +18,15 @@ const FORBIDDEN_NEXT_STAGE_KEYS := {
 	"target_scene_path": true,
 	"start_location_id": true,
 	"location_graph": true,
+	"external_connection_bindings": true,
+	"external_connection_intents": true,
+	"source_intent_id": true,
+	"boundary_location_id": true,
+	"intent_id": true,
+	"direction_hint": true,
+	"travel_type": true,
+	"exit_style": true,
+	"access_rule": true,
 }
 
 
@@ -45,14 +54,10 @@ func validate(result: Dictionary, semantic_role_result: Dictionary = {}, profile
 		return errors
 	if not (result.get("role_node_bindings", null) is Array):
 		errors.append("LocationNodeResult.role_node_bindings must be an array")
-	if not (result.get("external_connection_bindings", null) is Array):
-		errors.append("LocationNodeResult.external_connection_bindings must be an array")
 	var roles_by_id := _roles_by_id(semantic_role_result, errors)
-	var intents_by_id := _external_intents_by_id(semantic_role_result)
 	var nodes: Array = result.get("location_nodes", []) as Array
 	var nodes_by_id := _validate_nodes(nodes, roles_by_id, profile, result, errors)
 	_validate_role_node_bindings(result, roles_by_id, nodes_by_id, errors)
-	_validate_external_connection_bindings(result, roles_by_id, intents_by_id, nodes_by_id, errors)
 	return errors
 
 
@@ -74,14 +79,6 @@ func _roles_by_id(semantic_role_result: Dictionary, errors: Array[String]) -> Di
 			continue
 		roles_by_id[role_id] = role
 	return roles_by_id
-
-
-func _external_intents_by_id(semantic_role_result: Dictionary) -> Dictionary:
-	var intents_by_id: Dictionary = {}
-	for intent_value in (semantic_role_result.get("external_connection_intents", []) as Array):
-		var intent: Dictionary = intent_value as Dictionary
-		intents_by_id[str(intent.get("intent_id", ""))] = intent
-	return intents_by_id
 
 
 func _validate_nodes(nodes: Array, roles_by_id: Dictionary, profile: RefCounted, result: Dictionary, errors: Array[String]) -> Dictionary:
@@ -156,8 +153,6 @@ func _validate_node(index: int, node: Dictionary, roles_by_id: Dictionary, profi
 			errors.append("LocationNodeResult.location_nodes[%d].location_type is unsupported: %s" % [index, location_type])
 		if bool(node.get("is_boundary", false)) != bool(rule.get("boundary", false)):
 			errors.append("LocationNodeResult.location_nodes[%d].is_boundary does not match LocationNodeProfile rule for %s" % [index, source_role_type])
-	if str(role.get("role_source", "")) == "external" and not bool(node.get("is_boundary", false)):
-		errors.append("LocationNodeResult external role must produce a boundary location node: %s" % source_role_id)
 	if bool(node.get("is_required", false)) != (str(role.get("role_source", "")) == "required"):
 		errors.append("LocationNodeResult.location_nodes[%d].is_required does not match source role" % index)
 
@@ -191,49 +186,6 @@ func _validate_role_node_bindings(result: Dictionary, roles_by_id: Dictionary, n
 		var role_id := str(role_id_value)
 		if not roles_seen.has(role_id):
 			errors.append("LocationNodeResult is missing role_node_binding for source_role_id: %s" % role_id)
-
-
-func _validate_external_connection_bindings(result: Dictionary, roles_by_id: Dictionary, intents_by_id: Dictionary, nodes_by_id: Dictionary, errors: Array[String]) -> void:
-	var bindings: Array = result.get("external_connection_bindings", []) as Array
-	var bindings_by_role: Dictionary = {}
-	for index in range(bindings.size()):
-		if not (bindings[index] is Dictionary):
-			errors.append("LocationNodeResult.external_connection_bindings[%d] must be an object" % index)
-			continue
-		var binding: Dictionary = bindings[index] as Dictionary
-		for key in ["intent_id", "source_role_id", "boundary_location_id", "direction_hint", "travel_type", "exit_style"]:
-			if str(binding.get(key, "")).is_empty():
-				errors.append("LocationNodeResult.external_connection_bindings[%d].%s is missing" % [index, key])
-		var source_role_id := str(binding.get("source_role_id", ""))
-		var intent_id := str(binding.get("intent_id", ""))
-		var boundary_location_id := str(binding.get("boundary_location_id", ""))
-		if not _is_system_token(intent_id):
-			errors.append("LocationNodeResult.external_connection_bindings[%d].intent_id is invalid: %s" % [index, intent_id])
-		if not roles_by_id.has(source_role_id):
-			errors.append("LocationNodeResult.external_connection_bindings[%d].source_role_id does not exist: %s" % [index, source_role_id])
-			continue
-		if bindings_by_role.has(source_role_id):
-			errors.append("LocationNodeResult contains duplicate external_connection_binding for source_role_id: %s" % source_role_id)
-		bindings_by_role[source_role_id] = true
-		var role: Dictionary = roles_by_id.get(source_role_id, {}) as Dictionary
-		if str(role.get("role_source", "")) != "external":
-			errors.append("LocationNodeResult.external_connection_bindings[%d].source_role_id is not an external role: %s" % [index, source_role_id])
-		if str(role.get("source_intent_id", "")) != intent_id:
-			errors.append("LocationNodeResult.external_connection_bindings[%d].intent_id does not match source role" % index)
-		if not intents_by_id.has(intent_id):
-			errors.append("LocationNodeResult.external_connection_bindings[%d].intent_id does not exist in SemanticRoleResult: %s" % [index, intent_id])
-		if not nodes_by_id.has(boundary_location_id):
-			errors.append("LocationNodeResult.external_connection_bindings[%d].boundary_location_id does not exist: %s" % [index, boundary_location_id])
-		else:
-			var node: Dictionary = nodes_by_id.get(boundary_location_id, {}) as Dictionary
-			if str(node.get("source_role_id", "")) != source_role_id:
-				errors.append("LocationNodeResult.external_connection_bindings[%d].boundary_location_id does not belong to source_role_id" % index)
-			if not bool(node.get("is_boundary", false)):
-				errors.append("LocationNodeResult.external_connection_bindings[%d].boundary_location_id is not a boundary node" % index)
-	for role_id_value in roles_by_id.keys():
-		var role: Dictionary = roles_by_id.get(role_id_value, {}) as Dictionary
-		if str(role.get("role_source", "")) == "external" and not bindings_by_role.has(str(role_id_value)):
-			errors.append("LocationNodeResult is missing external_connection_binding for external source_role_id: %s" % str(role_id_value))
 
 
 func _scan_for_forbidden_keys(value: Variant, path: String, errors: Array[String]) -> void:

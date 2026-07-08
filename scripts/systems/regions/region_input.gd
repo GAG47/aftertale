@@ -75,7 +75,8 @@ static func validate_data(data: Dictionary) -> Array[String]:
 	errors.append_array(_validate_role_list(data, "required_roles", true))
 	errors.append_array(_validate_role_list(data, "optional_role_pool", false))
 	errors.append_array(_validate_forced_role_specs(data.get("forced_role_specs", null)))
-	errors.append_array(_validate_external_connection_intents(data.get("external_connection_intents", null)))
+	if data.has("external_connection_intents"):
+		errors.append("RegionInput.external_connection_intents is not supported; Location nodes are the generation unit")
 	return errors
 
 
@@ -165,35 +166,6 @@ static func _validate_forced_role_specs(value: Variant) -> Array[String]:
 			if seen.has(role_slug):
 				errors.append("RegionInput.forced_role_specs contains duplicate role_slug: %s" % role_slug)
 			seen[role_slug] = true
-	return errors
-
-
-static func _validate_external_connection_intents(value: Variant) -> Array[String]:
-	var errors: Array[String] = []
-	if value == null:
-		errors.append("RegionInput.external_connection_intents is missing")
-		return errors
-	if not (value is Array):
-		errors.append("RegionInput.external_connection_intents must be an array")
-		return errors
-	var intents: Array = value as Array
-	var seen: Dictionary = {}
-	for index in range(intents.size()):
-		if not (intents[index] is Dictionary):
-			errors.append("RegionInput.external_connection_intents[%d] must be an object" % index)
-			continue
-		var intent: Dictionary = intents[index] as Dictionary
-		var intent_id := str(intent.get("intent_id", intent.get("id", "")))
-		if intent_id.is_empty():
-			errors.append("RegionInput.external_connection_intents[%d].intent_id is missing" % index)
-		elif not _is_system_token(intent_id):
-			errors.append("RegionInput.external_connection_intents[%d].intent_id must be a lowercase system token: %s" % [index, intent_id])
-		elif seen.has(intent_id):
-			errors.append("RegionInput.external_connection_intents contains duplicate intent_id: %s" % intent_id)
-		seen[intent_id] = true
-		var target_region_id := str(intent.get("target_region_id", ""))
-		if not target_region_id.is_empty():
-			errors.append_array(_validate_region_id(target_region_id, "", ""))
 	return errors
 
 

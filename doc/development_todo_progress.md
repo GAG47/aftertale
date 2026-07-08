@@ -57,8 +57,8 @@ a usable skeleton toward presentable generated places:
   before Location node generation.
 - a v67.3 Location Nodes stage that maps SemanticRoleResult through
   data-driven LocationNodeProfile files, generates one stable Location node per
-  semantic role, records role and external-boundary bindings, validates
-  LocationNodeResult, and stops explicitly before v67.4 Edge Contracts.
+  semantic role, records role-node bindings, validates LocationNodeResult, and
+  stops explicitly before v67.4 Edge Contracts.
 
 ## Battle Deepening Roadmap
 
@@ -84,8 +84,8 @@ a usable skeleton toward presentable generated places:
 | v65.1 | Complete | `doc/phase_65_1_world_graph_generator_cleanup.md` | Remove the v65 fixture loop and fallback paths: generated worlds no longer start from test village data, generated edges no longer use fixed gate ids, unsupported location kinds fail explicitly, and world-active transitions do not continue through legacy scene paths. |
 | v66 | Complete | `doc/phase_66_tile_map_ground_renderer.md` | Move formal location ground rendering to a TileMapLayer-backed renderer, keep DebugTileRenderer debug-only, expose rebuild/update statistics, and support single-cell terrain updates without player or camera movement causing full ground rebuilds. |
 | v67.1 | Complete | `doc/phase_67_1_region_input_compiler_entry.md` | Add RegionInput schema validation and the Region -> Location Graph compiler entry, move new-game startup to that entry, delete the old `test_world.json` graph fixture, and fail explicitly at the v67.2 semantic-role boundary instead of using an old fallback. |
-| v67.2 | Complete | `doc/phase_67_2_semantic_role_expansion.md` | Add data-driven semantic role expansion from RegionInput and RegionTypeProfile, supporting town and forest region types, seed-stable optional role selection, forced and external roles, SemanticRoleResult validation, and an explicit v67.3 role-to-location-node boundary. |
-| v67.3 | Complete | `doc/phase_67_3_location_nodes.md` | Add data-driven role-to-location-node expansion from SemanticRoleResult and LocationNodeProfile, validate one node per role with source_role_id traceability, bind external intents to boundary nodes without edges, and stop explicitly at the v67.4 Edge Contract boundary. |
+| v67.2 | Complete | `doc/phase_67_2_semantic_role_expansion.md` | Add data-driven semantic role expansion from RegionInput and RegionTypeProfile, supporting town and forest region types, seed-stable optional role selection, forced roles, SemanticRoleResult validation, and an explicit v67.3 role-to-location-node boundary. |
+| v67.3 | Complete | `doc/phase_67_3_location_nodes.md` | Add data-driven role-to-location-node expansion from SemanticRoleResult and LocationNodeProfile, validate one node per role with source_role_id traceability, reject external connection artifacts, and stop explicitly at the v67.4 Edge Contract boundary. |
 
 ## Dependency Order
 

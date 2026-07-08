@@ -31,6 +31,9 @@ func _start_new_game() -> void:
 
 	var compile_result: Dictionary = _compile_default_region_location_graph()
 	if not bool(compile_result.get("success", false)):
+		var location_node_result: Dictionary = compile_result.get("location_node_result", {}) as Dictionary
+		if not location_node_result.is_empty():
+			ui_root.set_raw_debug_data(location_node_result)
 		push_error("Region Location Graph compile failed: %s" % str(compile_result.get("errors", [])))
 		return
 

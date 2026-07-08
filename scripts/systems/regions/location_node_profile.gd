@@ -122,6 +122,9 @@ func _validate_rule(role_type: String, value: Variant, errors: Array[String]) ->
 	if role_type.is_empty() or not _is_system_token(role_type):
 		errors.append("LocationNodeProfile role type must be a lowercase system token: %s" % role_type)
 		return
+	if role_type == "external_connection":
+		errors.append("LocationNodeProfile external_connection role rules are not supported")
+		return
 	if not (value is Dictionary):
 		errors.append("LocationNodeProfile role rule must be an object: %s" % role_type)
 		return

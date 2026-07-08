@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=12 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/ui_root.gd" id="1"]
 [ext_resource type="PackedScene" path="res://scenes/ui/components/debug_panel.tscn" id="2"]
@@ -10,6 +10,7 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/screens/character_screen.tscn" id="8"]
 [ext_resource type="PackedScene" path="res://scenes/ui/screens/facility_screen.tscn" id="9"]
 [ext_resource type="PackedScene" path="res://scenes/ui/screens/battle_hud.tscn" id="10"]
+[ext_resource type="PackedScene" path="res://scenes/ui/components/raw_data_panel.tscn" id="11"]
 
 [node name="UIRoot" type="Control"]
 layout_mode = 3
@@ -86,6 +87,7 @@ layout_mode = 2
 layout_mode = 2
 
 [node name="DebugPanel" parent="." instance=ExtResource("2")]
+[node name="RawDataPanel" parent="." instance=ExtResource("11")]
 [node name="GameMenuPanel" parent="." instance=ExtResource("5")]
 [node name="InventoryPanel" parent="." instance=ExtResource("6")]
 [node name="QuestPanel" parent="." instance=ExtResource("7")]

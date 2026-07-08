@@ -40,7 +40,6 @@ func validate(graph: Dictionary) -> Array[String]:
 		errors.append("LocationGraphSnapshot.start_location_id references unknown location: %s" % start_location_id)
 	if errors.is_empty() and not _is_connected(start_location_id, locations_by_id, graph.get("edges", []) as Array):
 		errors.append("LocationGraphSnapshot locations are not all reachable from start_location_id")
-	_validate_external_intents_land(graph, locations_by_id, errors)
 	return errors
 
 
@@ -115,20 +114,6 @@ func _validate_edges(edges: Array, locations_by_id: Dictionary, roles_by_id: Dic
 		if pair_keys.has(pair_key):
 			errors.append("LocationGraphSnapshot duplicate location edge pair: %s" % pair_key)
 		pair_keys[pair_key] = true
-
-
-func _validate_external_intents_land(graph: Dictionary, locations_by_id: Dictionary, errors: Array[String]) -> void:
-	for intent_value in (graph.get("external_connection_intents", []) as Array):
-		var intent: Dictionary = intent_value as Dictionary
-		var intent_id := str(intent.get("intent_id", ""))
-		var found := false
-		for location_id in locations_by_id.keys():
-			var location: Dictionary = locations_by_id.get(location_id, {}) as Dictionary
-			if str(location.get("source_intent_id", "")) == intent_id:
-				found = true
-				break
-		if not found:
-			errors.append("LocationGraphSnapshot external_connection_intent has no boundary location: %s" % intent_id)
 
 
 func _is_connected(start_location_id: String, locations_by_id: Dictionary, edges: Array) -> bool:

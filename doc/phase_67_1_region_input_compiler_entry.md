@@ -24,7 +24,6 @@ v65 world as a fallback, and does not start a fixed demo loop.
 - `coarse_context`
 - `required_roles`
 - `optional_role_pool`
-- `external_connection_intents`
 
 Region ids must use:
 

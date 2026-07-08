@@ -14,7 +14,6 @@
     "forest_boundary",
     "river_edge"
   ],
-  "external_intent_role_type": "external_connection",
   "scale_optional_counts": {
     "small": [1, 2],
     "medium": [2, 3],
@@ -98,11 +97,6 @@
       "role_tags": ["boundary", "water", "resource"],
       "allowed_sources": ["optional"],
       "allow_multiple": false
-    },
-    "external_connection": {
-      "role_tags": ["boundary", "external"],
-      "allowed_sources": ["external"],
-      "allow_multiple": true
     }
   }
 }

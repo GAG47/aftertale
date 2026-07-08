@@ -12,6 +12,7 @@ signal quit_game_requested()
 @onready var interaction_label: Label = $InteractionPanel/MarginContainer/InteractionLabel
 @onready var message_log_panel: MessageLogPanel = $MessageLogPanel
 @onready var debug_panel: DebugPanel = $DebugPanel
+@onready var raw_data_panel = $RawDataPanel
 @onready var game_menu_panel: GameMenuPanel = $GameMenuPanel
 @onready var inventory_panel = $InventoryPanel
 @onready var quest_panel = $QuestPanel
@@ -86,6 +87,10 @@ func toggle_debug_panel() -> void:
 
 func set_debug_panel_visible(value: bool) -> void:
 	debug_panel.visible = value
+
+
+func set_raw_debug_data(data: Dictionary) -> void:
+	raw_data_panel.set_data(data)
 
 
 func is_debug_panel_visible() -> bool:

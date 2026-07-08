@@ -34,7 +34,6 @@ func expand_locations_result(semantic_role_result: Dictionary) -> Dictionary:
 
 	var location_nodes: Array = generation_result.get("location_nodes", []) as Array
 	var role_node_bindings: Array = generation_result.get("role_node_bindings", []) as Array
-	var external_connection_bindings: Array = generation_result.get("external_connection_bindings", []) as Array
 	var result := {
 		"schema_version": SCHEMA_VERSION,
 		"compiler_version": COMPILER_VERSION,
@@ -49,8 +48,7 @@ func expand_locations_result(semantic_role_result: Dictionary) -> Dictionary:
 		"semantic_role_profile_path": str(semantic_role_result.get("profile_path", "")),
 		"location_nodes": location_nodes,
 		"role_node_bindings": role_node_bindings,
-		"external_connection_bindings": external_connection_bindings,
-		"debug_summary": _debug_summary(location_nodes, external_connection_bindings),
+		"debug_summary": _debug_summary(location_nodes),
 	}
 	var validator: RefCounted = LocationNodeResultValidatorScript.new()
 	var validation_errors: Array[String] = validator.validate(result, semantic_role_result, profile)
@@ -72,8 +70,6 @@ func expand_locations_result(semantic_role_result: Dictionary) -> Dictionary:
 func _generate_location_nodes(semantic_role_result: Dictionary, profile: RefCounted) -> Dictionary:
 	var location_nodes: Array[Dictionary] = []
 	var role_node_bindings: Array[Dictionary] = []
-	var external_connection_bindings: Array[Dictionary] = []
-	var intents_by_id := _external_intents_by_id(semantic_role_result)
 	var selected_roles: Array = semantic_role_result.get("selected_roles", []) as Array
 	for index in range(selected_roles.size()):
 		var role: Dictionary = selected_roles[index] as Dictionary
@@ -89,17 +85,11 @@ func _generate_location_nodes(semantic_role_result: Dictionary, profile: RefCoun
 			"source_role_id": str(role.get("role_id", "")),
 			"location_id": str(node.get("location_id", "")),
 		})
-		if str(role.get("role_source", "")) == "external":
-			var binding_result := _external_binding_from_role(role, node, intents_by_id)
-			if not bool(binding_result.get("success", false)):
-				return binding_result
-			external_connection_bindings.append(binding_result.get("binding", {}) as Dictionary)
 	return {
 		"success": true,
 		"errors": [],
 		"location_nodes": location_nodes,
 		"role_node_bindings": role_node_bindings,
-		"external_connection_bindings": external_connection_bindings,
 	}
 
 
@@ -119,44 +109,7 @@ func _location_from_role(role: Dictionary, semantic_role_result: Dictionary, pro
 		"is_hidden": profile.is_hidden_role(role_type),
 		"is_required": str(role.get("role_source", "")) == "required",
 	}
-	var source_intent_id := str(role.get("source_intent_id", ""))
-	if not source_intent_id.is_empty():
-		node["source_intent_id"] = source_intent_id
 	return node
-
-
-func _external_binding_from_role(role: Dictionary, node: Dictionary, intents_by_id: Dictionary) -> Dictionary:
-	var intent_id := str(role.get("source_intent_id", ""))
-	if intent_id.is_empty():
-		return _failure("expand_external_connection_binding", [
-			"external semantic role is missing source_intent_id: %s" % str(role.get("role_id", "")),
-		], {})
-	if not intents_by_id.has(intent_id):
-		return _failure("expand_external_connection_binding", [
-			"external semantic role has no matching external_connection_intent: %s" % intent_id,
-		], {})
-	var intent: Dictionary = intents_by_id.get(intent_id, {}) as Dictionary
-	return {
-		"success": true,
-		"errors": [],
-		"binding": {
-			"intent_id": intent_id,
-			"source_role_id": str(role.get("role_id", "")),
-			"boundary_location_id": str(node.get("location_id", "")),
-			"direction_hint": str(intent.get("direction_hint", "")),
-			"travel_type": str(intent.get("travel_type", "")),
-			"exit_style": str(intent.get("exit_style", "")),
-			"access_rule": str(intent.get("access_rule", "always")),
-		},
-	}
-
-
-func _external_intents_by_id(semantic_role_result: Dictionary) -> Dictionary:
-	var result: Dictionary = {}
-	for intent_value in (semantic_role_result.get("external_connection_intents", []) as Array):
-		var intent: Dictionary = intent_value as Dictionary
-		result[str(intent.get("intent_id", ""))] = intent
-	return result
 
 
 func _node_slug_for_role(role: Dictionary) -> String:
@@ -178,7 +131,7 @@ func _location_id_for_node(result: Dictionary, node_slug: String, index: int) ->
 	]
 
 
-func _debug_summary(location_nodes: Array, external_connection_bindings: Array) -> Dictionary:
+func _debug_summary(location_nodes: Array) -> Dictionary:
 	var counts: Dictionary = {}
 	for location_value in location_nodes:
 		var location: Dictionary = location_value as Dictionary
@@ -187,7 +140,6 @@ func _debug_summary(location_nodes: Array, external_connection_bindings: Array) 
 	return {
 		"location_node_count": location_nodes.size(),
 		"location_type_counts": counts,
-		"external_boundary_count": external_connection_bindings.size(),
 	}
 
 

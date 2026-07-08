@@ -47,12 +47,6 @@
       "location_type": "forest_shrine_site",
       "node_tags": ["ritual", "landmark"],
       "count": 1
-    },
-    "external_connection": {
-      "location_type": "forest_boundary",
-      "node_tags": ["boundary", "external"],
-      "count": 1,
-      "boundary": true
     }
   }
 }

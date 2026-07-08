@@ -9,8 +9,12 @@ const FORBIDDEN_LOCATION_GRAPH_KEYS := {
 	"spawn_id": true,
 	"tilemap": true,
 	"target_location_id": true,
+	"external_connection_intents": true,
+	"external_connection_bindings": true,
+	"source_intent_id": true,
+	"boundary_location_id": true,
 }
-const ALLOWED_ROLE_SOURCES := ["required", "optional", "forced", "external"]
+const ALLOWED_ROLE_SOURCES := ["required", "optional", "forced"]
 
 
 func validate(result: Dictionary) -> Array[String]:
@@ -40,8 +44,6 @@ func validate(result: Dictionary) -> Array[String]:
 			continue
 		var role: Dictionary = selected_roles[index] as Dictionary
 		_validate_role(index, role, role_ids, role_slugs, errors)
-	if not (result.get("external_connection_intents", null) is Array):
-		errors.append("SemanticRoleResult.external_connection_intents must be an array")
 	return errors
 
 

@@ -21,7 +21,7 @@ func _run() -> void:
 		return
 	if not _assert_forced_role_slug_controls_node_slug():
 		return
-	if not _assert_external_connection_binding_is_boundary_only():
+	if not _assert_no_external_connection_artifacts():
 		return
 	if not _assert_invalid_profile_and_mapping_fail():
 		return
@@ -102,35 +102,24 @@ func _assert_forced_role_slug_controls_node_slug() -> bool:
 	return false
 
 
-func _assert_external_connection_binding_is_boundary_only() -> bool:
+func _assert_no_external_connection_artifacts() -> bool:
 	var compiler: RefCounted = RegionLocationGraphCompilerScript.new()
 	var result: Dictionary = compiler.compile_location_nodes_result(_load_json(TOWN_REGION_INPUT_PATH))
 	if not bool(result.get("success", false)):
-		_fail("v67.3 external binding setup failed: %s" % str(result.get("errors", [])))
+		_fail("v67.3 no-external-artifact setup failed: %s" % str(result.get("errors", [])))
 		return false
 	var location_node_result: Dictionary = result.get("location_node_result", {}) as Dictionary
-	var bindings: Array = location_node_result.get("external_connection_bindings", []) as Array
-	if bindings.size() != 1:
-		_fail("v67.3 expected one external_connection_binding, got %d" % bindings.size())
-		return false
-	var binding: Dictionary = bindings[0] as Dictionary
-	for forbidden in ["target_location_id", "target_region_id", "edge_id", "resolved_connection", "from_location_id", "to_location_id"]:
-		if binding.has(forbidden):
-			_fail("v67.3 external_connection_binding contains edge-like field: %s" % forbidden)
+	var text := JSON.stringify(location_node_result)
+	for forbidden in ["external_connection", "external_connection_intents", "external_connection_bindings", "source_intent_id", "boundary_location_id", "intent_id"]:
+		if text.contains(forbidden):
+			_fail("v67.3 LocationNodeResult contains external connection artifact: %s" % forbidden)
 			return false
-	var boundary_location_id := str(binding.get("boundary_location_id", ""))
 	for node_value in (location_node_result.get("location_nodes", []) as Array):
 		var node: Dictionary = node_value as Dictionary
-		if str(node.get("location_id", "")) == boundary_location_id:
-			if not bool(node.get("is_boundary", false)):
-				_fail("v67.3 external binding did not point at a boundary node")
-				return false
-			if str(node.get("source_role_id", "")) != str(binding.get("source_role_id", "")):
-				_fail("v67.3 external binding did not point at its source role node")
-				return false
-			return true
-	_fail("v67.3 external binding boundary_location_id did not resolve")
-	return false
+		if str(node.get("source_role_type", "")) == "external_connection":
+			_fail("v67.3 external_connection must not produce a location node")
+			return false
+	return true
 
 
 func _assert_invalid_profile_and_mapping_fail() -> bool:
@@ -199,6 +188,11 @@ func _assert_validator_rejects_invalid_results() -> bool:
 	if not str(validator.validate(edge_field, semantic_roles, profile)).contains("v67.4 edge/scene/runtime field"):
 		_fail("v67.3 validator accepted edge_id in LocationNodeResult")
 		return false
+	var external_field: Dictionary = (location_result.get("location_node_result", {}) as Dictionary).duplicate(true)
+	external_field["external_connection_bindings"] = []
+	if not str(validator.validate(external_field, semantic_roles, profile)).contains("v67.4 edge/scene/runtime field"):
+		_fail("v67.3 validator accepted external_connection_bindings in LocationNodeResult")
+		return false
 	return true
 
 
@@ -227,7 +221,7 @@ func _assert_location_node_only(result: Dictionary) -> bool:
 	if not result.has("location_nodes") or result.has("locations"):
 		_fail("v67.3 result must expose location_nodes and not locations")
 		return false
-	for forbidden in ["edge_id", "edges", "scene_path", "spawn_id", "tilemap", "target_location_id", "target_region_id", "start_location_id"]:
+	for forbidden in ["edge_id", "edges", "scene_path", "spawn_id", "tilemap", "target_location_id", "target_region_id", "start_location_id", "external_connection", "external_connection_bindings", "source_intent_id", "boundary_location_id"]:
 		if JSON.stringify(result).contains("\"%s\"" % forbidden):
 			_fail("v67.3 LocationNodeResult contains forbidden next-stage field: %s" % forbidden)
 			return false

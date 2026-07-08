@@ -49,12 +49,6 @@
       "node_tags": ["boundary", "water", "resource"],
       "count": 1,
       "boundary": true
-    },
-    "external_connection": {
-      "location_type": "region_boundary",
-      "node_tags": ["boundary", "external"],
-      "count": 1,
-      "boundary": true
     }
   }
 }

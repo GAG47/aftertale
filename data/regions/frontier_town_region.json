@@ -23,13 +23,5 @@
     "forest_boundary",
     "river_edge"
   ],
-  "forced_role_specs": [],
-  "external_connection_intents": [
-    {
-      "intent_id": "east_road",
-      "direction_hint": "east",
-      "travel_type": "road",
-      "exit_style": "road_exit"
-    }
-  ]
+  "forced_role_specs": []
 }

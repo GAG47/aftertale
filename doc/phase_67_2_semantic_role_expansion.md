@@ -57,7 +57,6 @@ Each profile defines:
 
 - supported required role types;
 - supported optional role types;
-- an external-intent role type;
 - per-scale optional role count ranges;
 - optional role weights;
 - coarse-context weight modifiers;
@@ -82,7 +81,6 @@ region_slug
 seed
 source_hash
 selected_roles
-external_connection_intents
 debug_summary
 ```
 
@@ -111,8 +109,6 @@ v67.2 validates and rejects:
 - unsupported required, optional, or forced role types;
 - duplicate required or optional role types in RegionInput;
 - forced roles that try to provide compiler-owned `role_id`;
-- external connection intents missing `intent_id`, `direction_hint`,
-  `travel_type`, or `exit_style`;
 - SemanticRoleResult containing Location Graph fields such as `location_id`,
   `edge_id`, `scene_path`, `spawn_id`, or `target_location_id`.
 

@@ -54,7 +54,6 @@ func expand_roles_result(input: Dictionary) -> Dictionary:
 		"source_hash": _source_hash(region_data),
 		"profile_path": str(profile_result.get("profile_path", "")),
 		"selected_roles": selected_roles,
-		"external_connection_intents": (region_data.get("external_connection_intents", []) as Array).duplicate(true),
 		"debug_summary": _debug_summary(selected_roles),
 	}
 	var validator: RefCounted = SemanticRoleResultValidatorScript.new()
@@ -99,12 +98,6 @@ func _validate_input_against_profile(region_data: Dictionary, profile: RefCounte
 		elif not profile.allows_source(role_type, "forced"):
 			errors.append("RegionInput.forced_role_specs role_type does not allow forced source: %s" % role_type)
 
-	for intent_value in (region_data.get("external_connection_intents", []) as Array):
-		var intent: Dictionary = intent_value as Dictionary
-		var intent_id := str(intent.get("intent_id", ""))
-		for key in ["intent_id", "direction_hint", "travel_type", "exit_style"]:
-			if str(intent.get(key, "")).is_empty():
-				errors.append("RegionInput.external_connection_intents[%s].%s is missing" % [intent_id, key])
 	var scale := str((region_data.get("coarse_context", {}) as Dictionary).get("scale", ""))
 	if profile.optional_count_range(scale).is_empty():
 		errors.append("RegionTypeProfile has no optional role count range for scale: %s" % scale)
@@ -132,18 +125,6 @@ func _generate_roles(region_data: Dictionary, profile: RefCounted) -> Dictionary
 		var optional: Dictionary = optional_value as Dictionary
 		_add_role(selected_roles, selected_by_type, profile, str(optional.get("role_type", "")), str(optional.get("role_type", "")), "optional", [])
 
-	var external_role_type: String = profile.external_intent_role_type()
-	for intent_value in (region_data.get("external_connection_intents", []) as Array):
-		var intent: Dictionary = intent_value as Dictionary
-		var intent_id := str(intent.get("intent_id", ""))
-		var extra_tags: Array[String] = [
-			"external_connection",
-			str(intent.get("direction_hint", "")),
-			str(intent.get("travel_type", "")),
-		]
-		var role := _role_template(profile, external_role_type, "external_%s" % intent_id, "external", extra_tags)
-		role["source_intent_id"] = intent_id
-		selected_roles.append(role)
 	return {
 		"success": true,
 		"errors": [],

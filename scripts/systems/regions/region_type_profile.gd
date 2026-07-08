@@ -58,17 +58,12 @@ func validate() -> Array[String]:
 		errors.append("RegionTypeProfile.scale_optional_counts must be an object")
 	else:
 		_validate_scale_optional_counts(errors)
+	if source_data.has("external_intent_role_type"):
+		errors.append("RegionTypeProfile.external_intent_role_type is not supported; Location nodes are the generation unit")
 	if not (source_data.get("role_weights", null) is Dictionary):
 		errors.append("RegionTypeProfile.role_weights must be an object")
 	else:
 		_validate_role_weights(role_definitions, errors)
-	var external_role_type := str(source_data.get("external_intent_role_type", ""))
-	if external_role_type.is_empty():
-		errors.append("RegionTypeProfile.external_intent_role_type is missing")
-	elif not role_definitions.has(external_role_type):
-		errors.append("RegionTypeProfile.external_intent_role_type is not defined: %s" % external_role_type)
-	elif not allows_source(external_role_type, "external"):
-		errors.append("RegionTypeProfile.external_intent_role_type does not allow external source: %s" % external_role_type)
 	return errors
 
 
@@ -86,10 +81,6 @@ func required_role_types() -> Array[String]:
 
 func optional_role_types() -> Array[String]:
 	return _string_array(source_data.get("optional_role_types", []) as Array)
-
-
-func external_intent_role_type() -> String:
-	return str(source_data.get("external_intent_role_type", ""))
 
 
 func role_definition(role_type: String) -> Dictionary:
@@ -226,7 +217,7 @@ func _validate_role_weights(role_definitions: Dictionary, errors: Array[String])
 
 static func _sources_are_valid(value: Variant) -> bool:
 	for source in _string_array(value as Array):
-		if not ["required", "optional", "forced", "external"].has(source):
+		if not ["required", "optional", "forced"].has(source):
 			return false
 	return true
 

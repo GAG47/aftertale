@@ -23,13 +23,5 @@
     "hidden_grove",
     "forest_shrine"
   ],
-  "forced_role_specs": [],
-  "external_connection_intents": [
-    {
-      "intent_id": "west_path",
-      "direction_hint": "west",
-      "travel_type": "path",
-      "exit_style": "forest_gap"
-    }
-  ]
+  "forced_role_specs": []
 }
