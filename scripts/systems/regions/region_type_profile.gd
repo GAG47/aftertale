@@ -1,7 +1,9 @@
 class_name RegionTypeProfile
 extends RefCounted
 
-const SCHEMA_VERSION := 1
+const RegionSemanticVocabularyScript := preload("res://scripts/systems/regions/region_semantic_vocabulary.gd")
+
+const SCHEMA_VERSION := 2
 const PROFILE_PATH_PATTERN := "res://data/regions/region_type_profiles/%s.json"
 
 var source_data: Dictionary = {}
@@ -26,6 +28,8 @@ func validate() -> Array[String]:
 		errors.append("RegionTypeProfile.region_type is missing")
 	elif not _is_system_token(region_type) or not region_type.ends_with("_region"):
 		errors.append("RegionTypeProfile.region_type must be a lowercase *_region token: %s" % region_type)
+	errors.append_array(_validate_need_array("required_needs", true))
+	errors.append_array(_validate_need_array("optional_needs", false))
 	if not (source_data.get("role_definitions", null) is Dictionary):
 		errors.append("RegionTypeProfile.role_definitions must be an object")
 		return errors
@@ -33,33 +37,18 @@ func validate() -> Array[String]:
 	if role_definitions.is_empty():
 		errors.append("RegionTypeProfile.role_definitions is empty")
 	for role_type_value in role_definitions.keys():
-		var role_type := str(role_type_value)
-		if not _is_system_token(role_type):
-			errors.append("RegionTypeProfile role type must be a lowercase system token: %s" % role_type)
-			continue
-		var definition: Dictionary = role_definitions.get(role_type, {}) as Dictionary
-		if definition.is_empty():
-			errors.append("RegionTypeProfile role definition is empty: %s" % role_type)
-			continue
-		if not (definition.get("role_tags", null) is Array):
-			errors.append("RegionTypeProfile role_tags must be an array: %s" % role_type)
-		elif not _string_array_is_valid(definition.get("role_tags")):
-			errors.append("RegionTypeProfile role_tags must contain lowercase system tokens: %s" % role_type)
-		if not (definition.get("allowed_sources", null) is Array):
-			errors.append("RegionTypeProfile allowed_sources must be an array: %s" % role_type)
-		elif not _sources_are_valid(definition.get("allowed_sources")):
-			errors.append("RegionTypeProfile allowed_sources contains an illegal value: %s" % role_type)
-		if not definition.has("allow_multiple"):
-			errors.append("RegionTypeProfile allow_multiple is missing: %s" % role_type)
-	if not _role_type_array_is_valid("required_role_types", role_definitions, true, errors):
-		return errors
-	_role_type_array_is_valid("optional_role_types", role_definitions, false, errors)
+		_validate_role_definition(str(role_type_value), role_definitions.get(role_type_value, {}) as Dictionary, errors)
+	_validate_need_coverage(role_definitions, errors)
 	if not (source_data.get("scale_optional_counts", null) is Dictionary):
 		errors.append("RegionTypeProfile.scale_optional_counts must be an object")
 	else:
 		_validate_scale_optional_counts(errors)
 	if source_data.has("external_intent_role_type"):
 		errors.append("RegionTypeProfile.external_intent_role_type is not supported; Location nodes are the generation unit")
+	if source_data.has("required_role_types"):
+		errors.append("RegionTypeProfile.required_role_types is not supported in schema v%d; use required_needs" % SCHEMA_VERSION)
+	if source_data.has("optional_role_types"):
+		errors.append("RegionTypeProfile.optional_role_types is not supported in schema v%d; use optional_needs" % SCHEMA_VERSION)
 	if not (source_data.get("role_weights", null) is Dictionary):
 		errors.append("RegionTypeProfile.role_weights must be an object")
 	else:
@@ -75,12 +64,37 @@ func region_type() -> String:
 	return str(source_data.get("region_type", ""))
 
 
-func required_role_types() -> Array[String]:
-	return _string_array(source_data.get("required_role_types", []) as Array)
+func required_needs() -> Array[String]:
+	return _string_array(source_data.get("required_needs", []) as Array)
 
 
-func optional_role_types() -> Array[String]:
-	return _string_array(source_data.get("optional_role_types", []) as Array)
+func optional_needs() -> Array[String]:
+	return _string_array(source_data.get("optional_needs", []) as Array)
+
+
+func all_role_types() -> Array[String]:
+	var result: Array[String] = []
+	var definitions: Dictionary = source_data.get("role_definitions", {}) as Dictionary
+	for role_type_value in definitions.keys():
+		result.append(str(role_type_value))
+	result.sort()
+	return result
+
+
+func role_types_for_source(source: String) -> Array[String]:
+	var result: Array[String] = []
+	for role_type in all_role_types():
+		if allows_source(role_type, source):
+			result.append(role_type)
+	return result
+
+
+func role_types_for_need(need_id: String, source: String) -> Array[String]:
+	var result: Array[String] = []
+	for role_type in all_role_types():
+		if allows_source(role_type, source) and role_satisfies(role_type).has(need_id):
+			result.append(role_type)
+	return result
 
 
 func role_definition(role_type: String) -> Dictionary:
@@ -91,6 +105,11 @@ func role_definition(role_type: String) -> Dictionary:
 func role_tags(role_type: String) -> Array[String]:
 	var definition := role_definition(role_type)
 	return _string_array(definition.get("role_tags", []) as Array)
+
+
+func role_satisfies(role_type: String) -> Array[String]:
+	var definition := role_definition(role_type)
+	return _string_array(definition.get("satisfies", []) as Array)
 
 
 func allows_source(role_type: String, source: String) -> bool:
@@ -127,7 +146,7 @@ func context_weight_multiplier(coarse_context: Dictionary, role_type: String) ->
 		if not coarse_context.has(context_key):
 			continue
 		var by_value: Dictionary = modifiers.get(context_key, {}) as Dictionary
-		for context_value in _context_values(coarse_context.get(context_key)):
+		for context_value in RegionSemanticVocabularyScript.context_values(coarse_context.get(context_key)):
 			var role_modifiers: Dictionary = by_value.get(context_value, {}) as Dictionary
 			if role_modifiers.has(role_type):
 				multiplier *= maxf(0.0, float(role_modifiers.get(role_type, 1.0)))
@@ -168,21 +187,74 @@ static func _failure(errors: Array[String], resource_path: String = "") -> Dicti
 	}
 
 
-func _role_type_array_is_valid(key: String, role_definitions: Dictionary, require_non_empty: bool, errors: Array[String]) -> bool:
+func _validate_need_array(key: String, require_non_empty: bool) -> Array[String]:
+	var errors: Array[String] = []
 	if not (source_data.get(key, null) is Array):
 		errors.append("RegionTypeProfile.%s must be an array" % key)
-		return false
+		return errors
 	var values := _string_array(source_data.get(key, []) as Array)
 	if require_non_empty and values.is_empty():
 		errors.append("RegionTypeProfile.%s must not be empty" % key)
 	var seen: Dictionary = {}
-	for role_type in values:
-		if not role_definitions.has(role_type):
-			errors.append("RegionTypeProfile.%s references undefined role type: %s" % [key, role_type])
-		if seen.has(role_type):
-			errors.append("RegionTypeProfile.%s contains duplicate role type: %s" % [key, role_type])
-		seen[role_type] = true
-	return true
+	for need_id in values:
+		if not RegionSemanticVocabularyScript.is_need_id(need_id):
+			errors.append("RegionTypeProfile.%s contains unsupported need_id: %s" % [key, need_id])
+		if seen.has(need_id):
+			errors.append("RegionTypeProfile.%s contains duplicate need_id: %s" % [key, need_id])
+		seen[need_id] = true
+	return errors
+
+
+func _validate_role_definition(role_type: String, definition: Dictionary, errors: Array[String]) -> void:
+	if not _is_system_token(role_type):
+		errors.append("RegionTypeProfile role type must be a lowercase system token: %s" % role_type)
+		return
+	if definition.is_empty():
+		errors.append("RegionTypeProfile role definition is empty: %s" % role_type)
+		return
+	if not (definition.get("satisfies", null) is Array):
+		errors.append("RegionTypeProfile satisfies must be an array: %s" % role_type)
+	else:
+		for need_id in _string_array(definition.get("satisfies", []) as Array):
+			if not RegionSemanticVocabularyScript.is_need_id(need_id):
+				errors.append("RegionTypeProfile satisfies contains unsupported need_id for %s: %s" % [role_type, need_id])
+	if not (definition.get("role_tags", null) is Array):
+		errors.append("RegionTypeProfile role_tags must be an array: %s" % role_type)
+	elif not _string_array_is_valid(definition.get("role_tags")):
+		errors.append("RegionTypeProfile role_tags must contain lowercase system tokens: %s" % role_type)
+	if not (definition.get("allowed_sources", null) is Array):
+		errors.append("RegionTypeProfile allowed_sources must be an array: %s" % role_type)
+	elif not _sources_are_valid(definition.get("allowed_sources")):
+		errors.append("RegionTypeProfile allowed_sources contains an illegal value: %s" % role_type)
+	if definition.has("properties") and not _string_array_is_valid(definition.get("properties")):
+		errors.append("RegionTypeProfile properties must contain lowercase system tokens: %s" % role_type)
+	if definition.has("affinity") and not _string_array_is_valid(definition.get("affinity")):
+		errors.append("RegionTypeProfile affinity must contain lowercase system tokens: %s" % role_type)
+	if definition.has("category") and not _is_system_token(str(definition.get("category", ""))):
+		errors.append("RegionTypeProfile category must be a lowercase system token: %s" % role_type)
+	if not definition.has("allow_multiple"):
+		errors.append("RegionTypeProfile allow_multiple is missing: %s" % role_type)
+
+
+func _validate_need_coverage(role_definitions: Dictionary, errors: Array[String]) -> void:
+	for need_id in required_needs():
+		if _role_types_matching_need(role_definitions, need_id, "required").is_empty():
+			errors.append("RegionTypeProfile.required_needs has no required role candidate: %s" % need_id)
+	for need_id in optional_needs():
+		if _role_types_matching_need(role_definitions, need_id, "optional").is_empty():
+			errors.append("RegionTypeProfile.optional_needs has no optional role candidate: %s" % need_id)
+
+
+func _role_types_matching_need(role_definitions: Dictionary, need_id: String, source: String) -> Array[String]:
+	var result: Array[String] = []
+	for role_type_value in role_definitions.keys():
+		var role_type := str(role_type_value)
+		var definition: Dictionary = role_definitions.get(role_type_value, {}) as Dictionary
+		var satisfies := _string_array(definition.get("satisfies", []) as Array)
+		var sources := _string_array(definition.get("allowed_sources", []) as Array)
+		if satisfies.has(need_id) and sources.has(source):
+			result.append(role_type)
+	return result
 
 
 func _validate_scale_optional_counts(errors: Array[String]) -> void:
@@ -204,7 +276,7 @@ func _validate_scale_optional_counts(errors: Array[String]) -> void:
 
 func _validate_role_weights(role_definitions: Dictionary, errors: Array[String]) -> void:
 	var weights: Dictionary = source_data.get("role_weights", {}) as Dictionary
-	for role_type in optional_role_types():
+	for role_type in _role_types_for_source(role_definitions, "optional"):
 		if not weights.has(role_type):
 			errors.append("RegionTypeProfile.role_weights missing optional role type: %s" % role_type)
 		elif float(weights.get(role_type, 0.0)) <= 0.0:
@@ -213,6 +285,15 @@ func _validate_role_weights(role_definitions: Dictionary, errors: Array[String])
 		var role_type := str(key_value)
 		if not role_definitions.has(role_type):
 			errors.append("RegionTypeProfile.role_weights references undefined role type: %s" % role_type)
+
+
+func _role_types_for_source(role_definitions: Dictionary, source: String) -> Array[String]:
+	var result: Array[String] = []
+	for role_type_value in role_definitions.keys():
+		var definition: Dictionary = role_definitions.get(role_type_value, {}) as Dictionary
+		if _string_array(definition.get("allowed_sources", []) as Array).has(source):
+			result.append(str(role_type_value))
+	return result
 
 
 static func _sources_are_valid(value: Variant) -> bool:
@@ -235,20 +316,6 @@ static func _string_array_is_valid(value: Variant) -> bool:
 static func _string_array(values: Array) -> Array[String]:
 	var result: Array[String] = []
 	for value in values:
-		var text := str(value)
-		if not text.is_empty():
-			result.append(text)
-	return result
-
-
-static func _context_values(value: Variant) -> Array[String]:
-	var result: Array[String] = []
-	if value is Array:
-		for item in (value as Array):
-			var text := str(item)
-			if not text.is_empty():
-				result.append(text)
-	else:
 		var text := str(value)
 		if not text.is_empty():
 			result.append(text)

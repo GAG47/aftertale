@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "region_id": "region.frontier.forest_region.glimmerwood.rg_0002",
   "region_slug": "glimmerwood",
   "display_name": "Glimmerwood",
@@ -10,18 +10,30 @@
     "political_context": "wilderness",
     "scale": "small"
   },
-  "required_roles": [
-    "entrance",
-    "common_woods",
-    "inner_area"
+  "region_traits": [
+    "wilderness",
+    "forest",
+    "frontier",
+    "resource_rich",
+    "dangerous"
   ],
-  "optional_role_pool": [
-    "clearing",
-    "hut",
-    "ruin",
-    "stream",
-    "hidden_grove",
-    "forest_shrine"
+  "region_facts": [
+    "has_forest",
+    "has_road",
+    "has_hidden_places",
+    "resource_site"
+  ],
+  "required_needs": [
+    "wilderness.core",
+    "travel.access",
+    "wilderness.inner"
+  ],
+  "optional_needs": [
+    "landmark.memorable",
+    "resource.water",
+    "danger.local",
+    "shelter.local",
+    "ritual.place"
   ],
   "forced_role_specs": []
 }

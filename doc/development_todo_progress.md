@@ -72,6 +72,10 @@ a usable skeleton toward presentable generated places:
   indexes, selects a stable current location, supports adjacent-only travel,
   and drives a generic interactive placeholder Location scene without saving
   or generating map content.
+- a v67.7 Region Demand Contract correction that removes RegionInput role-pool
+  selection from the main path, limits region facts and needs to the current map
+  vocabulary, records semantic need coverage, and keeps the downstream
+  LocationNode, Edge, Snapshot, and Runtime stages stable.
 
 ## Battle Deepening Roadmap
 
@@ -102,6 +106,7 @@ a usable skeleton toward presentable generated places:
 | v67.4 | Complete | `doc/phase_67_4_edge_contracts.md` | Generate stable node-to-node EdgeContractResult data from one or more LocationNodeResult values and an explicit global profile, reject Region selectors, missing required endpoints and ambiguous matches, derive same-region or cross-region status only after endpoint selection, and stop explicitly at the v67.5 Location Graph Snapshot boundary. |
 | v67.5 | Complete | `doc/phase_67_5_location_graph_snapshot.md` | Canonically freeze LocationNodeResult and EdgeContractResult data into a self-contained LocationGraphSnapshot, recheck upstream result hashes, hash every participating profile, reject incompatible or modified snapshots, require explicit persistence paths, and stop before v67.6 Runtime adaptation. |
 | v67.6 | Complete | `doc/phase_67_6_snapshot_runtime_adapter.md` | Validate an in-memory LocationGraphSnapshot, build location and direction-aware adjacency indexes, keep current location as Runtime-only state, allow adjacent-only travel, and enter an interactive placeholder Location scene without TileMap, NPC, save, task, or scene-generation integration. |
+| v67.7 | Complete | `doc/phase_67_7_region_demand_contract.md` | Replace RegionInput role-pool selection with a bounded demand contract: region traits, facts, required needs, optional needs, profile default needs, role capability declarations, demand coverage traceability, and no expansion into v68 world background generation. |
 
 ## Dependency Order
 
@@ -131,6 +136,7 @@ v50 skill effect data model
 -> v67.4 Edge Contracts
 -> v67.5 Location Graph Snapshot
 -> v67.6 Snapshot Runtime Adapter
+-> v67.7 Region Demand Contract
 ```
 
 ## Minimum Tactical Slice

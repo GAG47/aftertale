@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "region_id": "region.frontier.town_region.oak_crossing.rg_0001",
   "region_slug": "oak_crossing",
   "display_name": "Oak Crossing",
@@ -10,18 +10,32 @@
     "political_context": "kingdom",
     "scale": "small"
   },
-  "required_roles": [
-    "settlement_core",
-    "main_exit",
-    "support_area"
+  "region_traits": [
+    "settlement",
+    "town",
+    "plain",
+    "kingdom",
+    "road_access",
+    "resource_rich"
   ],
-  "optional_role_pool": [
-    "farmland",
-    "landmark",
-    "market",
-    "shrine",
-    "forest_boundary",
-    "river_edge"
+  "region_facts": [
+    "has_road",
+    "has_farmland",
+    "near_forest",
+    "near_river",
+    "belongs_to_kingdom"
+  ],
+  "required_needs": [
+    "settlement.core",
+    "travel.access",
+    "settlement.support"
+  ],
+  "optional_needs": [
+    "production.food",
+    "public.trade",
+    "landmark.memorable",
+    "resource.water",
+    "resource.forest"
   ],
   "forced_role_specs": []
 }

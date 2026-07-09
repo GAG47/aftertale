@@ -1,6 +1,8 @@
 class_name SemanticRoleResultValidator
 extends RefCounted
 
+const RegionSemanticVocabularyScript := preload("res://scripts/systems/regions/region_semantic_vocabulary.gd")
+
 const SCHEMA_VERSION := 1
 const FORBIDDEN_LOCATION_GRAPH_KEYS := {
 	"location_id": true,
@@ -30,6 +32,7 @@ func validate(result: Dictionary) -> Array[String]:
 	for key in ["compiler_version", "region_id", "region_type", "region_slug", "seed", "source_hash"]:
 		if str(result.get(key, "")).is_empty():
 			errors.append("SemanticRoleResult.%s is missing" % key)
+	_validate_demand_contract(result.get("demand_contract", null), errors)
 	if not (result.get("selected_roles", null) is Array):
 		errors.append("SemanticRoleResult.selected_roles must be an array")
 		return errors
@@ -44,11 +47,12 @@ func validate(result: Dictionary) -> Array[String]:
 			continue
 		var role: Dictionary = selected_roles[index] as Dictionary
 		_validate_role(index, role, role_ids, role_slugs, errors)
+	_validate_need_coverage(result.get("need_coverage", null), role_ids, errors)
 	return errors
 
 
 func _validate_role(index: int, role: Dictionary, role_ids: Dictionary, role_slugs: Dictionary, errors: Array[String]) -> void:
-	for key in ["role_id", "role_type", "role_slug", "role_source", "role_tags"]:
+	for key in ["role_id", "role_type", "role_slug", "role_source", "role_tags", "satisfies", "matched_need_ids"]:
 		if not role.has(key):
 			errors.append("SemanticRoleResult.selected_roles[%d].%s is missing" % [index, key])
 	var role_id := str(role.get("role_id", ""))
@@ -73,6 +77,59 @@ func _validate_role(index: int, role: Dictionary, role_ids: Dictionary, role_slu
 		errors.append("SemanticRoleResult.selected_roles[%d].role_tags must be an array" % index)
 	elif not _string_array_is_valid(role.get("role_tags")):
 		errors.append("SemanticRoleResult.selected_roles[%d].role_tags must contain lowercase system tokens" % index)
+	if not (role.get("satisfies", null) is Array):
+		errors.append("SemanticRoleResult.selected_roles[%d].satisfies must be an array" % index)
+	elif not _need_array_is_valid(role.get("satisfies")):
+		errors.append("SemanticRoleResult.selected_roles[%d].satisfies contains unsupported need_id" % index)
+	if not (role.get("matched_need_ids", null) is Array):
+		errors.append("SemanticRoleResult.selected_roles[%d].matched_need_ids must be an array" % index)
+	elif not _need_array_is_valid(role.get("matched_need_ids")):
+		errors.append("SemanticRoleResult.selected_roles[%d].matched_need_ids contains unsupported need_id" % index)
+
+
+func _validate_demand_contract(value: Variant, errors: Array[String]) -> void:
+	if not (value is Dictionary):
+		errors.append("SemanticRoleResult.demand_contract must be an object")
+		return
+	var demand_contract: Dictionary = value as Dictionary
+	for key in ["required_needs", "optional_needs", "region_traits", "region_facts"]:
+		if not (demand_contract.get(key, null) is Array):
+			errors.append("SemanticRoleResult.demand_contract.%s must be an array" % key)
+	if demand_contract.get("required_needs", []) is Array and not _need_array_is_valid(demand_contract.get("required_needs")):
+		errors.append("SemanticRoleResult.demand_contract.required_needs contains unsupported need_id")
+	if demand_contract.get("optional_needs", []) is Array and not _need_array_is_valid(demand_contract.get("optional_needs")):
+		errors.append("SemanticRoleResult.demand_contract.optional_needs contains unsupported need_id")
+	if not (demand_contract.get("coarse_context", null) is Dictionary):
+		errors.append("SemanticRoleResult.demand_contract.coarse_context must be an object")
+
+
+func _validate_need_coverage(value: Variant, role_ids: Dictionary, errors: Array[String]) -> void:
+	if not (value is Array):
+		errors.append("SemanticRoleResult.need_coverage must be an array")
+		return
+	var coverage_values: Array = value as Array
+	if coverage_values.is_empty():
+		errors.append("SemanticRoleResult.need_coverage must not be empty")
+	for index in range(coverage_values.size()):
+		if not (coverage_values[index] is Dictionary):
+			errors.append("SemanticRoleResult.need_coverage[%d] must be an object" % index)
+			continue
+		var coverage: Dictionary = coverage_values[index] as Dictionary
+		var need_id := str(coverage.get("need_id", ""))
+		if not RegionSemanticVocabularyScript.is_need_id(need_id):
+			errors.append("SemanticRoleResult.need_coverage[%d].need_id is unsupported: %s" % [index, need_id])
+		if not (coverage.get("required", null) is bool):
+			errors.append("SemanticRoleResult.need_coverage[%d].required must be a bool" % index)
+		if not (coverage.get("role_ids", null) is Array):
+			errors.append("SemanticRoleResult.need_coverage[%d].role_ids must be an array" % index)
+			continue
+		var covered_role_ids: Array = coverage.get("role_ids", []) as Array
+		if bool(coverage.get("required", false)) and covered_role_ids.is_empty():
+			errors.append("SemanticRoleResult.need_coverage[%d] required need has no covering role: %s" % [index, need_id])
+		for role_id_value in covered_role_ids:
+			var role_id := str(role_id_value)
+			if not role_ids.has(role_id):
+				errors.append("SemanticRoleResult.need_coverage[%d] references unknown role_id: %s" % [index, role_id])
 
 
 func _scan_for_forbidden_keys(value: Variant, path: String, errors: Array[String]) -> void:
@@ -116,6 +173,16 @@ static func _string_array_is_valid(value: Variant) -> bool:
 	for item in (value as Array):
 		var text := str(item)
 		if text.is_empty() or not _is_system_token(text):
+			return false
+	return true
+
+
+static func _need_array_is_valid(value: Variant) -> bool:
+	if not (value is Array):
+		return false
+	for item in (value as Array):
+		var text := str(item)
+		if text.is_empty() or not RegionSemanticVocabularyScript.is_need_id(text):
 			return false
 	return true
 

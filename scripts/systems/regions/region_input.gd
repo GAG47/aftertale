@@ -1,10 +1,12 @@
 class_name RegionInput
 extends RefCounted
 
-const SCHEMA_VERSION := 1
+const RegionSemanticVocabularyScript := preload("res://scripts/systems/regions/region_semantic_vocabulary.gd")
+
+const SCHEMA_VERSION := 2
 const REGION_ID_PREFIX := "region"
 const REGION_CODE_PREFIX := "rg_"
-const REQUIRED_CONTEXT_KEYS := ["terrain_context", "political_context", "scale"]
+const FORBIDDEN_ROLE_POOL_KEYS := ["required_roles", "optional_role_pool"]
 
 var source_data: Dictionary = {}
 
@@ -61,19 +63,14 @@ static func validate_data(data: Dictionary) -> Array[String]:
 	elif not _is_integer_like(data.get("seed")):
 		errors.append("RegionInput.seed must be an integer value")
 
-	if not (data.get("coarse_context", null) is Dictionary):
-		errors.append("RegionInput.coarse_context must be an object")
-	else:
-		var coarse_context: Dictionary = data.get("coarse_context", {}) as Dictionary
-		if coarse_context.is_empty():
-			errors.append("RegionInput.coarse_context is missing")
-		else:
-			for key in REQUIRED_CONTEXT_KEYS:
-				if not coarse_context.has(key) or _context_value_is_empty(coarse_context.get(key)):
-					errors.append("RegionInput.coarse_context.%s is missing" % key)
-
-	errors.append_array(_validate_role_list(data, "required_roles", true))
-	errors.append_array(_validate_role_list(data, "optional_role_pool", false))
+	errors.append_array(RegionSemanticVocabularyScript.validate_coarse_context(data.get("coarse_context", null), "coarse_context"))
+	errors.append_array(RegionSemanticVocabularyScript.validate_trait_array(data.get("region_traits", null), "region_traits"))
+	errors.append_array(RegionSemanticVocabularyScript.validate_fact_array(data.get("region_facts", null), "region_facts"))
+	errors.append_array(RegionSemanticVocabularyScript.validate_need_array(data.get("required_needs", null), "required_needs"))
+	errors.append_array(RegionSemanticVocabularyScript.validate_need_array(data.get("optional_needs", null), "optional_needs"))
+	for key in FORBIDDEN_ROLE_POOL_KEYS:
+		if data.has(key):
+			errors.append("RegionInput.%s is not supported in schema v%d; use demand fields instead" % [key, SCHEMA_VERSION])
 	errors.append_array(_validate_forced_role_specs(data.get("forced_role_specs", null)))
 	if data.has("external_connection_intents"):
 		errors.append("RegionInput.external_connection_intents is not supported; Location nodes are the generation unit")
@@ -105,31 +102,6 @@ static func _validate_region_id(region_id: String, region_type: String, region_s
 		var number_part := code.substr(REGION_CODE_PREFIX.length())
 		if not number_part.is_valid_int():
 			errors.append("RegionInput.region_id stable code suffix must be numeric: %s" % code)
-	return errors
-
-
-static func _validate_role_list(data: Dictionary, key: String, require_non_empty: bool) -> Array[String]:
-	var errors: Array[String] = []
-	if not data.has(key):
-		errors.append("RegionInput.%s is missing" % key)
-		return errors
-	if not (data.get(key) is Array):
-		errors.append("RegionInput.%s must be an array" % key)
-		return errors
-	var values: Array = data.get(key, []) as Array
-	if require_non_empty and values.is_empty():
-		errors.append("RegionInput.%s must contain at least one role" % key)
-	var seen: Dictionary = {}
-	for index in range(values.size()):
-		var role_type := _role_type(values[index])
-		if role_type.is_empty():
-			errors.append("RegionInput.%s[%d] is missing a role_type" % [key, index])
-			continue
-		if not _is_system_token(role_type):
-			errors.append("RegionInput.%s[%d] role_type must be a lowercase system token: %s" % [key, index, role_type])
-		if seen.has(role_type):
-			errors.append("RegionInput.%s contains duplicate role_type: %s" % [key, role_type])
-		seen[role_type] = true
 	return errors
 
 
@@ -167,23 +139,6 @@ static func _validate_forced_role_specs(value: Variant) -> Array[String]:
 				errors.append("RegionInput.forced_role_specs contains duplicate role_slug: %s" % role_slug)
 			seen[role_slug] = true
 	return errors
-
-
-static func _role_type(value: Variant) -> String:
-	if value is String:
-		return str(value)
-	if value is Dictionary:
-		var role: Dictionary = value as Dictionary
-		return str(role.get("role_type", ""))
-	return ""
-
-
-static func _context_value_is_empty(value: Variant) -> bool:
-	if value is String:
-		return str(value).is_empty()
-	if value is Array:
-		return (value as Array).is_empty()
-	return value == null
 
 
 static func _is_integer_like(value: Variant) -> bool:

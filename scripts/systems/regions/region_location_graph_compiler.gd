@@ -6,7 +6,7 @@ const SemanticRoleExpanderScript := preload("res://scripts/systems/regions/seman
 const LocationNodeExpanderScript := preload("res://scripts/systems/regions/location_node_expander.gd")
 const EdgeContractGeneratorScript := preload("res://scripts/systems/regions/edge_contract_generator.gd")
 const LocationGraphSnapshotBuilderScript := preload("res://scripts/systems/regions/location_graph_snapshot_builder.gd")
-const COMPILER_VERSION := "v67.5"
+const COMPILER_VERSION := "v67.7"
 
 
 func validate_region_input_result(input: Dictionary) -> Dictionary:

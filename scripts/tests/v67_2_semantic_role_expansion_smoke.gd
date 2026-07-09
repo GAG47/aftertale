@@ -47,6 +47,14 @@ func _assert_region_types_expand() -> bool:
 	if not _has_role_source(town_roles, "required") or not _has_role_source(town_roles, "optional"):
 		_fail("v67.2 town_region did not include required and optional role sources")
 		return false
+	if (town_roles.get("demand_contract", {}) as Dictionary).is_empty():
+		_fail("v67.2 SemanticRoleResult did not include the v67.7 demand contract")
+		return false
+	if (town_roles.get("need_coverage", []) as Array).is_empty():
+		_fail("v67.2 SemanticRoleResult did not include demand coverage")
+		return false
+	if not _roles_have_need_sources(town_roles):
+		return false
 	if _has_role_source(town_roles, "external") or JSON.stringify(town_roles).contains("external_connection"):
 		_fail("v67.2 SemanticRoleResult must not contain external connection roles or intents")
 		return false
@@ -89,9 +97,9 @@ func _assert_different_seed_can_change_optional_roles() -> bool:
 
 func _assert_invalid_inputs_fail() -> bool:
 	var compiler: RefCounted = RegionLocationGraphCompilerScript.new()
-	var missing_required := _load_json(TOWN_REGION_INPUT_PATH)
-	(missing_required.get("required_roles", []) as Array).erase("support_area")
-	if not _fails_with(compiler.compile_semantic_roles_result(missing_required), "missing profile-required role_type"):
+	var old_required_roles := _load_json(TOWN_REGION_INPUT_PATH)
+	old_required_roles["required_roles"] = ["settlement_core"]
+	if not _fails_with(compiler.compile_semantic_roles_result(old_required_roles), "required_roles is not supported"):
 		return false
 
 	var unsupported_region := _load_json(TOWN_REGION_INPUT_PATH)
@@ -101,14 +109,19 @@ func _assert_invalid_inputs_fail() -> bool:
 	if not _fails_with(compiler.compile_semantic_roles_result(unsupported_region), "RegionTypeProfile resource is missing"):
 		return false
 
-	var unsupported_optional := _load_json(TOWN_REGION_INPUT_PATH)
-	(unsupported_optional.get("optional_role_pool", []) as Array).append("castle")
-	if not _fails_with(compiler.compile_semantic_roles_result(unsupported_optional), "unsupported optional role_type"):
+	var unsupported_need := _load_json(TOWN_REGION_INPUT_PATH)
+	(unsupported_need.get("optional_needs", []) as Array).append("imperial.taxation")
+	if not _fails_with(compiler.compile_semantic_roles_result(unsupported_need), "not supported by the v67.7 vocabulary"):
 		return false
 
-	var duplicate_required := _load_json(TOWN_REGION_INPUT_PATH)
-	(duplicate_required.get("required_roles", []) as Array).append("main_exit")
-	if not _fails_with(compiler.compile_semantic_roles_result(duplicate_required), "duplicate role_type"):
+	var duplicate_required_need := _load_json(TOWN_REGION_INPUT_PATH)
+	(duplicate_required_need.get("required_needs", []) as Array).append("travel.access")
+	if not _fails_with(compiler.compile_semantic_roles_result(duplicate_required_need), "duplicate need_id"):
+		return false
+
+	var unsupported_required_need := _load_json(TOWN_REGION_INPUT_PATH)
+	unsupported_required_need["required_needs"] = ["danger.local"]
+	if not _fails_with(compiler.compile_semantic_roles_result(unsupported_required_need), "has no required role candidate"):
 		return false
 
 	var forced_unsupported := _load_json(TOWN_REGION_INPUT_PATH)
@@ -169,6 +182,18 @@ func _has_role_source(result: Dictionary, source: String) -> bool:
 		if str(role.get("role_source", "")) == source:
 			return true
 	return false
+
+
+func _roles_have_need_sources(result: Dictionary) -> bool:
+	for role_value in (result.get("selected_roles", []) as Array):
+		var role: Dictionary = role_value as Dictionary
+		if not (role.get("satisfies", null) is Array):
+			_fail("v67.2 selected role is missing satisfies: %s" % str(role))
+			return false
+		if not (role.get("matched_need_ids", null) is Array):
+			_fail("v67.2 selected role is missing matched_need_ids: %s" % str(role))
+			return false
+	return true
 
 
 func _role_type_signature(result: Dictionary) -> String:

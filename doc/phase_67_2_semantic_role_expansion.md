@@ -1,5 +1,10 @@
 # Phase 67.2 Semantic Role Expansion
 
+Note: v67.7 supersedes the original `required_roles` and
+`optional_role_pool` input contract. This file remains the historical v67.2
+record; the current main path uses the demand contract documented in
+`doc/phase_67_7_region_demand_contract.md`.
+
 v67.2 moves the Region compiler one real stage forward:
 
 ```text

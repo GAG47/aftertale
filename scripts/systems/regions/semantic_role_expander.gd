@@ -2,11 +2,12 @@ class_name SemanticRoleExpander
 extends RefCounted
 
 const RegionInputScript := preload("res://scripts/systems/regions/region_input.gd")
+const RegionSemanticVocabularyScript := preload("res://scripts/systems/regions/region_semantic_vocabulary.gd")
 const RegionTypeProfileScript := preload("res://scripts/systems/regions/region_type_profile.gd")
 const SemanticRoleResultValidatorScript := preload("res://scripts/systems/regions/semantic_role_result_validator.gd")
 
 const SCHEMA_VERSION := 1
-const COMPILER_VERSION := "v67.2"
+const COMPILER_VERSION := "v67.7"
 
 var _rng := RandomNumberGenerator.new()
 
@@ -43,6 +44,7 @@ func expand_roles_result(input: Dictionary) -> Dictionary:
 
 	var selected_roles: Array = generation_result.get("selected_roles", []) as Array
 	_assign_role_ids(selected_roles, region_data)
+	var demand_contract: Dictionary = generation_result.get("demand_contract", {}) as Dictionary
 	var semantic_result := {
 		"schema_version": SCHEMA_VERSION,
 		"compiler_version": COMPILER_VERSION,
@@ -53,7 +55,9 @@ func expand_roles_result(input: Dictionary) -> Dictionary:
 		"seed": int(region_data.get("seed", 0)),
 		"source_hash": _source_hash(region_data),
 		"profile_path": str(profile_result.get("profile_path", "")),
+		"demand_contract": demand_contract,
 		"selected_roles": selected_roles,
+		"need_coverage": _need_coverage(selected_roles, demand_contract),
 		"debug_summary": _debug_summary(selected_roles),
 	}
 	var validator: RefCounted = SemanticRoleResultValidatorScript.new()
@@ -73,22 +77,12 @@ func expand_roles_result(input: Dictionary) -> Dictionary:
 
 func _validate_input_against_profile(region_data: Dictionary, profile: RefCounted) -> Array[String]:
 	var errors: Array[String] = []
-	var required_roles := _role_type_array(region_data.get("required_roles", []) as Array)
-	var required_set := _set_from_array(required_roles)
-	for role_type in profile.required_role_types():
-		if not required_set.has(role_type):
-			errors.append("RegionInput.required_roles is missing profile-required role_type: %s" % role_type)
-	for role_type in required_roles:
-		if not profile.role_definition(role_type).is_empty() and profile.allows_source(role_type, "required"):
-			continue
-		errors.append("RegionInput.required_roles contains unsupported required role_type for %s: %s" % [profile.region_type(), role_type])
-
-	var optional_roles := _role_type_array(region_data.get("optional_role_pool", []) as Array)
-	for role_type in optional_roles:
-		if not profile.optional_role_types().has(role_type):
-			errors.append("RegionInput.optional_role_pool contains unsupported optional role_type for %s: %s" % [profile.region_type(), role_type])
-		elif not profile.allows_source(role_type, "optional"):
-			errors.append("RegionInput.optional_role_pool role_type does not allow optional source: %s" % role_type)
+	for need_id in RegionSemanticVocabularyScript.need_array(region_data.get("required_needs", []) as Array):
+		if profile.role_types_for_need(need_id, "required").is_empty():
+			errors.append("RegionInput.required_needs has no required role candidate for %s: %s" % [profile.region_type(), need_id])
+	for need_id in RegionSemanticVocabularyScript.need_array(region_data.get("optional_needs", []) as Array):
+		if profile.role_types_for_need(need_id, "optional").is_empty():
+			errors.append("RegionInput.optional_needs has no optional role candidate for %s: %s" % [profile.region_type(), need_id])
 
 	for forced_value in (region_data.get("forced_role_specs", []) as Array):
 		var forced: Dictionary = forced_value as Dictionary
@@ -105,10 +99,26 @@ func _validate_input_against_profile(region_data: Dictionary, profile: RefCounte
 
 
 func _generate_roles(region_data: Dictionary, profile: RefCounted) -> Dictionary:
+	var demand_contract := _demand_contract(region_data, profile)
 	var selected_roles: Array = []
 	var selected_by_type: Dictionary = {}
-	for role_type in profile.required_role_types():
-		_add_role(selected_roles, selected_by_type, profile, role_type, role_type, "required", [])
+	for need_id in (demand_contract.get("required_needs", []) as Array):
+		if _need_is_covered(selected_roles, str(need_id)):
+			continue
+		var required_role := _best_role_for_need(str(need_id), "required", region_data, profile, selected_by_type)
+		if required_role.is_empty():
+			return _failure("expand_semantic_roles", ["No semantic role can satisfy required need: %s" % str(need_id)], {})
+		_add_role(
+			selected_roles,
+			selected_by_type,
+			profile,
+			str(required_role.get("role_type", "")),
+			str(required_role.get("role_type", "")),
+			"required",
+			[],
+			[str(need_id)]
+		)
+
 	for forced_value in (region_data.get("forced_role_specs", []) as Array):
 		var forced: Dictionary = forced_value as Dictionary
 		var role_type := str(forced.get("role_type", ""))
@@ -116,23 +126,86 @@ func _generate_roles(region_data: Dictionary, profile: RefCounted) -> Dictionary
 		var tags := _string_array(forced.get("role_tags", []) as Array)
 		if selected_by_type.has(role_type) and not profile.allows_multiple(role_type):
 			return _failure("expand_semantic_roles", ["forced role_type duplicates a non-multiple role_type: %s" % role_type], {})
-		_add_role(selected_roles, selected_by_type, profile, role_type, role_slug, "forced", tags)
+		_add_role(
+			selected_roles,
+			selected_by_type,
+			profile,
+			role_type,
+			role_slug,
+			"forced",
+			tags,
+			_matched_needs_for_role(profile, role_type, demand_contract)
+		)
 
-	var optional_result := _select_optional_roles(region_data, profile, selected_by_type)
+	var uncovered := _uncovered_required_needs(selected_roles, demand_contract)
+	if not uncovered.is_empty():
+		return _failure("expand_semantic_roles", ["Required semantic needs are not covered: %s" % ",".join(uncovered)], {})
+
+	var optional_result := _select_optional_roles(region_data, profile, selected_by_type, demand_contract)
 	if not bool(optional_result.get("success", false)):
 		return optional_result
 	for optional_value in (optional_result.get("roles", []) as Array):
 		var optional: Dictionary = optional_value as Dictionary
-		_add_role(selected_roles, selected_by_type, profile, str(optional.get("role_type", "")), str(optional.get("role_type", "")), "optional", [])
+		_add_role(
+			selected_roles,
+			selected_by_type,
+			profile,
+			str(optional.get("role_type", "")),
+			str(optional.get("role_type", "")),
+			"optional",
+			[],
+			optional.get("matched_need_ids", []) as Array
+		)
 
 	return {
 		"success": true,
 		"errors": [],
+		"demand_contract": demand_contract,
 		"selected_roles": selected_roles,
 	}
 
 
-func _select_optional_roles(region_data: Dictionary, profile: RefCounted, selected_by_type: Dictionary) -> Dictionary:
+func _demand_contract(region_data: Dictionary, profile: RefCounted) -> Dictionary:
+	var required: Array = []
+	required.append_array(profile.required_needs())
+	required.append_array(RegionSemanticVocabularyScript.need_array(region_data.get("required_needs", []) as Array))
+	var optional: Array = []
+	optional.append_array(profile.optional_needs())
+	optional.append_array(RegionSemanticVocabularyScript.need_array(region_data.get("optional_needs", []) as Array))
+	var required_needs := RegionSemanticVocabularyScript.unique_strings(required)
+	var optional_needs := RegionSemanticVocabularyScript.unique_strings(optional)
+	for need_id in required_needs:
+		optional_needs.erase(need_id)
+	return {
+		"required_needs": required_needs,
+		"optional_needs": optional_needs,
+		"region_traits": RegionSemanticVocabularyScript.unique_strings(region_data.get("region_traits", []) as Array),
+		"region_facts": RegionSemanticVocabularyScript.unique_strings(region_data.get("region_facts", []) as Array),
+		"coarse_context": (region_data.get("coarse_context", {}) as Dictionary).duplicate(true),
+	}
+
+
+func _best_role_for_need(need_id: String, source: String, region_data: Dictionary, profile: RefCounted, selected_by_type: Dictionary) -> Dictionary:
+	var candidates: Array[String] = profile.role_types_for_need(need_id, source)
+	candidates.sort()
+	var best_role_type := ""
+	var best_score := -1.0
+	for role_type in candidates:
+		if selected_by_type.has(role_type) and not profile.allows_multiple(role_type):
+			continue
+		var score := _role_score(region_data, profile, role_type)
+		if score > best_score:
+			best_score = score
+			best_role_type = role_type
+	if best_role_type.is_empty():
+		return {}
+	return {
+		"role_type": best_role_type,
+		"score": best_score,
+	}
+
+
+func _select_optional_roles(region_data: Dictionary, profile: RefCounted, selected_by_type: Dictionary, demand_contract: Dictionary) -> Dictionary:
 	var coarse_context: Dictionary = region_data.get("coarse_context", {}) as Dictionary
 	var scale := str(coarse_context.get("scale", ""))
 	var count_range: Array[int] = profile.optional_count_range(scale)
@@ -140,15 +213,19 @@ func _select_optional_roles(region_data: Dictionary, profile: RefCounted, select
 		return _failure("select_optional_roles", ["RegionTypeProfile has no optional role count range for scale: %s" % scale], {})
 	var desired_count := _rng.randi_range(count_range[0], count_range[1])
 	var candidates: Array[Dictionary] = []
-	for role_type in _role_type_array(region_data.get("optional_role_pool", []) as Array):
+	for role_type in profile.role_types_for_source("optional"):
 		if selected_by_type.has(role_type) and not profile.allows_multiple(role_type):
 			continue
-		var weight: float = profile.base_weight(role_type) * profile.context_weight_multiplier(coarse_context, role_type)
+		var matched_need_ids: Array[String] = _matched_optional_needs(profile, role_type, demand_contract)
+		if matched_need_ids.is_empty():
+			continue
+		var weight: float = _role_score(region_data, profile, role_type)
 		if weight <= 0.0:
 			continue
 		candidates.append({
 			"role_type": role_type,
 			"weight": weight,
+			"matched_need_ids": matched_need_ids,
 		})
 	if desired_count > candidates.size():
 		return _failure("select_optional_roles", [
@@ -173,6 +250,14 @@ func _select_optional_roles(region_data: Dictionary, profile: RefCounted, select
 	}
 
 
+func _role_score(region_data: Dictionary, profile: RefCounted, role_type: String) -> float:
+	var coarse_context: Dictionary = region_data.get("coarse_context", {}) as Dictionary
+	var base: float = profile.base_weight(role_type)
+	if base <= 0.0:
+		base = 1.0
+	return base * profile.context_weight_multiplier(coarse_context, role_type)
+
+
 func _pick_weighted_candidate_index(candidates: Array[Dictionary]) -> int:
 	var total := 0.0
 	for candidate in candidates:
@@ -189,18 +274,20 @@ func _pick_weighted_candidate_index(candidates: Array[Dictionary]) -> int:
 	return candidates.size() - 1
 
 
-func _add_role(selected_roles: Array, selected_by_type: Dictionary, profile: RefCounted, role_type: String, role_slug: String, role_source: String, extra_tags: Array[String]) -> void:
-	selected_roles.append(_role_template(profile, role_type, role_slug, role_source, extra_tags))
+func _add_role(selected_roles: Array, selected_by_type: Dictionary, profile: RefCounted, role_type: String, role_slug: String, role_source: String, extra_tags: Array[String], matched_need_ids: Array) -> void:
+	selected_roles.append(_role_template(profile, role_type, role_slug, role_source, extra_tags, matched_need_ids))
 	selected_by_type[role_type] = int(selected_by_type.get(role_type, 0)) + 1
 
 
-func _role_template(profile: RefCounted, role_type: String, role_slug: String, role_source: String, extra_tags: Array[String]) -> Dictionary:
+func _role_template(profile: RefCounted, role_type: String, role_slug: String, role_source: String, extra_tags: Array[String], matched_need_ids: Array) -> Dictionary:
 	return {
 		"role_id": "",
 		"role_type": role_type,
 		"role_slug": role_slug,
 		"role_source": role_source,
 		"role_tags": _unique_tags(profile.role_tags(role_type), extra_tags),
+		"satisfies": profile.role_satisfies(role_type),
+		"matched_need_ids": RegionSemanticVocabularyScript.unique_strings(matched_need_ids),
 	}
 
 
@@ -219,6 +306,58 @@ func _assign_role_ids(selected_roles: Array, region_data: Dictionary) -> void:
 			index + 1,
 		]
 		selected_roles[index] = role
+
+
+func _need_coverage(selected_roles: Array, demand_contract: Dictionary) -> Array:
+	var coverage: Array = []
+	var required_needs: Array = demand_contract.get("required_needs", []) as Array
+	var optional_needs: Array = demand_contract.get("optional_needs", []) as Array
+	for need_id in required_needs + optional_needs:
+		var role_ids: Array[String] = []
+		for role_value in selected_roles:
+			var role: Dictionary = role_value as Dictionary
+			if (role.get("satisfies", []) as Array).has(need_id):
+				role_ids.append(str(role.get("role_id", "")))
+		coverage.append({
+			"need_id": str(need_id),
+			"required": required_needs.has(need_id),
+			"role_ids": role_ids,
+		})
+	return coverage
+
+
+func _need_is_covered(selected_roles: Array, need_id: String) -> bool:
+	for role_value in selected_roles:
+		var role: Dictionary = role_value as Dictionary
+		if (role.get("satisfies", []) as Array).has(need_id):
+			return true
+	return false
+
+
+func _uncovered_required_needs(selected_roles: Array, demand_contract: Dictionary) -> Array[String]:
+	var uncovered: Array[String] = []
+	for need_id in (demand_contract.get("required_needs", []) as Array):
+		if not _need_is_covered(selected_roles, str(need_id)):
+			uncovered.append(str(need_id))
+	return uncovered
+
+
+func _matched_needs_for_role(profile: RefCounted, role_type: String, demand_contract: Dictionary) -> Array[String]:
+	var result: Array[String] = []
+	var satisfies: Array[String] = profile.role_satisfies(role_type)
+	for need_id in (demand_contract.get("required_needs", []) as Array) + (demand_contract.get("optional_needs", []) as Array):
+		if satisfies.has(str(need_id)):
+			result.append(str(need_id))
+	return result
+
+
+func _matched_optional_needs(profile: RefCounted, role_type: String, demand_contract: Dictionary) -> Array[String]:
+	var result: Array[String] = []
+	var satisfies: Array[String] = profile.role_satisfies(role_type)
+	for need_id in (demand_contract.get("optional_needs", []) as Array):
+		if satisfies.has(str(need_id)):
+			result.append(str(need_id))
+	return result
 
 
 func _debug_summary(selected_roles: Array) -> Dictionary:
@@ -244,23 +383,6 @@ func _failure(stage: String, errors: Array[String], extra: Dictionary) -> Dictio
 	result["errors"] = errors.duplicate()
 	result["warnings"] = []
 	result["compiler_version"] = COMPILER_VERSION
-	return result
-
-
-static func _role_type_array(values: Array) -> Array[String]:
-	var result: Array[String] = []
-	for value in values:
-		if value is String:
-			result.append(str(value))
-		elif value is Dictionary:
-			result.append(str((value as Dictionary).get("role_type", "")))
-	return result
-
-
-static func _set_from_array(values: Array[String]) -> Dictionary:
-	var result: Dictionary = {}
-	for value in values:
-		result[value] = true
 	return result
 
 
