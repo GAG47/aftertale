@@ -219,6 +219,8 @@ load_snapshot_from_path(explicit_path)
 -> 返回原始 LocationGraphSnapshot
 ```
 
+Store 必须把解析后的原始 Dictionary 直接交给 Validator，不能在校验前调用 `normalize_snapshot()`。非规范数组顺序和重复集合项必须作为加载错误保留下来。
+
 加载不读取 profile、不重新编译、不迁移旧格式、不修补结构、不注册 Runtime。
 
 ## 明确排除
@@ -277,6 +279,8 @@ scripts/tests/v67_5_location_graph_snapshot_test.gd
 - 篡改边端点后加载失败。
 - 篡改 `content_hash` 后加载失败。
 - 未知字段和不兼容 Schema 加载失败。
+- 原始 JSON 中节点数组乱序时加载失败。
+- 原始 JSON 中集合标签重复或乱序时加载失败。
 - profile 内容变化导致 `rule_manifest` 和 Snapshot 哈希变化。
 - 显式保存后加载得到完全相同的 Snapshot。
 - 缺少显式保存路径时失败。

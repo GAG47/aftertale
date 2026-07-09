@@ -28,6 +28,8 @@ func _initialize() -> void:
 		return
 	if not _assert_tampering_fails_on_load():
 		return
+	if not _assert_noncanonical_raw_json_fails_on_load():
+		return
 	if not _assert_rule_content_changes_manifest_hash():
 		return
 	if not _assert_explicit_save_load_round_trip():
@@ -184,6 +186,58 @@ func _assert_tampering_fails_on_load() -> bool:
 	return true
 
 
+func _assert_noncanonical_raw_json_fails_on_load() -> bool:
+	var result := _compile_snapshot()
+	if not bool(result.get("success", false)):
+		return _fail("v67.5 non-canonical load setup failed")
+	var snapshot: Dictionary = result.get("location_graph_snapshot", {}) as Dictionary
+	var reordered_nodes := snapshot.duplicate(true)
+	var nodes: Array = reordered_nodes.get("location_nodes", []) as Array
+	if nodes.size() < 2:
+		return _fail("v67.5 non-canonical node order test requires at least two nodes")
+	nodes.reverse()
+	reordered_nodes["location_nodes"] = nodes
+	if not _assert_load_rejects(reordered_nodes, "canonical collection order"):
+		return false
+	var duplicate_tags := snapshot.duplicate(true)
+	var tagged_nodes: Array = duplicate_tags.get("location_nodes", []) as Array
+	var duplicated_node_tag := false
+	for index in range(tagged_nodes.size()):
+		var node: Dictionary = tagged_nodes[index] as Dictionary
+		var tags: Array = node.get("node_tags", []) as Array
+		if tags.is_empty():
+			continue
+		tags.append(tags[0])
+		node["node_tags"] = tags
+		tagged_nodes[index] = node
+		duplicated_node_tag = true
+		break
+	if not duplicated_node_tag:
+		return _fail("v67.5 non-canonical tag test could not find a tagged node")
+	duplicate_tags["location_nodes"] = tagged_nodes
+	if not _assert_load_rejects(duplicate_tags, "canonical collection order"):
+		return false
+	var duplicate_traversal_tags := snapshot.duplicate(true)
+	var tagged_edges: Array = duplicate_traversal_tags.get("edge_contracts", []) as Array
+	var duplicated_edge_tag := false
+	for index in range(tagged_edges.size()):
+		var edge: Dictionary = tagged_edges[index] as Dictionary
+		var traversal_tags: Array = edge.get("traversal_tags", []) as Array
+		if traversal_tags.is_empty():
+			continue
+		traversal_tags.append(traversal_tags[0])
+		edge["traversal_tags"] = traversal_tags
+		tagged_edges[index] = edge
+		duplicated_edge_tag = true
+		break
+	if not duplicated_edge_tag:
+		return _fail("v67.5 non-canonical traversal tag test could not find a tagged edge")
+	duplicate_traversal_tags["edge_contracts"] = tagged_edges
+	if not _assert_load_rejects(duplicate_traversal_tags, "canonical collection order"):
+		return false
+	return true
+
+
 func _assert_rule_content_changes_manifest_hash() -> bool:
 	_ensure_test_directory()
 	var profile_a := _load_json(EDGE_PROFILE_PATH)
@@ -245,7 +299,7 @@ func _assert_explicit_save_load_round_trip() -> bool:
 
 func _assert_load_rejects(snapshot: Dictionary, expected_error: String) -> bool:
 	_ensure_test_directory()
-	var text: String = CanonicalDataSerializerScript.snapshot_json(snapshot)
+	var text: String = CanonicalDataSerializerScript.serialize(snapshot)
 	var file := FileAccess.open(TAMPERED_PATH, FileAccess.WRITE)
 	if file == null:
 		return _fail("v67.5 could not write tampered snapshot fixture")

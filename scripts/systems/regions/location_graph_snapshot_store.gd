@@ -60,7 +60,7 @@ func load_snapshot_from_path(snapshot_path: String) -> Dictionary:
 	var parsed: Variant = JSON.parse_string(file.get_as_text())
 	if not (parsed is Dictionary):
 		return _failure("load_snapshot", ["snapshot file must contain a JSON object: %s" % snapshot_path])
-	var snapshot: Dictionary = CanonicalDataSerializerScript.normalize_snapshot(parsed as Dictionary)
+	var snapshot: Dictionary = parsed as Dictionary
 	var validator: RefCounted = LocationGraphSnapshotValidatorScript.new()
 	var validation_errors: Array[String] = validator.validate(snapshot)
 	if not validation_errors.is_empty():
