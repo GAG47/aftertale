@@ -35,7 +35,6 @@ The current code still uses earlier names in some places:
 - `scripts/systems/world/world_graph_generator.gd`
 - `scripts/systems/world/world_graph_compiler.gd`
 - `data/world_generation_profiles/temperate_frontier.json`
-- `scripts/tests/v65_world_graph_generator_smoke.gd`
 
 ## Generation Flow
 
@@ -198,7 +197,7 @@ locations after those locations are materialized.
 
 ## Validation
 
-`scripts/tests/v65_world_graph_generator_smoke.gd` verifies:
+The phase was validated against:
 
 - region profile loading through the generator;
 - same seed produces the same graph signature;

@@ -127,7 +127,7 @@ location kinds for future graph nodes, but v64 only fully wires
 
 ## Validation
 
-`scripts/tests/v64_world_location_network_smoke.gd` verifies:
+The phase was validated against:
 
 - `test_world` loads and contains multiple location specs;
 - `wild_gate` resolves to `test_wild_plain`;

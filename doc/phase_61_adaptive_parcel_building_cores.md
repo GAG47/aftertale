@@ -116,10 +116,9 @@ The v61 contract checks:
   inside its parcel cell set;
 - adaptive core placement records use `door_policy = south_only`.
 
-`scripts/tests/v61_adaptive_parcel_building_core_smoke.gd` verifies the default
-test village contains organically grown irregular parcel cell sets, no
-transitional notched parcel model, protected required goals, and adaptive yard
-slots.
+The phase was validated against a default test village containing organically
+grown irregular parcel cell sets, no transitional notched parcel model,
+protected required goals, and adaptive yard slots.
 
 ## Boundaries
 

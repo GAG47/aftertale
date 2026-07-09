@@ -184,6 +184,5 @@ This means the village scene still exercises the existing systems:
 
 The local Godot editor build crashes when launching a one-off scene or script
 from the command line with `--scene` or `--script`. The default project startup
-path is stable and was used for verification. A standalone smoke script was
-kept at `scripts/tests/v56_scene_generation_smoke.gd` for environments where
-the Godot CLI script entry point works correctly.
+path is stable and was used for verification. The one-off smoke script used
+during this phase was not retained.

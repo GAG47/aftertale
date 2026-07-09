@@ -237,10 +237,10 @@ contract:
 - parcel access sides are valid and can be north, east, south, or west;
 - decorations do not overlap critical schedule anchors.
 
-`scripts/tests/v60_agent_settlement_smoke.gd` verifies the new default planner,
-determinism for the fixed seed, road/plaza/parcel output, merchant shop anchor
-resolution, guard training/gate anchor resolution, generated interiors, door
-transitions, prefab placement, and absence of validation errors.
+The phase was validated against the new default planner, determinism for the
+fixed seed, road/plaza/parcel output, merchant shop anchor resolution, guard
+training/gate anchor resolution, generated interiors, door transitions, prefab
+placement, and absence of validation errors.
 
 The smoke test also rejects a retreat to the old minimum loop by requiring:
 

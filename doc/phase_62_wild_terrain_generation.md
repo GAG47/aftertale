@@ -144,7 +144,7 @@ seed/profile/size and load it before regenerating.
 
 ## Validation
 
-`scripts/tests/v62_wild_terrain_smoke.gd` verifies:
+The phase was validated against:
 
 - same seed/profile/size determinism;
 - different seed variation;

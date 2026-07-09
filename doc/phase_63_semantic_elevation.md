@@ -131,7 +131,7 @@ wrong.
 
 ## Validation
 
-`scripts/tests/v63_semantic_elevation_smoke.gd` verifies:
+The phase was validated against:
 
 - elevation, slope, ridge, and landform maps exist and match blueprint
   dimensions;

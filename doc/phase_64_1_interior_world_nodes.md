@@ -138,7 +138,7 @@ locations remain out of scope.
 
 ## Validation
 
-`scripts/tests/v64_1_interior_world_transition_smoke.gd` verifies:
+The phase was validated against:
 
 - `test_world` does not preload hand-authored generated building interiors;
 - `test_village` imports generated child interiors after materialization;
