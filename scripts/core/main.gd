@@ -1,6 +1,8 @@
 extends Node
 
 const RegionLocationGraphCompilerScript := preload("res://scripts/systems/regions/region_location_graph_compiler.gd")
+const LocationGraphRuntimeAdapterScript := preload("res://scripts/systems/regions/location_graph_runtime_adapter.gd")
+const SNAPSHOT_RUNTIME_LOCATION_SCENE := preload("res://scenes/locations/snapshot_runtime_location.tscn")
 
 const DEFAULT_REGION_INPUT_PATHS := [
 	"res://data/regions/frontier_town_region.json",
@@ -11,6 +13,9 @@ const DEFAULT_GRAPH_ID := "graph.frontier.overworld.lg_0001"
 
 @onready var world_root: Node = $WorldRoot
 @onready var ui_root: UIRoot = $UILayer/UIRoot
+
+var _runtime_adapter: RefCounted
+var _runtime_location_scene: Control
 
 
 func _ready() -> void:
@@ -30,6 +35,7 @@ func _ready() -> void:
 
 
 func _start_new_game() -> void:
+	_clear_snapshot_runtime()
 	var world_service: Variant = _world_transition_service()
 	if world_service != null:
 		world_service.reset_world()
@@ -63,7 +69,28 @@ func _start_new_game() -> void:
 	TimeManager.reset()
 	TimeManager.set_paused(false)
 
-	push_error("v67.6 Runtime adapter is not implemented; LocationGraphSnapshot is valid and no snapshot file was written.")
+	_runtime_location_scene = SNAPSHOT_RUNTIME_LOCATION_SCENE.instantiate() as Control
+	if _runtime_location_scene == null:
+		push_error("Snapshot Runtime Location scene could not be instantiated.")
+		return
+	ui_root.add_child(_runtime_location_scene)
+	ui_root.set_snapshot_runtime_active(true)
+	_runtime_adapter = LocationGraphRuntimeAdapterScript.new()
+	var runtime_result: Dictionary = _runtime_adapter.load_snapshot(location_graph_snapshot)
+	if not bool(runtime_result.get("success", false)):
+		var error_text := "; ".join(runtime_result.get("errors", []) as Array[String])
+		_runtime_location_scene.show_load_error(
+			str(location_graph_snapshot.get("graph_id", "")),
+			str(location_graph_snapshot.get("snapshot_id", "")),
+			error_text
+		)
+		push_error("Snapshot Runtime Adapter load failed: %s" % error_text)
+		return
+	var bind_result: Dictionary = _runtime_location_scene.bind_adapter(_runtime_adapter)
+	if not bool(bind_result.get("success", false)):
+		push_error("Snapshot Runtime Location scene bind failed: %s" % str(bind_result.get("errors", [])))
+		return
+	GameState.set_scene_context("snapshot_runtime_location", str(runtime_result.get("current_location_id", "")))
 
 
 func _compile_default_region_location_graph() -> Dictionary:
@@ -140,6 +167,7 @@ func _on_cancel_requested() -> void:
 
 
 func _on_return_title_requested() -> void:
+	_clear_snapshot_runtime()
 	SceneLoader.unload_current_scene()
 	GameState.set_scene_context("title", "none")
 	TimeManager.set_paused(true)
@@ -153,3 +181,31 @@ func _on_new_game_requested() -> void:
 
 func _on_quit_game_requested() -> void:
 	get_tree().quit()
+
+
+func is_snapshot_runtime_active() -> bool:
+	return (
+		_runtime_adapter != null
+		and _runtime_adapter.is_loaded()
+		and _runtime_location_scene != null
+		and is_instance_valid(_runtime_location_scene)
+	)
+
+
+func get_snapshot_runtime_current_location_id() -> String:
+	if _runtime_adapter == null or not _runtime_adapter.is_loaded():
+		return ""
+	return str(_runtime_adapter.current_location_id)
+
+
+func _clear_snapshot_runtime() -> void:
+	if ui_root != null:
+		ui_root.set_snapshot_runtime_active(false)
+	if _runtime_location_scene != null and is_instance_valid(_runtime_location_scene):
+		if _runtime_location_scene.get_parent() != null:
+			_runtime_location_scene.get_parent().remove_child(_runtime_location_scene)
+		_runtime_location_scene.queue_free()
+	_runtime_location_scene = null
+	if _runtime_adapter != null:
+		_runtime_adapter.reset()
+	_runtime_adapter = null

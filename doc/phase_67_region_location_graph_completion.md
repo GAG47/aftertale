@@ -14,11 +14,13 @@ RegionInput[]
 -> LocationNodeResult[]
 -> EdgeContractResult
 -> LocationGraphSnapshot
--> v67.6 boundary
+-> LocationGraphRuntimeAdapter
+-> placeholder Location scene
 ```
 
-The current implementation does not register the snapshot with Runtime, perform
-graph travel, create scene exits, or generate Location Scenes.
+The current implementation supports Runtime-only current-location state and
+adjacent Edge Contract traversal. It does not create scene exits, TileMaps,
+NPCs, save diffs, or generated playable Location Scenes.
 
 The current v67.3 record is:
 
@@ -26,4 +28,5 @@ The current v67.3 record is:
 doc/phase_67_3_location_nodes.md
 doc/phase_67_4_edge_contracts.md
 doc/phase_67_5_location_graph_snapshot.md
+doc/phase_67_6_snapshot_runtime_adapter.md
 ```

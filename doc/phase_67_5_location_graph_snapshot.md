@@ -253,13 +253,8 @@ tilemap
 LocationGraphSnapshot
 ```
 
-主程序把原始 Snapshot 交给现有数据面板，然后明确停在：
-
-```text
-v67.6 Runtime adapter is not implemented
-```
-
-主启动不会保存 Snapshot 文件。
+主程序把原始 Snapshot 交给现有数据面板。后续 Runtime 消费不改变
+Snapshot，也不触发 Snapshot 文件保存。
 
 ## 验证
 

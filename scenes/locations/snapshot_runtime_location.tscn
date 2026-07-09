@@ -1,0 +1,110 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/systems/regions/snapshot_runtime_location_scene.gd" id="1_runtime_scene"]
+
+[node name="SnapshotRuntimeLocation" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("1_runtime_scene")
+
+[node name="RuntimePanel" type="PanelContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = 16.0
+offset_top = 52.0
+offset_right = -8.0
+offset_bottom = -16.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="RuntimePanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 14
+
+[node name="Content" type="VBoxContainer" parent="RuntimePanel/MarginContainer"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="RuntimePanel/MarginContainer/Content"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "LocationGraph Runtime"
+
+[node name="TopSeparator" type="HSeparator" parent="RuntimePanel/MarginContainer/Content"]
+layout_mode = 2
+
+[node name="GraphInfo" type="GridContainer" parent="RuntimePanel/MarginContainer/Content"]
+layout_mode = 2
+columns = 2
+
+[node name="GraphIdLabel" type="Label" parent="RuntimePanel/MarginContainer/Content/GraphInfo"]
+layout_mode = 2
+text = "graph_id"
+
+[node name="GraphIdValue" type="Label" parent="RuntimePanel/MarginContainer/Content/GraphInfo"]
+layout_mode = 2
+size_flags_horizontal = 3
+autowrap_mode = 1
+
+[node name="SnapshotIdLabel" type="Label" parent="RuntimePanel/MarginContainer/Content/GraphInfo"]
+layout_mode = 2
+text = "snapshot_id"
+
+[node name="SnapshotIdValue" type="Label" parent="RuntimePanel/MarginContainer/Content/GraphInfo"]
+layout_mode = 2
+size_flags_horizontal = 3
+autowrap_mode = 1
+
+[node name="CurrentHeading" type="Label" parent="RuntimePanel/MarginContainer/Content"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "当前地点"
+
+[node name="CurrentName" type="Label" parent="RuntimePanel/MarginContainer/Content"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+
+[node name="CurrentId" type="Label" parent="RuntimePanel/MarginContainer/Content"]
+layout_mode = 2
+autowrap_mode = 1
+
+[node name="CurrentType" type="Label" parent="RuntimePanel/MarginContainer/Content"]
+layout_mode = 2
+autowrap_mode = 2
+
+[node name="CurrentTags" type="Label" parent="RuntimePanel/MarginContainer/Content"]
+layout_mode = 2
+autowrap_mode = 2
+
+[node name="MiddleSeparator" type="HSeparator" parent="RuntimePanel/MarginContainer/Content"]
+layout_mode = 2
+
+[node name="NeighborsHeading" type="Label" parent="RuntimePanel/MarginContainer/Content"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "相邻地点"
+
+[node name="NeighborsScroll" type="ScrollContainer" parent="RuntimePanel/MarginContainer/Content"]
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="Neighbors" type="VBoxContainer" parent="RuntimePanel/MarginContainer/Content/NeighborsScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
+
+[node name="StatusLabel" type="Label" parent="RuntimePanel/MarginContainer/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.45, 0.38, 1)
+autowrap_mode = 2

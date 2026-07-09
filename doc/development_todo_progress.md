@@ -67,6 +67,11 @@ a usable skeleton toward presentable generated places:
   nodes and edges, verifies upstream result hashes, records real profile content
   hashes, produces stable SHA-256 snapshot identity, supports only explicit
   save/load paths, and stops before v67.6 Runtime adaptation.
+- a v67.6 Snapshot Runtime Adapter that validates an in-memory
+  LocationGraphSnapshot, builds read-only location and directed adjacency
+  indexes, selects a stable current location, supports adjacent-only travel,
+  and drives a generic interactive placeholder Location scene without saving
+  or generating map content.
 
 ## Battle Deepening Roadmap
 
@@ -96,6 +101,7 @@ a usable skeleton toward presentable generated places:
 | v67.3 | Complete | `doc/phase_67_3_location_nodes.md` | Add data-driven role-to-location-node expansion from SemanticRoleResult and LocationNodeProfile, validate one node per role with source_role_id traceability, reject external connection artifacts, and stop explicitly at the v67.4 Edge Contract boundary. |
 | v67.4 | Complete | `doc/phase_67_4_edge_contracts.md` | Generate stable node-to-node EdgeContractResult data from one or more LocationNodeResult values and an explicit global profile, reject Region selectors, missing required endpoints and ambiguous matches, derive same-region or cross-region status only after endpoint selection, and stop explicitly at the v67.5 Location Graph Snapshot boundary. |
 | v67.5 | Complete | `doc/phase_67_5_location_graph_snapshot.md` | Canonically freeze LocationNodeResult and EdgeContractResult data into a self-contained LocationGraphSnapshot, recheck upstream result hashes, hash every participating profile, reject incompatible or modified snapshots, require explicit persistence paths, and stop before v67.6 Runtime adaptation. |
+| v67.6 | Complete | `doc/phase_67_6_snapshot_runtime_adapter.md` | Validate an in-memory LocationGraphSnapshot, build location and direction-aware adjacency indexes, keep current location as Runtime-only state, allow adjacent-only travel, and enter an interactive placeholder Location scene without TileMap, NPC, save, task, or scene-generation integration. |
 
 ## Dependency Order
 
@@ -124,6 +130,7 @@ v50 skill effect data model
 -> v67.3 Location Nodes
 -> v67.4 Edge Contracts
 -> v67.5 Location Graph Snapshot
+-> v67.6 Snapshot Runtime Adapter
 ```
 
 ## Minimum Tactical Slice

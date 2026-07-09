@@ -27,6 +27,7 @@ var _time_manager: Node
 var _input_manager: Node
 var _dialogue_runner: Node
 var _mode_before_menu: int = GameState.GameMode.EXPLORATION
+var _snapshot_runtime_active := false
 
 
 func bind_managers(game_state: Node, scene_loader: Node, time_manager: Node, input_manager: Node, action_system: Node, dialogue_runner: Node, quest_system: Node, relation_system: Node) -> void:
@@ -91,6 +92,15 @@ func set_debug_panel_visible(value: bool) -> void:
 
 func set_raw_debug_data(data: Dictionary) -> void:
 	raw_data_panel.set_data(data)
+
+
+func set_snapshot_runtime_active(value: bool) -> void:
+	_snapshot_runtime_active = value
+	message_log_panel.visible = not value and _game_state != null and _game_state.current_mode != GameState.GameMode.COMBAT
+	if value:
+		interaction_panel.visible = false
+	else:
+		_refresh_interaction_prompt()
 
 
 func is_debug_panel_visible() -> bool:
@@ -339,7 +349,7 @@ func clear_transient_ui() -> void:
 	facility_panel.close_panel()
 	dialogue_panel.hide_panel()
 	battle_hud_panel.hide_panel()
-	message_log_panel.visible = true
+	message_log_panel.visible = not _snapshot_runtime_active
 	_mode_before_menu = GameState.GameMode.EXPLORATION
 	_input_manager.set_input_locked(false)
 
@@ -358,7 +368,7 @@ func _on_time_changed(day: int, hour: int, minute: int) -> void:
 
 func _on_mode_changed(_previous_mode: int, new_mode: int) -> void:
 	mode_label.text = "模式：%s" % _game_state.get_mode_label(new_mode)
-	message_log_panel.visible = new_mode != GameState.GameMode.COMBAT
+	message_log_panel.visible = not _snapshot_runtime_active and new_mode != GameState.GameMode.COMBAT
 	_refresh_interaction_prompt()
 
 
@@ -571,6 +581,9 @@ func _refresh_battle_hud() -> void:
 
 func _refresh_interaction_prompt() -> void:
 	if interaction_panel == null or interaction_label == null:
+		return
+	if _snapshot_runtime_active:
+		interaction_panel.visible = false
 		return
 
 	if _game_state == null or _game_state.current_mode != GameState.GameMode.EXPLORATION:
