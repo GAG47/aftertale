@@ -53,6 +53,12 @@ func validate() -> Array[String]:
 		errors.append("RegionTypeProfile.role_weights must be an object")
 	else:
 		_validate_role_weights(role_definitions, errors)
+	if source_data.has("context_weight_modifiers"):
+		errors.append("RegionTypeProfile.context_weight_modifiers is not supported in schema v%d; use context_semantic_modifiers" % SCHEMA_VERSION)
+	if not (source_data.get("context_semantic_modifiers", null) is Dictionary):
+		errors.append("RegionTypeProfile.context_semantic_modifiers must be an object")
+	else:
+		_validate_context_semantic_modifiers(role_definitions, errors)
 	return errors
 
 
@@ -140,16 +146,25 @@ func base_weight(role_type: String) -> float:
 
 func context_weight_multiplier(coarse_context: Dictionary, role_type: String) -> float:
 	var multiplier := 1.0
-	var modifiers: Dictionary = source_data.get("context_weight_modifiers", {}) as Dictionary
+	var modifiers: Dictionary = source_data.get("context_semantic_modifiers", {}) as Dictionary
+	var role_definition_data := role_definition(role_type)
+	var satisfies := _string_array(role_definition_data.get("satisfies", []) as Array)
+	var properties := _string_array(role_definition_data.get("properties", []) as Array)
+	var affinity := _string_array(role_definition_data.get("affinity", []) as Array)
+	var category := str(role_definition_data.get("category", ""))
 	for context_key_value in modifiers.keys():
 		var context_key := str(context_key_value)
 		if not coarse_context.has(context_key):
 			continue
 		var by_value: Dictionary = modifiers.get(context_key, {}) as Dictionary
 		for context_value in RegionSemanticVocabularyScript.context_values(coarse_context.get(context_key)):
-			var role_modifiers: Dictionary = by_value.get(context_value, {}) as Dictionary
-			if role_modifiers.has(role_type):
-				multiplier *= maxf(0.0, float(role_modifiers.get(role_type, 1.0)))
+			if not (by_value.get(context_value, null) is Dictionary):
+				continue
+			var semantic_modifiers: Dictionary = by_value.get(context_value, {}) as Dictionary
+			multiplier *= _matched_modifier_multiplier(semantic_modifiers.get("satisfies", {}), satisfies)
+			multiplier *= _matched_modifier_multiplier(semantic_modifiers.get("properties", {}), properties)
+			multiplier *= _matched_modifier_multiplier(semantic_modifiers.get("affinity", {}), affinity)
+			multiplier *= _category_modifier_multiplier(semantic_modifiers.get("category", {}), category)
 	return multiplier
 
 
@@ -287,6 +302,75 @@ func _validate_role_weights(role_definitions: Dictionary, errors: Array[String])
 			errors.append("RegionTypeProfile.role_weights references undefined role type: %s" % role_type)
 
 
+func _validate_context_semantic_modifiers(role_definitions: Dictionary, errors: Array[String]) -> void:
+	var modifiers: Dictionary = source_data.get("context_semantic_modifiers", {}) as Dictionary
+	for context_key_value in modifiers.keys():
+		var context_key := str(context_key_value)
+		if not RegionSemanticVocabularyScript.is_coarse_context_key(context_key):
+			errors.append("RegionTypeProfile.context_semantic_modifiers contains unsupported context key: %s" % context_key)
+			continue
+		if not (modifiers.get(context_key_value, null) is Dictionary):
+			errors.append("RegionTypeProfile.context_semantic_modifiers.%s must be an object" % context_key)
+			continue
+		var by_value: Dictionary = modifiers.get(context_key_value, {}) as Dictionary
+		for context_value_value in by_value.keys():
+			var context_value := str(context_value_value)
+			if not RegionSemanticVocabularyScript.is_coarse_context_value(context_key, context_value):
+				errors.append("RegionTypeProfile.context_semantic_modifiers.%s contains unsupported context value: %s" % [context_key, context_value])
+				continue
+			if not (by_value.get(context_value_value, null) is Dictionary):
+				errors.append("RegionTypeProfile.context_semantic_modifiers.%s.%s must be an object" % [context_key, context_value])
+				continue
+			var row: Dictionary = by_value.get(context_value_value, {}) as Dictionary
+			_validate_context_semantic_modifier_row(context_key, context_value, row, role_definitions, errors)
+
+
+func _validate_context_semantic_modifier_row(context_key: String, context_value: String, row: Dictionary, role_definitions: Dictionary, errors: Array[String]) -> void:
+	for key_value in row.keys():
+		var semantic_key := str(key_value)
+		if not ["satisfies", "properties", "affinity", "category"].has(semantic_key):
+			errors.append("RegionTypeProfile.context_semantic_modifiers.%s.%s contains unsupported semantic key: %s" % [context_key, context_value, semantic_key])
+			continue
+		if not (row.get(key_value, null) is Dictionary):
+			errors.append("RegionTypeProfile.context_semantic_modifiers.%s.%s.%s must be an object" % [context_key, context_value, semantic_key])
+			continue
+		var weights: Dictionary = row.get(key_value, {}) as Dictionary
+		for token_value in weights.keys():
+			var token := str(token_value)
+			var weight := float(weights.get(token_value, -1.0))
+			if weight < 0.0:
+				errors.append("RegionTypeProfile.context_semantic_modifiers.%s.%s.%s.%s must be non-negative" % [context_key, context_value, semantic_key, token])
+			match semantic_key:
+				"satisfies":
+					if not RegionSemanticVocabularyScript.is_need_id(token):
+						errors.append("RegionTypeProfile.context_semantic_modifiers.%s.%s.satisfies has unsupported need_id: %s" % [context_key, context_value, token])
+				"properties":
+					if not _role_semantic_token_exists(role_definitions, "properties", token):
+						errors.append("RegionTypeProfile.context_semantic_modifiers.%s.%s.properties references unused semantic token: %s" % [context_key, context_value, token])
+				"affinity":
+					if not _role_semantic_token_exists(role_definitions, "affinity", token):
+						errors.append("RegionTypeProfile.context_semantic_modifiers.%s.%s.affinity references unused semantic token: %s" % [context_key, context_value, token])
+				"category":
+					if not _role_category_exists(role_definitions, token):
+						errors.append("RegionTypeProfile.context_semantic_modifiers.%s.%s.category references unused semantic token: %s" % [context_key, context_value, token])
+
+
+func _role_semantic_token_exists(role_definitions: Dictionary, field_name: String, token: String) -> bool:
+	for role_type_value in role_definitions.keys():
+		var definition: Dictionary = role_definitions.get(role_type_value, {}) as Dictionary
+		if _string_array(definition.get(field_name, []) as Array).has(token):
+			return true
+	return false
+
+
+func _role_category_exists(role_definitions: Dictionary, token: String) -> bool:
+	for role_type_value in role_definitions.keys():
+		var definition: Dictionary = role_definitions.get(role_type_value, {}) as Dictionary
+		if str(definition.get("category", "")) == token:
+			return true
+	return false
+
+
 func _role_types_for_source(role_definitions: Dictionary, source: String) -> Array[String]:
 	var result: Array[String] = []
 	for role_type_value in role_definitions.keys():
@@ -294,6 +378,27 @@ func _role_types_for_source(role_definitions: Dictionary, source: String) -> Arr
 		if _string_array(definition.get("allowed_sources", []) as Array).has(source):
 			result.append(str(role_type_value))
 	return result
+
+
+static func _matched_modifier_multiplier(value: Variant, role_tokens: Array[String]) -> float:
+	if not (value is Dictionary):
+		return 1.0
+	var multiplier := 1.0
+	var weights: Dictionary = value as Dictionary
+	for token_value in weights.keys():
+		var token := str(token_value)
+		if role_tokens.has(token):
+			multiplier *= maxf(0.0, float(weights.get(token_value, 1.0)))
+	return multiplier
+
+
+static func _category_modifier_multiplier(value: Variant, category: String) -> float:
+	if not (value is Dictionary):
+		return 1.0
+	var weights: Dictionary = value as Dictionary
+	if category.is_empty() or not weights.has(category):
+		return 1.0
+	return maxf(0.0, float(weights.get(category, 1.0)))
 
 
 static func _sources_are_valid(value: Variant) -> bool:

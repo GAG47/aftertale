@@ -90,6 +90,25 @@ allowed_sources
 allow_multiple
 ```
 
+Profiles also define context influence through:
+
+```text
+context_semantic_modifiers
+```
+
+These modifiers may only target semantic fields:
+
+```text
+satisfies
+properties
+affinity
+category
+```
+
+They must not target concrete `role_type` ids. The old
+`context_weight_modifiers` field is rejected because it encoded
+`coarse_context -> role_type` coupling.
+
 The role type names are still the existing downstream role types, such as:
 
 ```text
@@ -126,8 +145,11 @@ Then it selects existing roles whose profile declarations satisfy those needs.
 
 Required needs must be covered by roles that allow the `required` source. Optional
 roles are selected from legal optional candidates using the existing stable seed
-and context-weighted selection. Randomness is only used among legal candidates;
-it is not used to hide missing required coverage.
+and context-weighted selection. Context weighting is calculated by matching
+semantic modifiers against the candidate role's declared needs, properties,
+affinity, and category, not by looking up the candidate's concrete role id.
+Randomness is only used among legal candidates; it is not used to hide missing
+required coverage.
 
 This is intentionally not a complete planning system. Dependency solving,
 large-scale economy, cross-region trade, NPC faction needs, quest generation, and
@@ -162,8 +184,11 @@ selected and which needs the selected role can cover.
 v67.7 fails when:
 
 - `RegionInput` uses old role-pool fields;
+- `RegionTypeProfile` uses old context-to-role `context_weight_modifiers`;
 - needs, traits, facts, or coarse context values are outside the limited
   vocabulary;
+- context semantic modifiers point at unsupported semantic keys or unused
+  semantic tokens;
 - a required need has no required role candidate in the region type profile;
 - an optional need has no optional role candidate in the region type profile;
 - a forced role is unsupported or does not allow the forced source;

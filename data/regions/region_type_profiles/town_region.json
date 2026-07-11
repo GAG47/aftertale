@@ -27,28 +27,38 @@
     "forest_boundary": 0.55,
     "river_edge": 0.5
   },
-  "context_weight_modifiers": {
+  "context_semantic_modifiers": {
     "terrain_context": {
       "plain": {
-        "farmland": 1.8,
-        "forest_boundary": 0.7
+        "satisfies": {
+          "production.food": 1.8,
+          "resource.forest": 0.7
+        }
       },
       "forest": {
-        "forest_boundary": 1.8,
-        "farmland": 0.6
+        "satisfies": {
+          "resource.forest": 1.8,
+          "production.food": 0.6
+        }
       },
       "river_near": {
-        "river_edge": 1.9,
-        "farmland": 1.2
+        "satisfies": {
+          "resource.water": 1.9,
+          "production.food": 1.2
+        }
       }
     },
     "political_context": {
       "kingdom": {
-        "market": 1.3,
-        "shrine": 1.1
+        "satisfies": {
+          "public.trade": 1.3,
+          "ritual.place": 1.1
+        }
       },
       "border": {
-        "forest_boundary": 1.2
+        "category": {
+          "wilderness": 1.2
+        }
       }
     }
   },

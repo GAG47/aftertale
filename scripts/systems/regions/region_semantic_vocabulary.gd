@@ -127,6 +127,17 @@ static func is_fact(value: String) -> bool:
 	return ALLOWED_FACTS.has(value)
 
 
+static func is_coarse_context_key(value: String) -> bool:
+	return ALLOWED_COARSE_CONTEXT.has(value)
+
+
+static func is_coarse_context_value(key: String, value: String) -> bool:
+	if not ALLOWED_COARSE_CONTEXT.has(key):
+		return false
+	var allowed_values: Array = ALLOWED_COARSE_CONTEXT.get(key, []) as Array
+	return allowed_values.has(value)
+
+
 static func need_array(value: Variant) -> Array[String]:
 	var result: Array[String] = []
 	if not (value is Array):

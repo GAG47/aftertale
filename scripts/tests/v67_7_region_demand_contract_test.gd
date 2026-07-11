@@ -2,9 +2,12 @@ extends Node
 
 const RegionInputScript := preload("res://scripts/systems/regions/region_input.gd")
 const RegionLocationGraphCompilerScript := preload("res://scripts/systems/regions/region_location_graph_compiler.gd")
+const RegionTypeProfileScript := preload("res://scripts/systems/regions/region_type_profile.gd")
 
 const TOWN_REGION_INPUT_PATH := "res://data/regions/frontier_town_region.json"
 const FOREST_REGION_INPUT_PATH := "res://data/regions/frontier_forest_region.json"
+const TOWN_PROFILE_PATH := "res://data/regions/region_type_profiles/town_region.json"
+const FOREST_PROFILE_PATH := "res://data/regions/region_type_profiles/forest_region.json"
 const EDGE_PROFILE_PATH := "res://data/location_graph/edge_contract_profiles/default.json"
 const GRAPH_ID := "graph.frontier.v67_7_demand_contract.lg_0001"
 
@@ -19,6 +22,8 @@ func _run() -> void:
 	if not _assert_semantic_roles_cover_required_needs():
 		return
 	if not _assert_old_role_pool_contract_fails():
+		return
+	if not _assert_context_modifiers_are_semantic():
 		return
 	if not _assert_full_location_graph_still_compiles():
 		return
@@ -87,6 +92,40 @@ func _assert_old_role_pool_contract_fails() -> bool:
 	return true
 
 
+func _assert_context_modifiers_are_semantic() -> bool:
+	for path in [TOWN_PROFILE_PATH, FOREST_PROFILE_PATH]:
+		var profile_data := _load_json(path)
+		if profile_data.has("context_weight_modifiers"):
+			_fail("v67.7 profile still contains context_weight_modifiers: %s" % path)
+			return false
+		if not (profile_data.get("context_semantic_modifiers", null) is Dictionary):
+			_fail("v67.7 profile is missing context_semantic_modifiers: %s" % path)
+			return false
+		var role_types := _role_type_set(profile_data)
+		if _semantic_modifier_mentions_role_type(profile_data.get("context_semantic_modifiers", {}) as Dictionary, role_types):
+			_fail("v67.7 context_semantic_modifiers must not point at role_type ids: %s" % path)
+			return false
+		var profile: RefCounted = RegionTypeProfileScript.new()
+		var errors: Array[String] = profile.configure(profile_data)
+		if not errors.is_empty():
+			_fail("v67.7 profile semantic modifier validation failed at %s: %s" % [path, str(errors)])
+			return false
+	var invalid_profile := _load_json(TOWN_PROFILE_PATH)
+	invalid_profile["context_weight_modifiers"] = {
+		"terrain_context": {
+			"plain": {
+				"farmland": 2.0
+			}
+		}
+	}
+	var invalid: RefCounted = RegionTypeProfileScript.new()
+	var invalid_errors: Array[String] = invalid.configure(invalid_profile)
+	if not str(invalid_errors).contains("context_weight_modifiers is not supported"):
+		_fail("v67.7 old context_weight_modifiers did not fail clearly: %s" % str(invalid_errors))
+		return false
+	return true
+
+
 func _assert_full_location_graph_still_compiles() -> bool:
 	var compiler: RefCounted = RegionLocationGraphCompilerScript.new()
 	var result: Dictionary = compiler.compile_to_location_graph_result([
@@ -107,6 +146,30 @@ func _required_need_has_role(result: Dictionary, need_id: String) -> bool:
 		var coverage: Dictionary = coverage_value as Dictionary
 		if str(coverage.get("need_id", "")) == need_id and bool(coverage.get("required", false)):
 			return not (coverage.get("role_ids", []) as Array).is_empty()
+	return false
+
+
+func _role_type_set(profile_data: Dictionary) -> Dictionary:
+	var result: Dictionary = {}
+	var definitions: Dictionary = profile_data.get("role_definitions", {}) as Dictionary
+	for role_type_value in definitions.keys():
+		result[str(role_type_value)] = true
+	return result
+
+
+func _semantic_modifier_mentions_role_type(value: Variant, role_types: Dictionary) -> bool:
+	if value is Dictionary:
+		var dictionary: Dictionary = value as Dictionary
+		for key_value in dictionary.keys():
+			var key := str(key_value)
+			if role_types.has(key):
+				return true
+			if _semantic_modifier_mentions_role_type(dictionary.get(key_value), role_types):
+				return true
+	elif value is Array:
+		for item in (value as Array):
+			if _semantic_modifier_mentions_role_type(item, role_types):
+				return true
 	return false
 
 
