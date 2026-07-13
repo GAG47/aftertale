@@ -3,7 +3,7 @@ extends RefCounted
 
 const CanonicalDataSerializerScript := preload("res://scripts/systems/regions/canonical_data_serializer.gd")
 
-const SCHEMA_VERSION := 1
+const SCHEMA_VERSION := 2
 const FORBIDDEN_NEXT_STAGE_KEYS := {
 	"edge_id": true,
 	"edges": true,
@@ -44,9 +44,11 @@ func validate(result: Dictionary, semantic_role_result: Dictionary = {}, profile
 		errors.append("LocationNodeResult.schema_version is unsupported: %s" % str(result.get("schema_version", "")))
 	if str(result.get("stage", "")) != "location_nodes":
 		errors.append("LocationNodeResult.stage must be location_nodes")
-	for key in ["compiler_version", "region_id", "region_type", "region_slug", "source_hash", "semantic_role_source_hash", "result_hash"]:
+	for key in ["compiler_version", "region_id", "region_type", "region_slug", "source_hash", "semantic_role_source_hash", "semantic_role_library_id", "semantic_role_library_path", "result_hash"]:
 		if str(result.get(key, "")).is_empty():
 			errors.append("LocationNodeResult.%s is missing" % key)
+	if not CanonicalDataSerializerScript.is_sha256_hash(str(result.get("semantic_role_library_content_hash", ""))):
+		errors.append("LocationNodeResult.semantic_role_library_content_hash is invalid")
 	var declared_result_hash := str(result.get("result_hash", ""))
 	var calculated_result_hash: String = CanonicalDataSerializerScript.location_node_result_hash(result)
 	if declared_result_hash.is_empty() or calculated_result_hash.is_empty() or declared_result_hash != calculated_result_hash:
@@ -61,10 +63,21 @@ func validate(result: Dictionary, semantic_role_result: Dictionary = {}, profile
 	if not (result.get("role_node_bindings", null) is Array):
 		errors.append("LocationNodeResult.role_node_bindings must be an array")
 	var roles_by_id := _roles_by_id(semantic_role_result, errors)
+	_validate_semantic_role_library_source(result, semantic_role_result, errors)
 	var nodes: Array = result.get("location_nodes", []) as Array
 	var nodes_by_id := _validate_nodes(nodes, roles_by_id, profile, result, errors)
 	_validate_role_node_bindings(result, roles_by_id, nodes_by_id, errors)
 	return errors
+
+
+func _validate_semantic_role_library_source(result: Dictionary, semantic_role_result: Dictionary, errors: Array[String]) -> void:
+	if semantic_role_result.is_empty():
+		return
+	for result_key_value in ["semantic_role_library_id", "semantic_role_library_path", "semantic_role_library_content_hash"]:
+		var result_key := str(result_key_value)
+		var semantic_key := result_key.trim_prefix("semantic_")
+		if str(result.get(result_key, "")) != str(semantic_role_result.get(semantic_key, "")):
+			errors.append("LocationNodeResult.%s does not match SemanticRoleResult.%s" % [result_key, semantic_key])
 
 
 func _roles_by_id(semantic_role_result: Dictionary, errors: Array[String]) -> Dictionary:

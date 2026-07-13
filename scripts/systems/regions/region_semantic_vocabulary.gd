@@ -23,6 +23,62 @@ const ALLOWED_NEEDS := [
 	"boundary.frontier",
 ]
 
+const ALLOWED_NEED_DOMAINS := [
+	"boundary",
+	"danger",
+	"landmark",
+	"production",
+	"public",
+	"resource",
+	"ritual",
+	"safety",
+	"settlement",
+	"shelter",
+	"travel",
+	"wilderness",
+]
+
+const ALLOWED_ROLE_PROPERTIES := [
+	"access",
+	"boundary",
+	"core",
+	"dangerous",
+	"forest",
+	"hidden",
+	"inner",
+	"production",
+	"public",
+	"ritual",
+	"road",
+	"shelter",
+	"support",
+	"trade",
+	"water",
+]
+
+const ALLOWED_ROLE_AFFINITIES := [
+	"danger.high",
+	"forest.edge",
+	"hidden.available",
+	"political.frontier",
+	"political.kingdom",
+	"resource.abundant",
+	"settlement.near",
+	"terrain.forest",
+	"terrain.plain",
+	"travel.road_access",
+	"water.river",
+	"wilderness.deep",
+]
+
+const ALLOWED_ROLE_CATEGORIES := [
+	"landmark",
+	"resource",
+	"settlement",
+	"travel_point",
+	"wilderness",
+]
+
 const ALLOWED_TRAITS := [
 	"settlement",
 	"wilderness",
@@ -77,7 +133,7 @@ static func validate_need_array(value: Variant, key: String, require_array: bool
 			errors.append("RegionInput.%s[%d] is empty" % [key, index])
 			continue
 		if not is_need_id(need_id):
-			errors.append("RegionInput.%s[%d] is not supported by the v67.7 vocabulary: %s" % [key, index, need_id])
+			errors.append("RegionInput.%s[%d] is not supported by the controlled vocabulary: %s" % [key, index, need_id])
 		if seen.has(need_id):
 			errors.append("RegionInput.%s contains duplicate need_id: %s" % [key, need_id])
 		seen[need_id] = true
@@ -108,7 +164,7 @@ static func validate_coarse_context(value: Variant, key: String) -> Array[String
 		var allowed_values: Array = ALLOWED_COARSE_CONTEXT.get(required_key, []) as Array
 		for context_value in context_values(context.get(required_key)):
 			if not allowed_values.has(context_value):
-				errors.append("RegionInput.%s.%s is not supported by the v67.7 vocabulary: %s" % [key, str(required_key), context_value])
+				errors.append("RegionInput.%s.%s is not supported by the controlled vocabulary: %s" % [key, str(required_key), context_value])
 	for context_key in context.keys():
 		if not ALLOWED_COARSE_CONTEXT.has(context_key):
 			errors.append("RegionInput.%s contains unsupported key: %s" % [key, str(context_key)])
@@ -117,6 +173,29 @@ static func validate_coarse_context(value: Variant, key: String) -> Array[String
 
 static func is_need_id(value: String) -> bool:
 	return ALLOWED_NEEDS.has(value)
+
+
+static func need_domain(value: String) -> String:
+	var separator := value.find(".")
+	if separator <= 0:
+		return ""
+	return value.substr(0, separator)
+
+
+static func is_need_domain(value: String) -> bool:
+	return ALLOWED_NEED_DOMAINS.has(value)
+
+
+static func is_role_property(value: String) -> bool:
+	return ALLOWED_ROLE_PROPERTIES.has(value)
+
+
+static func is_role_affinity(value: String) -> bool:
+	return ALLOWED_ROLE_AFFINITIES.has(value)
+
+
+static func is_role_category(value: String) -> bool:
+	return ALLOWED_ROLE_CATEGORIES.has(value)
 
 
 static func is_trait(value: String) -> bool:
@@ -188,7 +267,7 @@ static func _validate_limited_token_array(value: Variant, key: String, allowed_v
 			errors.append("RegionInput.%s[%d] is empty" % [key, index])
 			continue
 		if not allowed_values.has(token):
-			errors.append("RegionInput.%s[%d] is not supported by the v67.7 vocabulary: %s" % [key, index, token])
+			errors.append("RegionInput.%s[%d] is not supported by the controlled vocabulary: %s" % [key, index, token])
 		if seen.has(token):
 			errors.append("RegionInput.%s contains duplicate token: %s" % [key, token])
 		seen[token] = true

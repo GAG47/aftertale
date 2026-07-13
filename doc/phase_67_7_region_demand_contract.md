@@ -1,5 +1,10 @@
 # Phase 67.7 Region Demand Contract
 
+Note: v67.8 moves the role definitions described in this historical v67.7
+record out of `RegionTypeProfile` and into the global `SemanticRoleLibrary`.
+The v67.7 demand contract remains current; only role-definition ownership and
+typed role semantics are superseded.
+
 v67.7 is a foundation correction for the v67 Region-to-Location-Graph compiler.
 It does not add world simulation and does not expand the map domain beyond the
 current town, forest, plain, river, frontier, road, resource, public, dangerous,

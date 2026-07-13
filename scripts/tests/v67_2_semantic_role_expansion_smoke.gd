@@ -111,7 +111,7 @@ func _assert_invalid_inputs_fail() -> bool:
 
 	var unsupported_need := _load_json(TOWN_REGION_INPUT_PATH)
 	(unsupported_need.get("optional_needs", []) as Array).append("imperial.taxation")
-	if not _fails_with(compiler.compile_semantic_roles_result(unsupported_need), "not supported by the v67.7 vocabulary"):
+	if not _fails_with(compiler.compile_semantic_roles_result(unsupported_need), "not supported by the controlled vocabulary"):
 		return false
 
 	var duplicate_required_need := _load_json(TOWN_REGION_INPUT_PATH)

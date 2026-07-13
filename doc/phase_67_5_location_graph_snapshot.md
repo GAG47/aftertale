@@ -152,6 +152,7 @@ Region 只作为节点来源，不是图的所有者或边端点。
 
 ```text
 semantic_role_profile
+semantic_role_library
 location_node_profile
 edge_contract_profile
 ```

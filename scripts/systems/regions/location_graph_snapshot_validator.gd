@@ -3,7 +3,7 @@ extends RefCounted
 
 const CanonicalDataSerializerScript := preload("res://scripts/systems/regions/canonical_data_serializer.gd")
 
-const SCHEMA_VERSION := 1
+const SCHEMA_VERSION := 2
 const COMPILER_VERSION := "v67.5"
 const SNAPSHOT_KEYS := {
 	"schema_version": true,
@@ -59,6 +59,7 @@ const RULE_MANIFEST_KEYS := {
 	"profile_content_hash": true,
 }
 const PROFILE_KINDS := [
+	"semantic_role_library",
 	"semantic_role_profile",
 	"location_node_profile",
 	"edge_contract_profile",
@@ -206,6 +207,7 @@ func _validate_node_source_manifest_links(node_sources: Dictionary, source_manif
 func _validate_rule_manifest(values: Array, errors: Array[String]) -> void:
 	var seen: Dictionary = {}
 	var kinds_seen: Dictionary = {}
+	var kind_counts: Dictionary = {}
 	for index in range(values.size()):
 		var path := "LocationGraphSnapshot.rule_manifest[%d]" % index
 		if not (values[index] is Dictionary):
@@ -227,9 +229,12 @@ func _validate_rule_manifest(values: Array, errors: Array[String]) -> void:
 			errors.append("LocationGraphSnapshot contains duplicate rule manifest row: %s" % key)
 		seen[key] = true
 		kinds_seen[profile_kind] = true
+		kind_counts[profile_kind] = int(kind_counts.get(profile_kind, 0)) + 1
 	for required_kind in PROFILE_KINDS:
 		if not kinds_seen.has(required_kind):
 			errors.append("LocationGraphSnapshot.rule_manifest is missing profile kind: %s" % required_kind)
+	if int(kind_counts.get("semantic_role_library", 0)) != 1:
+		errors.append("LocationGraphSnapshot.rule_manifest must contain exactly one semantic_role_library")
 
 
 func _validate_edges(edges: Array, nodes_by_id: Dictionary, sources_by_location: Dictionary, errors: Array[String]) -> void:

@@ -7,8 +7,9 @@ const EdgeContractResultValidatorScript := preload("res://scripts/systems/region
 const LocationNodeProfileScript := preload("res://scripts/systems/regions/location_node_profile.gd")
 const LocationGraphSnapshotValidatorScript := preload("res://scripts/systems/regions/location_graph_snapshot_validator.gd")
 const RegionTypeProfileScript := preload("res://scripts/systems/regions/region_type_profile.gd")
+const SemanticRoleLibraryScript := preload("res://scripts/systems/regions/semantic_role_library.gd")
 
-const SCHEMA_VERSION := 1
+const SCHEMA_VERSION := 2
 const COMPILER_VERSION := "v67.5"
 
 
@@ -73,6 +74,7 @@ func build_snapshot_result(graph_id: String, location_node_results: Array, edge_
 
 func _validate_inputs(graph_id: String, location_node_results: Array, edge_contract_result: Dictionary) -> Array[String]:
 	var errors: Array[String] = []
+	var role_library_identity := ""
 	if not _is_graph_id(graph_id):
 		errors.append("graph_id is invalid: %s" % graph_id)
 	if location_node_results.is_empty():
@@ -86,9 +88,21 @@ func _validate_inputs(graph_id: String, location_node_results: Array, edge_contr
 		var calculated_hash: String = CanonicalDataSerializerScript.location_node_result_hash(result)
 		if declared_hash.is_empty() or calculated_hash.is_empty() or declared_hash != calculated_hash:
 			errors.append("LocationNodeResult[%d].result_hash does not match canonical content" % index)
-		for key in ["profile_path", "semantic_role_profile_path"]:
+		for key in ["profile_path", "semantic_role_profile_path", "semantic_role_library_id", "semantic_role_library_path"]:
 			if str(result.get(key, "")).is_empty():
 				errors.append("LocationNodeResult[%d].%s is missing" % [index, key])
+		var role_library_hash := str(result.get("semantic_role_library_content_hash", ""))
+		if not CanonicalDataSerializerScript.is_sha256_hash(role_library_hash):
+			errors.append("LocationNodeResult[%d].semantic_role_library_content_hash is invalid" % index)
+		var current_library_identity := "%s::%s::%s" % [
+			str(result.get("semantic_role_library_id", "")),
+			str(result.get("semantic_role_library_path", "")),
+			role_library_hash,
+		]
+		if role_library_identity.is_empty():
+			role_library_identity = current_library_identity
+		elif current_library_identity != role_library_identity:
+			errors.append("LocationNodeResult inputs reference different SemanticRoleLibrary sources")
 	if edge_contract_result.is_empty():
 		errors.append("EdgeContractResult is required")
 	else:
@@ -164,6 +178,12 @@ func _build_rule_manifest(location_node_results: Array, edge_contract_result: Di
 			"expected_id": str(source.get("region_type", "")),
 		})
 		requests.append({
+			"profile_kind": "semantic_role_library",
+			"profile_path": str(source.get("semantic_role_library_path", "")),
+			"expected_id": str(source.get("semantic_role_library_id", "")),
+			"expected_content_hash": str(source.get("semantic_role_library_content_hash", "")),
+		})
+		requests.append({
 			"profile_kind": "location_node_profile",
 			"profile_path": str(source.get("profile_path", "")),
 			"expected_id": str(source.get("region_type", "")),
@@ -175,19 +195,24 @@ func _build_rule_manifest(location_node_results: Array, edge_contract_result: Di
 	})
 	var seen: Dictionary = {}
 	var expected_ids: Dictionary = {}
+	var expected_hashes: Dictionary = {}
 	var manifest: Array = []
 	var errors: Array[String] = []
 	for request in requests:
 		var profile_kind := str(request.get("profile_kind", ""))
 		var profile_path := str(request.get("profile_path", ""))
 		var expected_id := str(request.get("expected_id", ""))
+		var expected_content_hash := str(request.get("expected_content_hash", ""))
 		var key := "%s::%s" % [profile_kind, profile_path]
 		if seen.has(key):
 			if str(expected_ids.get(key, "")) != expected_id:
 				errors.append("Rule profile is referenced with conflicting identities: %s" % profile_path)
+			if str(expected_hashes.get(key, "")) != expected_content_hash:
+				errors.append("Rule profile is referenced with conflicting content hashes: %s" % profile_path)
 			continue
 		seen[key] = true
 		expected_ids[key] = expected_id
+		expected_hashes[key] = expected_content_hash
 		if profile_path.is_empty():
 			errors.append("Rule profile path is missing for kind: %s" % profile_kind)
 			continue
@@ -214,6 +239,9 @@ func _build_rule_manifest(location_node_results: Array, edge_contract_result: Di
 		if profile_hash.is_empty():
 			errors.append("Rule profile content hash could not be calculated: %s" % profile_path)
 			continue
+		if not expected_content_hash.is_empty() and profile_hash != expected_content_hash:
+			errors.append("Rule profile content hash does not match upstream source at %s" % profile_path)
+			continue
 		manifest.append({
 			"profile_kind": profile_kind,
 			"profile_path": profile_path,
@@ -229,6 +257,11 @@ func _build_rule_manifest(location_node_results: Array, edge_contract_result: Di
 func _validate_profile_data(profile_kind: String, profile_data: Dictionary, expected_id: String) -> Array[String]:
 	var errors: Array[String] = []
 	match profile_kind:
+		"semantic_role_library":
+			var role_library: RefCounted = SemanticRoleLibraryScript.new()
+			errors.append_array(role_library.configure(profile_data))
+			if str(role_library.library_id()) != expected_id:
+				errors.append("SemanticRoleLibrary.library_id does not match source result: %s != %s" % [str(role_library.library_id()), expected_id])
 		"semantic_role_profile":
 			var semantic_profile: RefCounted = RegionTypeProfileScript.new()
 			errors.append_array(semantic_profile.configure(profile_data))

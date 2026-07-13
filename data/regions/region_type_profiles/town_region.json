@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "region_type": "town_region",
   "required_needs": [
     "settlement.core",
@@ -19,14 +19,38 @@
     "medium": [2, 3],
     "large": [3, 4]
   },
-  "role_weights": {
-    "farmland": 1.0,
-    "landmark": 0.8,
-    "market": 0.6,
-    "shrine": 0.45,
-    "forest_boundary": 0.55,
-    "river_edge": 0.5
-  },
+  "allowed_categories": [
+    "settlement",
+    "travel_point",
+    "resource",
+    "landmark",
+    "wilderness"
+  ],
+  "allowed_satisfies_domains": [
+    "settlement",
+    "travel",
+    "public",
+    "production",
+    "landmark",
+    "ritual",
+    "resource",
+    "boundary"
+  ],
+  "required_properties": [],
+  "allowed_properties": [
+    "access",
+    "boundary",
+    "core",
+    "forest",
+    "production",
+    "public",
+    "ritual",
+    "road",
+    "support",
+    "trade",
+    "water"
+  ],
+  "excluded_role_types": [],
   "context_semantic_modifiers": {
     "terrain_context": {
       "plain": {
@@ -60,89 +84,6 @@
           "wilderness": 1.2
         }
       }
-    }
-  },
-  "role_definitions": {
-    "settlement_core": {
-      "satisfies": ["settlement.core", "public.gathering"],
-      "role_tags": ["core", "settlement", "social"],
-      "properties": ["core", "public"],
-      "affinity": ["plain", "kingdom"],
-      "category": "settlement",
-      "allowed_sources": ["required"],
-      "allow_multiple": false
-    },
-    "main_exit": {
-      "satisfies": ["travel.access", "travel.road"],
-      "role_tags": ["boundary", "travel", "public"],
-      "properties": ["access", "road"],
-      "affinity": ["road_access", "frontier"],
-      "category": "road",
-      "allowed_sources": ["required"],
-      "allow_multiple": false
-    },
-    "support_area": {
-      "satisfies": ["settlement.support"],
-      "role_tags": ["support", "settlement"],
-      "properties": ["support"],
-      "affinity": ["settlement"],
-      "category": "settlement",
-      "allowed_sources": ["required"],
-      "allow_multiple": false
-    },
-    "farmland": {
-      "satisfies": ["production.food"],
-      "role_tags": ["resource", "food", "settlement_support"],
-      "properties": ["production", "resource"],
-      "affinity": ["plain", "resource_rich"],
-      "category": "production",
-      "allowed_sources": ["optional"],
-      "allow_multiple": false
-    },
-    "landmark": {
-      "satisfies": ["landmark.memorable"],
-      "role_tags": ["landmark", "memory"],
-      "properties": ["landmark"],
-      "affinity": ["settlement", "frontier"],
-      "category": "landmark",
-      "allowed_sources": ["optional", "forced"],
-      "allow_multiple": true
-    },
-    "market": {
-      "satisfies": ["public.trade"],
-      "role_tags": ["commerce", "social"],
-      "properties": ["public", "trade"],
-      "affinity": ["kingdom", "road_access"],
-      "category": "public",
-      "allowed_sources": ["optional"],
-      "allow_multiple": false
-    },
-    "shrine": {
-      "satisfies": ["ritual.place", "landmark.memorable"],
-      "role_tags": ["landmark", "ritual"],
-      "properties": ["ritual", "landmark"],
-      "affinity": ["kingdom"],
-      "category": "landmark",
-      "allowed_sources": ["optional", "forced"],
-      "allow_multiple": false
-    },
-    "forest_boundary": {
-      "satisfies": ["resource.forest", "boundary.frontier"],
-      "role_tags": ["boundary", "forest", "transition"],
-      "properties": ["boundary", "resource"],
-      "affinity": ["near_forest", "frontier"],
-      "category": "wilderness",
-      "allowed_sources": ["optional"],
-      "allow_multiple": false
-    },
-    "river_edge": {
-      "satisfies": ["resource.water", "travel.crossing"],
-      "role_tags": ["boundary", "water", "resource"],
-      "properties": ["water", "resource"],
-      "affinity": ["near_river", "river"],
-      "category": "resource",
-      "allowed_sources": ["optional"],
-      "allow_multiple": false
     }
   }
 }

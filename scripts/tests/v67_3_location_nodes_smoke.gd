@@ -4,6 +4,7 @@ const LocationNodeExpanderScript := preload("res://scripts/systems/regions/locat
 const LocationNodeProfileScript := preload("res://scripts/systems/regions/location_node_profile.gd")
 const LocationNodeResultValidatorScript := preload("res://scripts/systems/regions/location_node_result_validator.gd")
 const RegionLocationGraphCompilerScript := preload("res://scripts/systems/regions/region_location_graph_compiler.gd")
+const SemanticRoleLibraryScript := preload("res://scripts/systems/regions/semantic_role_library.gd")
 
 const TOWN_REGION_INPUT_PATH := "res://data/regions/frontier_town_region.json"
 const FOREST_REGION_INPUT_PATH := "res://data/regions/frontier_forest_region.json"
@@ -144,10 +145,29 @@ func _assert_invalid_profile_and_mapping_fail() -> bool:
 		return false
 	var semantic_roles: Dictionary = semantic_result.get("semantic_role_result", {}) as Dictionary
 	var roles: Array = semantic_roles.get("selected_roles", []) as Array
-	var first_role: Dictionary = roles[0] as Dictionary
-	first_role["role_type"] = "castle"
-	first_role["role_slug"] = "castle"
-	roles[0] = first_role
+	var travel_role_index := -1
+	for index in range(roles.size()):
+		var candidate: Dictionary = roles[index] as Dictionary
+		if (candidate.get("satisfies", []) as Array).has("travel.access"):
+			travel_role_index = index
+			break
+	if travel_role_index < 0:
+		_fail("v67.3 missing mapping setup could not find the required travel role")
+		return false
+	var library_result: Dictionary = SemanticRoleLibraryScript.new().load_library_result()
+	var library: RefCounted = library_result.get("library") as RefCounted
+	var travel_role: Dictionary = roles[travel_role_index] as Dictionary
+	travel_role["role_type"] = "entrance"
+	travel_role["role_slug"] = "entrance"
+	travel_role["role_tags"] = []
+	travel_role["satisfies"] = library.role_satisfies("entrance")
+	travel_role["properties"] = library.role_properties("entrance")
+	travel_role["affinity"] = library.role_affinity("entrance")
+	travel_role["category"] = library.role_category("entrance")
+	travel_role["matched_need_ids"] = ["travel.access"]
+	travel_role["role_definition_id"] = library.role_definition_id("entrance")
+	travel_role["role_definition_hash"] = library.role_definition_hash("entrance")
+	roles[travel_role_index] = travel_role
 	semantic_roles["selected_roles"] = roles
 	var expander: RefCounted = LocationNodeExpanderScript.new()
 	var node_result: Dictionary = expander.expand_locations_result(semantic_roles)

@@ -101,10 +101,6 @@ func _assert_context_modifiers_are_semantic() -> bool:
 		if not (profile_data.get("context_semantic_modifiers", null) is Dictionary):
 			_fail("v67.7 profile is missing context_semantic_modifiers: %s" % path)
 			return false
-		var role_types := _role_type_set(profile_data)
-		if _semantic_modifier_mentions_role_type(profile_data.get("context_semantic_modifiers", {}) as Dictionary, role_types):
-			_fail("v67.7 context_semantic_modifiers must not point at role_type ids: %s" % path)
-			return false
 		var profile: RefCounted = RegionTypeProfileScript.new()
 		var errors: Array[String] = profile.configure(profile_data)
 		if not errors.is_empty():
@@ -122,6 +118,18 @@ func _assert_context_modifiers_are_semantic() -> bool:
 	var invalid_errors: Array[String] = invalid.configure(invalid_profile)
 	if not str(invalid_errors).contains("context_weight_modifiers is not supported"):
 		_fail("v67.7 old context_weight_modifiers did not fail clearly: %s" % str(invalid_errors))
+		return false
+	var concrete_role_modifier := _load_json(TOWN_PROFILE_PATH)
+	var modifiers: Dictionary = concrete_role_modifier.get("context_semantic_modifiers", {}) as Dictionary
+	var terrain: Dictionary = modifiers.get("terrain_context", {}) as Dictionary
+	var plain: Dictionary = terrain.get("plain", {}) as Dictionary
+	plain["properties"] = {"farmland": 2.0}
+	terrain["plain"] = plain
+	modifiers["terrain_context"] = terrain
+	concrete_role_modifier["context_semantic_modifiers"] = modifiers
+	var concrete_errors: Array[String] = RegionTypeProfileScript.new().configure(concrete_role_modifier)
+	if not str(concrete_errors).contains("outside its vocabulary: farmland"):
+		_fail("v67.7 concrete role id in semantic modifiers did not fail clearly: %s" % str(concrete_errors))
 		return false
 	return true
 
@@ -146,30 +154,6 @@ func _required_need_has_role(result: Dictionary, need_id: String) -> bool:
 		var coverage: Dictionary = coverage_value as Dictionary
 		if str(coverage.get("need_id", "")) == need_id and bool(coverage.get("required", false)):
 			return not (coverage.get("role_ids", []) as Array).is_empty()
-	return false
-
-
-func _role_type_set(profile_data: Dictionary) -> Dictionary:
-	var result: Dictionary = {}
-	var definitions: Dictionary = profile_data.get("role_definitions", {}) as Dictionary
-	for role_type_value in definitions.keys():
-		result[str(role_type_value)] = true
-	return result
-
-
-func _semantic_modifier_mentions_role_type(value: Variant, role_types: Dictionary) -> bool:
-	if value is Dictionary:
-		var dictionary: Dictionary = value as Dictionary
-		for key_value in dictionary.keys():
-			var key := str(key_value)
-			if role_types.has(key):
-				return true
-			if _semantic_modifier_mentions_role_type(dictionary.get(key_value), role_types):
-				return true
-	elif value is Array:
-		for item in (value as Array):
-			if _semantic_modifier_mentions_role_type(item, role_types):
-				return true
 	return false
 
 

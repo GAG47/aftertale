@@ -6,7 +6,7 @@ const LocationNodeResultValidatorScript := preload("res://scripts/systems/region
 const SemanticRoleResultValidatorScript := preload("res://scripts/systems/regions/semantic_role_result_validator.gd")
 const CanonicalDataSerializerScript := preload("res://scripts/systems/regions/canonical_data_serializer.gd")
 
-const SCHEMA_VERSION := 1
+const SCHEMA_VERSION := 2
 const COMPILER_VERSION := "v67.3"
 
 
@@ -47,6 +47,9 @@ func expand_locations_result(semantic_role_result: Dictionary) -> Dictionary:
 		"semantic_role_source_hash": _source_hash(semantic_role_result),
 		"profile_path": str(profile_result.get("profile_path", "")),
 		"semantic_role_profile_path": str(semantic_role_result.get("profile_path", "")),
+		"semantic_role_library_id": str(semantic_role_result.get("role_library_id", "")),
+		"semantic_role_library_path": str(semantic_role_result.get("role_library_path", "")),
+		"semantic_role_library_content_hash": str(semantic_role_result.get("role_library_content_hash", "")),
 		"location_nodes": location_nodes,
 		"role_node_bindings": role_node_bindings,
 		"debug_summary": _debug_summary(location_nodes),

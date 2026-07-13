@@ -77,6 +77,10 @@ a usable skeleton toward presentable generated places:
   vocabulary, moves context weighting from concrete role ids to semantic
   modifiers, records semantic need coverage, and keeps the downstream
   LocationNode, Edge, Snapshot, and Runtime stages stable.
+- a v67.8 Semantic Role Library that removes role definitions and concrete-role
+  weights from RegionTypeProfile, validates typed role semantics and hard region
+  conditions, selects candidates from one global role library, and records the
+  library and role-definition hashes through SemanticRoleResult and Snapshot.
 
 ## Battle Deepening Roadmap
 
@@ -108,6 +112,7 @@ a usable skeleton toward presentable generated places:
 | v67.5 | Complete | `doc/phase_67_5_location_graph_snapshot.md` | Canonically freeze LocationNodeResult and EdgeContractResult data into a self-contained LocationGraphSnapshot, recheck upstream result hashes, hash every participating profile, reject incompatible or modified snapshots, require explicit persistence paths, and stop before v67.6 Runtime adaptation. |
 | v67.6 | Complete | `doc/phase_67_6_snapshot_runtime_adapter.md` | Validate an in-memory LocationGraphSnapshot, build location and direction-aware adjacency indexes, keep current location as Runtime-only state, allow adjacent-only travel, and enter an interactive placeholder Location scene without TileMap, NPC, save, task, or scene-generation integration. |
 | v67.7 | Complete | `doc/phase_67_7_region_demand_contract.md` | Replace RegionInput role-pool selection with a bounded demand contract: region traits, facts, required needs, optional needs, profile default needs, role capability declarations, semantic context modifiers instead of context-to-role weighting, demand coverage traceability, and no expansion into v68 world background generation. |
+| v67.8 | Complete | `doc/phase_67_8_semantic_role_library.md` | Move role-definition ownership into one global SemanticRoleLibrary, replace concrete role pools and weights with typed semantic scope and modifiers, enforce controlled role vocabularies and hard region conditions, and carry role-library identity and content hashes into Snapshot without implementing combination planning. |
 
 ## Dependency Order
 
@@ -138,6 +143,7 @@ v50 skill effect data model
 -> v67.5 Location Graph Snapshot
 -> v67.6 Snapshot Runtime Adapter
 -> v67.7 Region Demand Contract
+-> v67.8 Semantic Role Library
 ```
 
 ## Minimum Tactical Slice

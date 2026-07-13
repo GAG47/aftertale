@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "region_type": "forest_region",
   "required_needs": [
     "travel.access",
@@ -18,19 +18,42 @@
     "medium": [2, 3],
     "large": [3, 4]
   },
-  "role_weights": {
-    "clearing": 0.9,
-    "hut": 0.55,
-    "ruin": 0.45,
-    "stream": 0.65,
-    "hidden_grove": 0.5,
-    "forest_shrine": 0.35
-  },
+  "allowed_categories": [
+    "travel_point",
+    "wilderness",
+    "landmark",
+    "resource"
+  ],
+  "allowed_satisfies_domains": [
+    "travel",
+    "boundary",
+    "wilderness",
+    "resource",
+    "landmark",
+    "shelter",
+    "danger",
+    "ritual"
+  ],
+  "required_properties": [],
+  "allowed_properties": [
+    "access",
+    "boundary",
+    "dangerous",
+    "forest",
+    "hidden",
+    "inner",
+    "ritual",
+    "shelter",
+    "water"
+  ],
+  "excluded_role_types": [],
   "context_semantic_modifiers": {
     "terrain_context": {
       "forest": {
+        "category": {
+          "landmark": 1.2
+        },
         "properties": {
-          "landmark": 1.2,
           "hidden": 1.08
         }
       },
@@ -38,13 +61,15 @@
         "satisfies": {
           "resource.water": 2.0
         },
-        "properties": {
+        "category": {
           "landmark": 0.9
         }
       },
       "plain": {
+        "category": {
+          "landmark": 1.4
+        },
         "properties": {
-          "landmark": 1.4,
           "hidden": 0.57
         }
       }
@@ -62,89 +87,6 @@
           "shelter": 1.1
         }
       }
-    }
-  },
-  "role_definitions": {
-    "entrance": {
-      "satisfies": ["travel.access", "boundary.frontier"],
-      "role_tags": ["boundary", "forest", "travel"],
-      "properties": ["access", "boundary"],
-      "affinity": ["road_access", "frontier"],
-      "category": "road",
-      "allowed_sources": ["required"],
-      "allow_multiple": false
-    },
-    "common_woods": {
-      "satisfies": ["wilderness.core", "resource.forest"],
-      "role_tags": ["common", "forest"],
-      "properties": ["forest", "resource"],
-      "affinity": ["forest", "resource_rich"],
-      "category": "wilderness",
-      "allowed_sources": ["required"],
-      "allow_multiple": false
-    },
-    "inner_area": {
-      "satisfies": ["wilderness.inner", "danger.local"],
-      "role_tags": ["inner", "forest"],
-      "properties": ["dangerous", "inner"],
-      "affinity": ["forest", "dangerous"],
-      "category": "wilderness",
-      "allowed_sources": ["required"],
-      "allow_multiple": false
-    },
-    "clearing": {
-      "satisfies": ["landmark.memorable"],
-      "role_tags": ["landmark", "open_area"],
-      "properties": ["landmark"],
-      "affinity": ["forest"],
-      "category": "landmark",
-      "allowed_sources": ["optional"],
-      "allow_multiple": false
-    },
-    "hut": {
-      "satisfies": ["shelter.local"],
-      "role_tags": ["shelter", "npc_candidate"],
-      "properties": ["shelter"],
-      "affinity": ["wilderness", "frontier"],
-      "category": "public",
-      "allowed_sources": ["optional", "forced"],
-      "allow_multiple": false
-    },
-    "ruin": {
-      "satisfies": ["danger.local", "landmark.memorable"],
-      "role_tags": ["landmark", "history", "danger_candidate"],
-      "properties": ["dangerous", "landmark"],
-      "affinity": ["dangerous", "frontier"],
-      "category": "landmark",
-      "allowed_sources": ["optional", "forced"],
-      "allow_multiple": false
-    },
-    "stream": {
-      "satisfies": ["resource.water", "travel.crossing"],
-      "role_tags": ["water", "resource"],
-      "properties": ["water", "resource"],
-      "affinity": ["river", "resource_rich"],
-      "category": "resource",
-      "allowed_sources": ["optional"],
-      "allow_multiple": false
-    },
-    "hidden_grove": {
-      "satisfies": ["landmark.memorable"],
-      "role_tags": ["hidden", "landmark"],
-      "properties": ["hidden", "landmark"],
-      "affinity": ["forest", "has_hidden_places"],
-      "category": "landmark",
-      "allowed_sources": ["optional", "forced"],
-      "allow_multiple": false
-    },
-    "forest_shrine": {
-      "satisfies": ["ritual.place", "landmark.memorable"],
-      "role_tags": ["ritual", "landmark"],
-      "properties": ["ritual", "landmark"],
-      "affinity": ["forest"],
-      "category": "landmark",
-      "allowed_sources": ["optional", "forced"],
-      "allow_multiple": false
     }
   }
 }
