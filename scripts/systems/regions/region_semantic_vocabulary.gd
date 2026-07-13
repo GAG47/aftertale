@@ -2,63 +2,59 @@ class_name RegionSemanticVocabulary
 extends RefCounted
 
 const ALLOWED_NEEDS := [
-	"settlement.core",
-	"settlement.support",
-	"wilderness.core",
-	"wilderness.inner",
+	"danger.local",
+	"history.memory",
+	"investigation.discovery",
+	"landmark.memorable",
+	"production.crafting",
 	"production.food",
-	"production.resource",
+	"production.material",
 	"public.gathering",
 	"public.trade",
-	"travel.access",
-	"travel.road",
-	"travel.crossing",
-	"safety.watch",
-	"danger.local",
-	"landmark.memorable",
 	"resource.water",
-	"resource.forest",
-	"shelter.local",
 	"ritual.place",
-	"boundary.frontier",
+	"safety.watch",
+	"shelter.local",
+	"travel.access",
+	"travel.crossing",
+	"travel.road",
 ]
 
 const ALLOWED_NEED_DOMAINS := [
-	"boundary",
 	"danger",
+	"history",
+	"investigation",
 	"landmark",
 	"production",
 	"public",
 	"resource",
 	"ritual",
 	"safety",
-	"settlement",
 	"shelter",
 	"travel",
-	"wilderness",
 ]
 
 const ALLOWED_ROLE_PROPERTIES := [
 	"access",
-	"boundary",
-	"core",
+	"crossing",
 	"dangerous",
-	"forest",
+	"defensive",
+	"economic",
 	"hidden",
-	"inner",
-	"production",
+	"historic",
+	"inhabited",
+	"natural",
+	"productive",
 	"public",
-	"ritual",
-	"road",
+	"resource",
+	"sacred",
 	"shelter",
-	"support",
-	"trade",
-	"water",
+	"social",
+	"travel",
 ]
 
 const ALLOWED_ROLE_AFFINITIES := [
 	"danger.high",
-	"forest.edge",
 	"hidden.available",
 	"political.frontier",
 	"political.kingdom",
@@ -72,40 +68,78 @@ const ALLOWED_ROLE_AFFINITIES := [
 ]
 
 const ALLOWED_ROLE_CATEGORIES := [
+	"civic",
+	"commerce",
+	"defense",
+	"heritage",
 	"landmark",
+	"lodging",
+	"production",
+	"refuge",
+	"religious",
 	"resource",
-	"settlement",
-	"travel_point",
+	"travel",
 	"wilderness",
+]
+
+const ALLOWED_GAMEPLAY_AFFORDANCES := [
+	"combat",
+	"craft",
+	"cross",
+	"defend",
+	"discover",
+	"gather_food",
+	"gather_material",
+	"hide",
+	"hunt",
+	"investigate",
+	"observe",
+	"rest",
+	"ritual",
+	"talk",
+	"trade",
+	"travel",
+	"use_water",
+]
+
+const ALLOWED_NARRATIVE_AFFORDANCES := [
+	"ambush",
+	"discovery",
+	"escort_endpoint",
+	"historical_reveal",
+	"investigation",
+	"meeting",
+	"negotiation",
+	"rescue",
+	"rumor",
+	"secret_exchange",
+	"theft",
 ]
 
 const ALLOWED_TRAITS := [
-	"settlement",
-	"wilderness",
-	"town",
+	"dangerous",
 	"forest",
-	"plain",
-	"river",
 	"frontier",
 	"kingdom",
-	"road_access",
+	"plain",
 	"resource_rich",
-	"dangerous",
-	"public",
-	"production",
-	"landmark",
+	"river",
+	"road_access",
+	"settlement",
+	"town",
+	"wilderness",
 ]
 
 const ALLOWED_FACTS := [
-	"has_road",
-	"has_river",
-	"near_river",
-	"near_forest",
-	"has_forest",
-	"has_farmland",
+	"arable_land",
 	"belongs_to_kingdom",
 	"border_region",
+	"has_forest",
 	"has_hidden_places",
+	"has_river",
+	"has_road",
+	"near_forest",
+	"near_river",
 	"resource_site",
 ]
 
@@ -196,6 +230,14 @@ static func is_role_affinity(value: String) -> bool:
 
 static func is_role_category(value: String) -> bool:
 	return ALLOWED_ROLE_CATEGORIES.has(value)
+
+
+static func is_gameplay_affordance(value: String) -> bool:
+	return ALLOWED_GAMEPLAY_AFFORDANCES.has(value)
+
+
+static func is_narrative_affordance(value: String) -> bool:
+	return ALLOWED_NARRATIVE_AFFORDANCES.has(value)
 
 
 static func is_trait(value: String) -> bool:

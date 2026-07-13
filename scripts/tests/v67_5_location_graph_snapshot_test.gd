@@ -44,6 +44,8 @@ func _assert_snapshot_builds_without_runtime_fields() -> bool:
 	if not bool(result.get("success", false)):
 		return _fail("v67.5 snapshot compilation failed: %s" % str(result.get("errors", [])))
 	var snapshot: Dictionary = result.get("location_graph_snapshot", {}) as Dictionary
+	if int(snapshot.get("schema_version", 0)) != 3:
+		return _fail("v67.8 LocationGraphSnapshot did not advance to schema 3")
 	if str(snapshot.get("stage", "")) != "location_graph_snapshot":
 		return _fail("v67.5 snapshot has wrong stage")
 	if str(snapshot.get("compiler_version", "")) != "v67.8":

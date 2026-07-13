@@ -1,32 +1,17 @@
 {
   "schema_version": 1,
   "profile_id": "default_location_edges",
-  "allowed_edge_types": [
-    "road",
-    "path",
-    "hidden_path"
-  ],
-  "allowed_access_rules": [
-    "always"
-  ],
-  "allowed_traversal_tags": [
-    "walk"
-  ],
-  "allowed_validation_flags": [
-    "required_connection",
-    "hidden_connection"
-  ],
+  "allowed_edge_types": ["road", "path", "hidden_path"],
+  "allowed_access_rules": ["always"],
+  "allowed_traversal_tags": ["walk"],
+  "allowed_validation_flags": ["required_connection", "hidden_connection"],
   "rules": [
     {
-      "rule_id": "town_core_to_gate",
+      "rule_id": "town_gathering_to_access",
       "activation": "required",
       "match_mode": "unique_pair",
-      "from_selector": {
-        "location_types": ["town_center"]
-      },
-      "to_selector": {
-        "location_types": ["road_gate"]
-      },
+      "from_selector": {"required_tags": ["required_public_gathering"]},
+      "to_selector": {"location_types": ["road_gate"], "required_tags": ["required_travel_access"]},
       "edge": {
         "edge_type": "road",
         "bidirectional": true,
@@ -36,15 +21,11 @@
       }
     },
     {
-      "rule_id": "town_core_to_support",
+      "rule_id": "town_gathering_to_food_production",
       "activation": "required",
       "match_mode": "unique_pair",
-      "from_selector": {
-        "location_types": ["town_center"]
-      },
-      "to_selector": {
-        "location_types": ["settlement_support"]
-      },
+      "from_selector": {"required_tags": ["required_public_gathering"]},
+      "to_selector": {"required_tags": ["required_production_food"]},
       "edge": {
         "edge_type": "path",
         "bidirectional": true,
@@ -54,51 +35,11 @@
       }
     },
     {
-      "rule_id": "town_core_to_farmland",
+      "rule_id": "town_gathering_to_market",
       "activation": "when_both_present",
       "match_mode": "one_to_each",
-      "from_selector": {
-        "location_types": ["town_center"]
-      },
-      "to_selector": {
-        "location_types": ["farmland"]
-      },
-      "edge": {
-        "edge_type": "path",
-        "bidirectional": true,
-        "access_rule": "always",
-        "traversal_tags": ["walk"],
-        "validation_flags": []
-      }
-    },
-    {
-      "rule_id": "town_core_to_landmark",
-      "activation": "when_both_present",
-      "match_mode": "one_to_each",
-      "from_selector": {
-        "location_types": ["town_center"]
-      },
-      "to_selector": {
-        "location_types": ["landmark_site"]
-      },
-      "edge": {
-        "edge_type": "path",
-        "bidirectional": true,
-        "access_rule": "always",
-        "traversal_tags": ["walk"],
-        "validation_flags": []
-      }
-    },
-    {
-      "rule_id": "town_core_to_market",
-      "activation": "when_both_present",
-      "match_mode": "unique_pair",
-      "from_selector": {
-        "location_types": ["town_center"]
-      },
-      "to_selector": {
-        "location_types": ["market_square"]
-      },
+      "from_selector": {"required_tags": ["required_public_gathering"]},
+      "to_selector": {"location_types": ["market_square"], "excluded_tags": ["required_public_gathering"]},
       "edge": {
         "edge_type": "road",
         "bidirectional": true,
@@ -108,15 +49,39 @@
       }
     },
     {
-      "rule_id": "town_core_to_shrine",
+      "rule_id": "town_gathering_to_caravan_stop",
       "activation": "when_both_present",
-      "match_mode": "unique_pair",
-      "from_selector": {
-        "location_types": ["town_center"]
-      },
-      "to_selector": {
-        "location_types": ["shrine_site"]
-      },
+      "match_mode": "one_to_each",
+      "from_selector": {"required_tags": ["required_public_gathering"]},
+      "to_selector": {"location_types": ["caravan_stop"], "excluded_tags": ["required_public_gathering"]},
+      "edge": {
+        "edge_type": "road",
+        "bidirectional": true,
+        "access_rule": "always",
+        "traversal_tags": ["walk"],
+        "validation_flags": []
+      }
+    },
+    {
+      "rule_id": "town_gathering_to_inn",
+      "activation": "when_both_present",
+      "match_mode": "one_to_each",
+      "from_selector": {"required_tags": ["required_public_gathering"]},
+      "to_selector": {"location_types": ["roadside_inn"]},
+      "edge": {
+        "edge_type": "road",
+        "bidirectional": true,
+        "access_rule": "always",
+        "traversal_tags": ["walk"],
+        "validation_flags": []
+      }
+    },
+    {
+      "rule_id": "town_gathering_to_workshop",
+      "activation": "when_both_present",
+      "match_mode": "one_to_each",
+      "from_selector": {"required_tags": ["required_public_gathering"]},
+      "to_selector": {"location_types": ["workshop"]},
       "edge": {
         "edge_type": "path",
         "bidirectional": true,
@@ -126,15 +91,11 @@
       }
     },
     {
-      "rule_id": "town_gate_to_forest_edge",
+      "rule_id": "town_gathering_to_well",
       "activation": "when_both_present",
-      "match_mode": "unique_pair",
-      "from_selector": {
-        "location_types": ["road_gate"]
-      },
-      "to_selector": {
-        "location_types": ["forest_edge"]
-      },
+      "match_mode": "one_to_each",
+      "from_selector": {"required_tags": ["required_public_gathering"]},
+      "to_selector": {"location_types": ["town_well"]},
       "edge": {
         "edge_type": "path",
         "bidirectional": true,
@@ -144,15 +105,11 @@
       }
     },
     {
-      "rule_id": "town_core_to_riverbank",
+      "rule_id": "town_gathering_to_ford",
       "activation": "when_both_present",
-      "match_mode": "unique_pair",
-      "from_selector": {
-        "location_types": ["town_center"]
-      },
-      "to_selector": {
-        "location_types": ["riverbank"]
-      },
+      "match_mode": "one_to_each",
+      "from_selector": {"required_tags": ["required_public_gathering"]},
+      "to_selector": {"location_types": ["ford"]},
       "edge": {
         "edge_type": "path",
         "bidirectional": true,
@@ -162,15 +119,39 @@
       }
     },
     {
-      "rule_id": "forest_entrance_to_common_woods",
+      "rule_id": "town_gathering_to_shrine",
+      "activation": "when_both_present",
+      "match_mode": "one_to_each",
+      "from_selector": {"required_tags": ["required_public_gathering"]},
+      "to_selector": {"location_types": ["roadside_shrine"], "required_tags": ["settlement"]},
+      "edge": {
+        "edge_type": "path",
+        "bidirectional": true,
+        "access_rule": "always",
+        "traversal_tags": ["walk"],
+        "validation_flags": []
+      }
+    },
+    {
+      "rule_id": "town_gathering_to_ruins",
+      "activation": "when_both_present",
+      "match_mode": "one_to_each",
+      "from_selector": {"required_tags": ["required_public_gathering"]},
+      "to_selector": {"location_types": ["old_ruins"], "required_tags": ["settlement"]},
+      "edge": {
+        "edge_type": "path",
+        "bidirectional": true,
+        "access_rule": "always",
+        "traversal_tags": ["walk"],
+        "validation_flags": []
+      }
+    },
+    {
+      "rule_id": "forest_access_to_resource",
       "activation": "required",
       "match_mode": "unique_pair",
-      "from_selector": {
-        "location_types": ["forest_entrance"]
-      },
-      "to_selector": {
-        "location_types": ["common_woods"]
-      },
+      "from_selector": {"location_types": ["forest_trailhead"], "required_tags": ["required_travel_access"]},
+      "to_selector": {"required_tags": ["required_production_material"]},
       "edge": {
         "edge_type": "path",
         "bidirectional": true,
@@ -180,15 +161,11 @@
       }
     },
     {
-      "rule_id": "common_woods_to_deep_forest",
+      "rule_id": "forest_resource_to_hunting_ground",
       "activation": "required",
       "match_mode": "unique_pair",
-      "from_selector": {
-        "location_types": ["common_woods"]
-      },
-      "to_selector": {
-        "location_types": ["deep_forest"]
-      },
+      "from_selector": {"required_tags": ["required_production_material"]},
+      "to_selector": {"required_tags": ["required_danger_local"]},
       "edge": {
         "edge_type": "path",
         "bidirectional": true,
@@ -198,15 +175,11 @@
       }
     },
     {
-      "rule_id": "common_woods_to_clearing",
+      "rule_id": "forest_resource_to_spring",
       "activation": "when_both_present",
       "match_mode": "one_to_each",
-      "from_selector": {
-        "location_types": ["common_woods"]
-      },
-      "to_selector": {
-        "location_types": ["forest_clearing"]
-      },
+      "from_selector": {"required_tags": ["required_production_material"]},
+      "to_selector": {"location_types": ["woodland_spring"]},
       "edge": {
         "edge_type": "path",
         "bidirectional": true,
@@ -216,15 +189,11 @@
       }
     },
     {
-      "rule_id": "deep_forest_to_hut",
+      "rule_id": "forest_resource_to_watchtower",
       "activation": "when_both_present",
       "match_mode": "one_to_each",
-      "from_selector": {
-        "location_types": ["deep_forest"]
-      },
-      "to_selector": {
-        "location_types": ["hut_site"]
-      },
+      "from_selector": {"required_tags": ["required_production_material"]},
+      "to_selector": {"location_types": ["watchtower"]},
       "edge": {
         "edge_type": "path",
         "bidirectional": true,
@@ -234,15 +203,11 @@
       }
     },
     {
-      "rule_id": "deep_forest_to_ruin",
+      "rule_id": "forest_resource_to_shrine",
       "activation": "when_both_present",
       "match_mode": "one_to_each",
-      "from_selector": {
-        "location_types": ["deep_forest"]
-      },
-      "to_selector": {
-        "location_types": ["ruin_site"]
-      },
+      "from_selector": {"required_tags": ["required_production_material"]},
+      "to_selector": {"location_types": ["roadside_shrine"], "required_tags": ["forest"]},
       "edge": {
         "edge_type": "path",
         "bidirectional": true,
@@ -252,33 +217,11 @@
       }
     },
     {
-      "rule_id": "common_woods_to_stream",
+      "rule_id": "forest_resource_to_sacred_grove",
       "activation": "when_both_present",
       "match_mode": "one_to_each",
-      "from_selector": {
-        "location_types": ["common_woods"]
-      },
-      "to_selector": {
-        "location_types": ["forest_stream"]
-      },
-      "edge": {
-        "edge_type": "path",
-        "bidirectional": true,
-        "access_rule": "always",
-        "traversal_tags": ["walk"],
-        "validation_flags": []
-      }
-    },
-    {
-      "rule_id": "deep_forest_to_hidden_grove",
-      "activation": "when_both_present",
-      "match_mode": "one_to_each",
-      "from_selector": {
-        "location_types": ["deep_forest"]
-      },
-      "to_selector": {
-        "location_types": ["hidden_grove"]
-      },
+      "from_selector": {"required_tags": ["required_production_material"]},
+      "to_selector": {"location_types": ["sacred_grove"]},
       "edge": {
         "edge_type": "hidden_path",
         "bidirectional": true,
@@ -288,15 +231,25 @@
       }
     },
     {
-      "rule_id": "deep_forest_to_shrine",
+      "rule_id": "forest_resource_to_hunter_camp",
       "activation": "when_both_present",
       "match_mode": "one_to_each",
-      "from_selector": {
-        "location_types": ["deep_forest"]
-      },
-      "to_selector": {
-        "location_types": ["forest_shrine_site"]
-      },
+      "from_selector": {"required_tags": ["required_production_material"]},
+      "to_selector": {"location_types": ["hunter_camp"]},
+      "edge": {
+        "edge_type": "hidden_path",
+        "bidirectional": true,
+        "access_rule": "always",
+        "traversal_tags": ["walk"],
+        "validation_flags": ["hidden_connection"]
+      }
+    },
+    {
+      "rule_id": "forest_hunting_ground_to_ruins",
+      "activation": "when_both_present",
+      "match_mode": "one_to_each",
+      "from_selector": {"required_tags": ["required_danger_local"]},
+      "to_selector": {"location_types": ["old_ruins"], "required_tags": ["forest"]},
       "edge": {
         "edge_type": "path",
         "bidirectional": true,
@@ -306,15 +259,25 @@
       }
     },
     {
-      "rule_id": "road_gate_to_forest_entrance",
+      "rule_id": "forest_hunting_ground_to_ancient_tree",
+      "activation": "when_both_present",
+      "match_mode": "one_to_each",
+      "from_selector": {"required_tags": ["required_danger_local"]},
+      "to_selector": {"location_types": ["ancient_tree"]},
+      "edge": {
+        "edge_type": "path",
+        "bidirectional": true,
+        "access_rule": "always",
+        "traversal_tags": ["walk"],
+        "validation_flags": []
+      }
+    },
+    {
+      "rule_id": "road_gate_to_forest_trailhead",
       "activation": "when_both_present",
       "match_mode": "unique_pair",
-      "from_selector": {
-        "location_types": ["road_gate"]
-      },
-      "to_selector": {
-        "location_types": ["forest_entrance"]
-      },
+      "from_selector": {"location_types": ["road_gate"]},
+      "to_selector": {"location_types": ["forest_trailhead"]},
       "edge": {
         "edge_type": "road",
         "bidirectional": true,

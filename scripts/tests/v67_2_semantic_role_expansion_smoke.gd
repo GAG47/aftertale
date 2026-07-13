@@ -121,17 +121,17 @@ func _assert_invalid_inputs_fail() -> bool:
 
 	var unsupported_required_need := _load_json(TOWN_REGION_INPUT_PATH)
 	unsupported_required_need["required_needs"] = ["danger.local"]
-	if not _fails_with(compiler.compile_semantic_roles_result(unsupported_required_need), "has no required role candidate"):
+	if not _fails_with(compiler.compile_semantic_roles_result(unsupported_required_need), "has no required concrete form candidate"):
 		return false
 
 	var forced_unsupported := _load_json(TOWN_REGION_INPUT_PATH)
 	forced_unsupported["forced_role_specs"] = [
 		{
-			"role_type": "castle",
+			"archetype_id": "castle",
 			"role_slug": "old_castle"
 		}
 	]
-	if not _fails_with(compiler.compile_semantic_roles_result(forced_unsupported), "unsupported role_type"):
+	if not _fails_with(compiler.compile_semantic_roles_result(forced_unsupported), "unsupported archetype_id"):
 		return false
 
 	var external_field := _load_json(TOWN_REGION_INPUT_PATH)

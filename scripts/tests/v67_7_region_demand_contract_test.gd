@@ -34,8 +34,8 @@ func _run() -> void:
 func _assert_region_input_uses_demand_contract() -> bool:
 	for path in [TOWN_REGION_INPUT_PATH, FOREST_REGION_INPUT_PATH]:
 		var data := _load_json(path)
-		if int(data.get("schema_version", 0)) != 2:
-			_fail("v67.7 RegionInput must use schema_version 2: %s" % path)
+		if int(data.get("schema_version", 0)) != 3:
+			_fail("v67.8 corrected RegionInput must use schema_version 3: %s" % path)
 			return false
 		for forbidden in ["required_roles", "optional_role_pool"]:
 			if data.has(forbidden):

@@ -3,7 +3,7 @@ extends RefCounted
 
 const RegionSemanticVocabularyScript := preload("res://scripts/systems/regions/region_semantic_vocabulary.gd")
 
-const SCHEMA_VERSION := 3
+const SCHEMA_VERSION := 4
 const PROFILE_PATH_PATTERN := "res://data/regions/region_type_profiles/%s.json"
 const PROFILE_KEYS := {
 	"schema_version": true,
@@ -15,7 +15,7 @@ const PROFILE_KEYS := {
 	"allowed_satisfies_domains": true,
 	"required_properties": true,
 	"allowed_properties": true,
-	"excluded_role_types": true,
+	"excluded_form_ids": true,
 	"context_semantic_modifiers": true,
 }
 const FORBIDDEN_ROLE_POOL_KEYS := [
@@ -26,6 +26,7 @@ const FORBIDDEN_ROLE_POOL_KEYS := [
 	"required_role_types",
 	"optional_role_types",
 	"context_weight_modifiers",
+	"excluded_role_types",
 ]
 
 var source_data: Dictionary = {}
@@ -99,12 +100,12 @@ func allowed_properties() -> Array[String]:
 	return _string_array(source_data.get("allowed_properties", []) as Array)
 
 
-func excluded_role_types() -> Array[String]:
-	return _string_array(source_data.get("excluded_role_types", []) as Array)
+func excluded_form_ids() -> Array[String]:
+	return _string_array(source_data.get("excluded_form_ids", []) as Array)
 
 
-func allows_role_definition(role_type: String, definition: Dictionary) -> bool:
-	if role_type.is_empty() or definition.is_empty() or excluded_role_types().has(role_type):
+func allows_form_definition(form_id: String, definition: Dictionary) -> bool:
+	if form_id.is_empty() or definition.is_empty() or excluded_form_ids().has(form_id):
 		return false
 	if not allowed_categories().has(str(definition.get("category", ""))):
 		return false
@@ -215,7 +216,7 @@ func _validate_semantic_scope(errors: Array[String]) -> void:
 	_validate_scope_array("allowed_satisfies_domains", "satisfies_domain", true, errors)
 	_validate_scope_array("required_properties", "property", false, errors)
 	_validate_scope_array("allowed_properties", "property", true, errors)
-	_validate_scope_array("excluded_role_types", "role_type", false, errors)
+	_validate_scope_array("excluded_form_ids", "form_id", false, errors)
 	if source_data.get("required_properties", null) is Array and source_data.get("allowed_properties", null) is Array:
 		for property in required_properties():
 			if not allowed_properties().has(property):
@@ -242,7 +243,7 @@ func _validate_scope_array(key: String, dimension: String, require_non_empty: bo
 				valid = RegionSemanticVocabularyScript.is_need_domain(token)
 			"property":
 				valid = RegionSemanticVocabularyScript.is_role_property(token)
-			"role_type":
+			"form_id":
 				valid = _is_system_token(token)
 		if not valid:
 			errors.append("RegionTypeProfile.%s contains a token outside the %s vocabulary: %s" % [key, dimension, token])

@@ -9,7 +9,7 @@ const LocationGraphSnapshotValidatorScript := preload("res://scripts/systems/reg
 const RegionTypeProfileScript := preload("res://scripts/systems/regions/region_type_profile.gd")
 const SemanticRoleLibraryScript := preload("res://scripts/systems/regions/semantic_role_library.gd")
 
-const SCHEMA_VERSION := 2
+const SCHEMA_VERSION := 3
 const COMPILER_VERSION := "v67.8"
 
 

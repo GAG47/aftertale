@@ -6,7 +6,7 @@ const LocationNodeResultValidatorScript := preload("res://scripts/systems/region
 const SemanticRoleResultValidatorScript := preload("res://scripts/systems/regions/semantic_role_result_validator.gd")
 const CanonicalDataSerializerScript := preload("res://scripts/systems/regions/canonical_data_serializer.gd")
 
-const SCHEMA_VERSION := 2
+const SCHEMA_VERSION := 3
 const COMPILER_VERSION := "v67.8"
 
 
@@ -83,12 +83,12 @@ func _generate_location_nodes(semantic_role_result: Dictionary, profile: RefCoun
 	var selected_roles: Array = semantic_role_result.get("selected_roles", []) as Array
 	for index in range(selected_roles.size()):
 		var role: Dictionary = selected_roles[index] as Dictionary
-		var role_type := str(role.get("role_type", ""))
-		var rule: Dictionary = profile.role_rule(role_type)
+		var form_id := str(role.get("form_id", ""))
+		var rule: Dictionary = profile.form_rule(form_id)
 		if rule.is_empty():
-			return _failure("expand_location_nodes", ["LocationNodeProfile has no location rule for role_type: %s" % role_type], {})
+			return _failure("expand_location_nodes", ["LocationNodeProfile has no location rule for form_id: %s" % form_id], {})
 		if int(rule.get("count", 0)) != 1:
-			return _failure("expand_location_nodes", ["LocationNodeProfile role rule count must be exactly 1 in v67.3: %s" % role_type], {})
+			return _failure("expand_location_nodes", ["LocationNodeProfile form rule count must be exactly 1 in v67.3: %s" % form_id], {})
 		var node := _location_from_role(role, semantic_role_result, profile, index)
 		location_nodes.append(node)
 		role_node_bindings.append({
@@ -104,29 +104,57 @@ func _generate_location_nodes(semantic_role_result: Dictionary, profile: RefCoun
 
 
 func _location_from_role(role: Dictionary, semantic_role_result: Dictionary, profile: RefCounted, index: int) -> Dictionary:
-	var role_type := str(role.get("role_type", ""))
+	var form_id := str(role.get("form_id", ""))
 	var node_slug := _node_slug_for_role(role)
 	var node := {
 		"location_id": _location_id_for_node(semantic_role_result, node_slug, index),
-		"location_type": profile.location_type_for_role(role_type),
+		"location_type": profile.location_type_for_form(form_id),
 		"node_slug": node_slug,
 		"source_role_id": str(role.get("role_id", "")),
-		"source_role_type": role_type,
+		"source_role_type": form_id,
+		"source_archetype_id": str(role.get("archetype_id", "")),
+		"source_form_id": form_id,
 		"source_role_slug": str(role.get("role_slug", "")),
 		"node_source": "semantic_role",
-		"node_tags": profile.node_tags_for_role(role_type),
-		"is_boundary": profile.is_boundary_role(role_type),
-		"is_hidden": profile.is_hidden_role(role_type),
-		"is_required": str(role.get("role_source", "")) == "required",
+		"node_tags": _node_tags_for_role(role, semantic_role_result, profile.node_tags_for_form(form_id)),
+		"gameplay_affordances": (role.get("gameplay_affordances", []) as Array).duplicate(),
+		"narrative_affordances": (role.get("narrative_affordances", []) as Array).duplicate(),
+		"is_boundary": profile.is_boundary_form(form_id),
+		"is_hidden": profile.is_hidden_form(form_id),
+		"is_required": _role_covers_required_need(role, semantic_role_result),
 	}
 	return node
+
+
+func _role_covers_required_need(role: Dictionary, semantic_role_result: Dictionary) -> bool:
+	var demand_contract: Dictionary = semantic_role_result.get("demand_contract", {}) as Dictionary
+	var required_needs: Array = demand_contract.get("required_needs", []) as Array
+	for need_id in (role.get("matched_need_ids", []) as Array):
+		if required_needs.has(need_id):
+			return true
+	return false
+
+
+func _node_tags_for_role(role: Dictionary, semantic_role_result: Dictionary, profile_tags: Array[String]) -> Array[String]:
+	var result := profile_tags.duplicate()
+	var demand_contract: Dictionary = semantic_role_result.get("demand_contract", {}) as Dictionary
+	var required_needs: Array = demand_contract.get("required_needs", []) as Array
+	for need_id_value in (role.get("matched_need_ids", []) as Array):
+		var need_id := str(need_id_value)
+		if not required_needs.has(need_id):
+			continue
+		var tag := "required_%s" % need_id.replace(".", "_")
+		if not result.has(tag):
+			result.append(tag)
+	result.sort()
+	return result
 
 
 func _node_slug_for_role(role: Dictionary) -> String:
 	var role_slug := str(role.get("role_slug", ""))
 	if not role_slug.is_empty():
 		return role_slug
-	return str(role.get("role_type", ""))
+	return str(role.get("form_id", ""))
 
 
 func _location_id_for_node(result: Dictionary, node_slug: String, index: int) -> String:

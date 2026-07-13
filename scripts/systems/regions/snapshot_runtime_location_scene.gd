@@ -73,9 +73,10 @@ func _apply_view(view: Dictionary) -> void:
 	snapshot_id_value.text = str(view.get("snapshot_id", ""))
 	current_name_label.text = str(view.get("current_location_name", ""))
 	current_id_label.text = "current_location_id: %s" % str(view.get("current_location_id", ""))
-	current_type_label.text = "location_type: %s    source_role: %s" % [
+	current_type_label.text = "location_type: %s    archetype: %s    form: %s" % [
 		str(view.get("current_location_type", "")),
-		str(view.get("current_source_role_type", "")),
+		str(view.get("current_source_archetype_id", "")),
+		str(view.get("current_source_form_id", "")),
 	]
 	var current_tags: Array = view.get("current_location_tags", []) as Array
 	current_tags_label.text = "tags: %s" % _join_strings(current_tags)

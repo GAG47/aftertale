@@ -3,7 +3,7 @@ extends RefCounted
 
 const RegionSemanticVocabularyScript := preload("res://scripts/systems/regions/region_semantic_vocabulary.gd")
 
-const SCHEMA_VERSION := 2
+const SCHEMA_VERSION := 3
 const REGION_ID_PREFIX := "region"
 const REGION_CODE_PREFIX := "rg_"
 const FORBIDDEN_ROLE_POOL_KEYS := ["required_roles", "optional_role_pool"]
@@ -120,14 +120,23 @@ static func _validate_forced_role_specs(value: Variant) -> Array[String]:
 			errors.append("RegionInput.forced_role_specs[%d] must be an object" % index)
 			continue
 		var spec: Dictionary = specs[index] as Dictionary
+		for key_value in spec.keys():
+			var key := str(key_value)
+			if not ["archetype_id", "form_id", "role_slug", "role_tags"].has(key):
+				errors.append("RegionInput.forced_role_specs[%d] contains unsupported field: %s" % [index, key])
 		if spec.has("role_id"):
 			errors.append("RegionInput.forced_role_specs[%d] must not include role_id; semantic role ids are compiler output" % index)
-		var role_type := str(spec.get("role_type", ""))
+		if spec.has("role_type"):
+			errors.append("RegionInput.forced_role_specs[%d].role_type is not supported; use archetype_id and optional form_id" % index)
+		var archetype_id := str(spec.get("archetype_id", ""))
+		var form_id := str(spec.get("form_id", ""))
 		var role_slug := str(spec.get("role_slug", ""))
-		if role_type.is_empty():
-			errors.append("RegionInput.forced_role_specs[%d].role_type is missing" % index)
-		elif not _is_system_token(role_type):
-			errors.append("RegionInput.forced_role_specs[%d].role_type must be a lowercase system token: %s" % [index, role_type])
+		if archetype_id.is_empty():
+			errors.append("RegionInput.forced_role_specs[%d].archetype_id is missing" % index)
+		elif not _is_system_token(archetype_id):
+			errors.append("RegionInput.forced_role_specs[%d].archetype_id must be a lowercase system token: %s" % [index, archetype_id])
+		if not form_id.is_empty() and not _is_system_token(form_id):
+			errors.append("RegionInput.forced_role_specs[%d].form_id must be a lowercase system token: %s" % [index, form_id])
 		if role_slug.is_empty():
 			errors.append("RegionInput.forced_role_specs[%d].role_slug is missing" % index)
 		elif not _is_system_token(role_slug):

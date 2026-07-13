@@ -1,18 +1,19 @@
 {
-  "schema_version": 3,
+  "schema_version": 4,
   "region_type": "town_region",
   "required_needs": [
-    "settlement.core",
+    "public.gathering",
     "travel.access",
-    "settlement.support"
+    "production.food"
   ],
   "optional_needs": [
-    "production.food",
-    "landmark.memorable",
     "public.trade",
+    "production.crafting",
+    "shelter.local",
     "ritual.place",
-    "resource.forest",
-    "resource.water"
+    "landmark.memorable",
+    "resource.water",
+    "travel.crossing"
   ],
   "scale_optional_counts": {
     "small": [1, 2],
@@ -20,60 +21,75 @@
     "large": [3, 4]
   },
   "allowed_categories": [
-    "settlement",
-    "travel_point",
-    "resource",
+    "civic",
+    "commerce",
+    "heritage",
     "landmark",
-    "wilderness"
+    "lodging",
+    "production",
+    "religious",
+    "resource",
+    "travel"
   ],
   "allowed_satisfies_domains": [
-    "settlement",
-    "travel",
-    "public",
-    "production",
+    "history",
+    "investigation",
     "landmark",
-    "ritual",
+    "production",
+    "public",
     "resource",
-    "boundary"
+    "ritual",
+    "shelter",
+    "travel"
   ],
   "required_properties": [],
   "allowed_properties": [
     "access",
-    "boundary",
-    "core",
-    "forest",
-    "production",
+    "crossing",
+    "dangerous",
+    "defensive",
+    "economic",
+    "historic",
+    "inhabited",
+    "natural",
+    "productive",
     "public",
-    "ritual",
-    "road",
-    "support",
-    "trade",
-    "water"
+    "resource",
+    "sacred",
+    "shelter",
+    "social",
+    "travel"
   ],
-  "excluded_role_types": [],
+  "excluded_form_ids": [],
   "context_semantic_modifiers": {
     "terrain_context": {
       "plain": {
         "satisfies": {
           "production.food": 1.8,
-          "resource.forest": 0.7
+          "public.gathering": 1.2
+        },
+        "category": {
+          "civic": 1.2
         }
       },
       "forest": {
-        "satisfies": {
-          "resource.forest": 1.8,
-          "production.food": 0.6
+        "category": {
+          "landmark": 1.2,
+          "resource": 1.2
         }
       },
       "river_near": {
         "satisfies": {
           "resource.water": 1.9,
-          "production.food": 1.2
+          "travel.crossing": 1.5
         }
       }
     },
     "political_context": {
       "kingdom": {
+        "category": {
+          "civic": 1.25
+        },
         "satisfies": {
           "public.trade": 1.3,
           "ritual.place": 1.1
@@ -81,7 +97,7 @@
       },
       "border": {
         "category": {
-          "wilderness": 1.2
+          "travel": 1.2
         }
       }
     }

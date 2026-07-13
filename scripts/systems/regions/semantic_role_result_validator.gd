@@ -5,7 +5,7 @@ const CanonicalDataSerializerScript := preload("res://scripts/systems/regions/ca
 const RegionSemanticVocabularyScript := preload("res://scripts/systems/regions/region_semantic_vocabulary.gd")
 const SemanticRoleLibraryScript := preload("res://scripts/systems/regions/semantic_role_library.gd")
 
-const SCHEMA_VERSION := 2
+const SCHEMA_VERSION := 3
 const FORBIDDEN_LOCATION_GRAPH_KEYS := {
 	"location_id": true,
 	"edge_id": true,
@@ -40,16 +40,22 @@ const RESULT_KEYS := {
 const ROLE_KEYS := {
 	"role_id": true,
 	"role_type": true,
+	"archetype_id": true,
+	"form_id": true,
 	"role_slug": true,
 	"role_source": true,
 	"role_tags": true,
 	"satisfies": true,
 	"properties": true,
 	"affinity": true,
+	"gameplay_affordances": true,
+	"narrative_affordances": true,
 	"category": true,
 	"matched_need_ids": true,
-	"role_definition_id": true,
-	"role_definition_hash": true,
+	"archetype_definition_id": true,
+	"archetype_definition_hash": true,
+	"form_definition_id": true,
+	"form_definition_hash": true,
 	"role_library_id": true,
 	"role_library_path": true,
 	"role_library_content_hash": true,
@@ -114,6 +120,8 @@ func _validate_role(index: int, role: Dictionary, result: Dictionary, library: R
 			errors.append("%s.%s is missing" % [path, str(key)])
 	var role_id := str(role.get("role_id", ""))
 	var role_type := str(role.get("role_type", ""))
+	var archetype_id := str(role.get("archetype_id", ""))
+	var form_id := str(role.get("form_id", ""))
 	var role_slug := str(role.get("role_slug", ""))
 	var role_source := str(role.get("role_source", ""))
 	if role_id.is_empty() or not _is_role_id(role_id):
@@ -123,6 +131,12 @@ func _validate_role(index: int, role: Dictionary, result: Dictionary, library: R
 	role_ids[role_id] = role
 	if role_type.is_empty() or not _is_system_token(role_type):
 		errors.append("%s.role_type is invalid: %s" % [path, role_type])
+	if archetype_id.is_empty() or not _is_system_token(archetype_id):
+		errors.append("%s.archetype_id is invalid: %s" % [path, archetype_id])
+	if form_id.is_empty() or not _is_system_token(form_id):
+		errors.append("%s.form_id is invalid: %s" % [path, form_id])
+	if role_type != form_id:
+		errors.append("%s.role_type must equal form_id for the concrete semantic role" % path)
 	if role_slug.is_empty() or not _is_system_token(role_slug):
 		errors.append("%s.role_slug is invalid: %s" % [path, role_slug])
 	elif role_slugs.has(role_slug):
@@ -134,6 +148,8 @@ func _validate_role(index: int, role: Dictionary, result: Dictionary, library: R
 	_validate_typed_array(role.get("satisfies"), "%s.satisfies" % path, "needs", true, errors)
 	_validate_typed_array(role.get("properties"), "%s.properties" % path, "properties", false, errors)
 	_validate_typed_array(role.get("affinity"), "%s.affinity" % path, "affinity", false, errors)
+	_validate_typed_array(role.get("gameplay_affordances"), "%s.gameplay_affordances" % path, "gameplay", true, errors)
+	_validate_typed_array(role.get("narrative_affordances"), "%s.narrative_affordances" % path, "narrative", false, errors)
 	_validate_typed_array(role.get("matched_need_ids"), "%s.matched_need_ids" % path, "needs", false, errors)
 	var category := str(role.get("category", ""))
 	if not RegionSemanticVocabularyScript.is_role_category(category):
@@ -142,11 +158,16 @@ func _validate_role(index: int, role: Dictionary, result: Dictionary, library: R
 		for need_id in (role.get("matched_need_ids", []) as Array):
 			if not (role.get("satisfies", []) as Array).has(need_id):
 				errors.append("%s.matched_need_ids contains a need not satisfied by the role: %s" % [path, str(need_id)])
-	var definition_id := str(role.get("role_definition_id", ""))
-	if not _is_namespaced_id(definition_id, "role_definition") or not definition_id.ends_with(".%s" % role_type):
-		errors.append("%s.role_definition_id is invalid: %s" % [path, definition_id])
-	if not CanonicalDataSerializerScript.is_sha256_hash(str(role.get("role_definition_hash", ""))):
-		errors.append("%s.role_definition_hash is invalid" % path)
+	var archetype_definition_id := str(role.get("archetype_definition_id", ""))
+	if not _is_namespaced_id(archetype_definition_id, "location_archetype") or not archetype_definition_id.ends_with(".%s" % archetype_id):
+		errors.append("%s.archetype_definition_id is invalid: %s" % [path, archetype_definition_id])
+	var form_definition_id := str(role.get("form_definition_id", ""))
+	if not _is_namespaced_id(form_definition_id, "location_form") or not form_definition_id.ends_with(".%s" % form_id):
+		errors.append("%s.form_definition_id is invalid: %s" % [path, form_definition_id])
+	if not CanonicalDataSerializerScript.is_sha256_hash(str(role.get("archetype_definition_hash", ""))):
+		errors.append("%s.archetype_definition_hash is invalid" % path)
+	if not CanonicalDataSerializerScript.is_sha256_hash(str(role.get("form_definition_hash", ""))):
+		errors.append("%s.form_definition_hash is invalid" % path)
 	for key in ["role_library_id", "role_library_path", "role_library_content_hash"]:
 		if str(role.get(key, "")) != str(result.get(key, "")):
 			errors.append("%s.%s does not match SemanticRoleResult.%s" % [path, key, key])
@@ -173,22 +194,29 @@ func _load_declared_library(result: Dictionary, errors: Array[String]) -> RefCou
 func _validate_role_against_library(role: Dictionary, path: String, library: RefCounted, errors: Array[String]) -> void:
 	if library == null:
 		return
-	var role_type := str(role.get("role_type", ""))
-	var definition: Dictionary = library.role_definition(role_type)
+	var archetype_id := str(role.get("archetype_id", ""))
+	var form_id := str(role.get("form_id", ""))
+	var definition: Dictionary = library.composed_definition(form_id)
 	if definition.is_empty():
-		errors.append("%s.role_type is not defined in the declared SemanticRoleLibrary: %s" % [path, role_type])
+		errors.append("%s.form_id is not defined in the declared SemanticRoleLibrary: %s" % [path, form_id])
 		return
-	if not library.allows_source(role_type, str(role.get("role_source", ""))):
-		errors.append("%s.role_source is not allowed by its role definition" % path)
-	if str(role.get("role_definition_id", "")) != str(library.role_definition_id(role_type)):
-		errors.append("%s.role_definition_id does not match the declared role definition" % path)
-	if str(role.get("role_definition_hash", "")) != str(library.role_definition_hash(role_type)):
-		errors.append("%s.role_definition_hash does not match the declared role definition" % path)
-	for field_name in ["satisfies", "properties", "affinity"]:
+	if str(library.form_archetype_id(form_id)) != archetype_id:
+		errors.append("%s.form_id does not belong to archetype_id" % path)
+	if not library.allows_source(form_id, str(role.get("role_source", ""))):
+		errors.append("%s.role_source is not allowed by its archetype definition" % path)
+	if str(role.get("archetype_definition_id", "")) != str(library.archetype_definition_id(archetype_id)):
+		errors.append("%s.archetype_definition_id does not match the declared archetype definition" % path)
+	if str(role.get("archetype_definition_hash", "")) != str(library.archetype_definition_hash(archetype_id)):
+		errors.append("%s.archetype_definition_hash does not match the declared archetype definition" % path)
+	if str(role.get("form_definition_id", "")) != str(library.form_definition_id(form_id)):
+		errors.append("%s.form_definition_id does not match the declared form definition" % path)
+	if str(role.get("form_definition_hash", "")) != str(library.form_definition_hash(form_id)):
+		errors.append("%s.form_definition_hash does not match the declared form definition" % path)
+	for field_name in ["satisfies", "properties", "affinity", "gameplay_affordances", "narrative_affordances"]:
 		if CanonicalDataSerializerScript.serialize(role.get(field_name, [])) != CanonicalDataSerializerScript.serialize(definition.get(field_name, [])):
-			errors.append("%s.%s does not match the declared role definition" % [path, field_name])
+			errors.append("%s.%s does not match the declared archetype/form definitions" % [path, field_name])
 	if str(role.get("category", "")) != str(definition.get("category", "")):
-		errors.append("%s.category does not match the declared role definition" % path)
+		errors.append("%s.category does not match the declared archetype definition" % path)
 
 
 func _validate_demand_contract(value: Variant, errors: Array[String]) -> void:
@@ -275,6 +303,10 @@ func _validate_typed_array(value: Variant, path: String, dimension: String, requ
 				valid = RegionSemanticVocabularyScript.is_role_property(token)
 			"affinity":
 				valid = RegionSemanticVocabularyScript.is_role_affinity(token)
+			"gameplay":
+				valid = RegionSemanticVocabularyScript.is_gameplay_affordance(token)
+			"narrative":
+				valid = RegionSemanticVocabularyScript.is_narrative_affordance(token)
 			"traits":
 				valid = RegionSemanticVocabularyScript.is_trait(token)
 			"facts":

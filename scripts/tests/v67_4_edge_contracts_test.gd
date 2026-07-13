@@ -59,12 +59,12 @@ func _assert_edge_contract_generation() -> bool:
 			return _fail("v67.4 edge endpoint is not a Location Node id: %s" % str(edge))
 		if str(edge.get("source_rule_id", "")).is_empty():
 			return _fail("v67.4 edge is missing source_rule_id: %s" % str(edge))
-		if str(edge.get("source_rule_id", "")) == "road_gate_to_forest_entrance":
+		if str(edge.get("source_rule_id", "")) == "road_gate_to_forest_trailhead":
 			if str(edge.get("endpoint_region_relation", "")) != "cross_region":
 				return _fail("v67.4 cross-region relation was not derived after endpoint selection")
 			found_cross_region_edge = true
 	if not found_cross_region_edge:
-		return _fail("v67.4 did not generate the rule-backed road gate to forest entrance edge")
+		return _fail("v67.8 did not generate the rule-backed road gate to forest trailhead edge")
 	var text := JSON.stringify(edge_result)
 	for forbidden in ["start_location_id", "scene_path", "spawn_id", "exit_id", "exit_style", "direction_hint", "tilemap", "location_graph_snapshot", "external_connection_intent"]:
 		if text.contains("\"%s\"" % forbidden):

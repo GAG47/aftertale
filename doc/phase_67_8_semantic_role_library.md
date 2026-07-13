@@ -1,228 +1,233 @@
-# Phase 67.8 Semantic Role Library
+# Phase 67.8 Semantic Role Archetypes and Forms
 
-v67.8 corrects ownership of semantic-role definitions. It does not make role
-selection into a general planning system.
-
-```text
-RegionInput
--> region facts, traits, needs, and coarse context
-
-RegionTypeProfile
--> region defaults, typed candidate scope, counts, and semantic preferences
-
-SemanticRoleLibrary
--> global role identity, capabilities, properties, affinity, category,
-   hard region conditions, multiplicity, and provenance
-
-SemanticRoleExpander
--> the existing deterministic lightweight selection
-```
-
-The defining rule is:
+v67.8 defines semantic locations at one consistent level. It separates the
+stable purpose of a place from the concrete form that purpose takes in a region:
 
 ```text
-RegionTypeProfile does not own role definitions and does not name a normal
-candidate pool. SemanticRoleLibrary is the sole owner of role definitions.
+RegionNeed
+-> LocationCapability
+-> LocationArchetype
+-> LocationForm
+-> SemanticRoleResult
+-> LocationNodeResult
 ```
 
-## Controlled Vocabulary
+It remains a bounded map-generation stage. It does not implement the v67.9
+combination planner, world politics, economy networks, factions, quests, NPCs,
+ecology, scenes, or tile maps.
 
-The map vocabulary is split into independent dimensions:
+## Layer Ownership
+
+`RegionInput` and `RegionTypeProfile` declare what the region needs. A need is
+a controlled capability such as `public.gathering`, `production.food`,
+`travel.access`, or `resource.water`; it is not a location.
+
+`SemanticRoleLibrary` is the sole owner of two definition sets:
 
 ```text
-needs and satisfies domains
-role properties
-role affinities
-role categories
-region traits
-region facts
-coarse-context keys and values
+archetype_definitions
+-> stable location purpose and planning capabilities
+
+form_definitions
+-> concrete semantic place, regional conditions, and environmental affinity
 ```
 
-Every semantic field is checked against its own vocabulary. A valid token from
-one dimension is invalid when placed in another dimension. Unknown tokens fail;
-they are not accepted as free-form tags.
+An archetype may have several forms. For example:
 
-`role_tags` remains only as a non-planning annotation channel for explicit
-`forced_role_specs`. The role library does not define role tags, and these tags
-do not affect candidate filtering or weighting.
+```text
+trade_place
+-> market_square
+-> caravan_stop
 
-## SemanticRoleLibrary v1
+religious_place
+-> roadside_shrine
+-> sacred_grove
 
-The global library lives at:
+access_point
+-> road_gate
+-> forest_trailhead
+```
+
+A form cannot declare `satisfies`. Planning capabilities belong to the
+archetype, so adding a new environmental presentation cannot silently change
+the need model.
+
+## Removed Mixed-Level Roles
+
+The corrected library does not retain structural placeholders or category-only
+roles such as:
+
+```text
+settlement_core
+support_area
+landmark
+common_woods
+inner_area
+```
+
+It also removes environment-prefixed duplicates such as `shrine` versus
+`forest_shrine`, and `main_exit` versus `entrance`. Their stable purpose is an
+archetype; their actual regional meaning is a form.
+
+The former circular fact `has_farmland` is removed. The `farmland` form requires
+the pre-existing regional fact `arable_land`. Water-source forms do not satisfy
+`travel.crossing`; the `ford` form does.
+
+## SemanticRoleLibrary v2
+
+The library is stored at:
 
 ```text
 res://data/regions/semantic_role_libraries/core.json
 ```
 
-Each role definition contains:
+Each archetype defines:
 
 ```text
-role_definition_id
+archetype_definition_id
 satisfies
 properties
-affinity
+gameplay_affordances
+narrative_affordances
 category
-requires_traits / excludes_traits
-requires_facts / excludes_facts
-requires_context / excludes_context
 allowed_sources
 allow_multiple
 ```
 
-Hard conditions have explicit meaning:
+Each concrete form defines:
 
 ```text
-requires_traits or requires_facts
--> every declared value must be present
-
-excludes_traits or excludes_facts
--> any declared value makes the role illegal
-
-requires_context
--> every declared context key must exist and match one allowed value;
-   missing context fails the condition
-
-excludes_context
--> any matching declared context value makes the role illegal
-
+form_definition_id
+archetype_id
+properties
 affinity
--> metadata for soft preference only; it is not a hard condition
+gameplay_affordances
+narrative_affordances
+requires_traits / excludes_traits
+requires_facts / excludes_facts
+requires_context / excludes_context
 ```
 
-The library validates unknown fields, duplicate values, contradictory required
-and excluded conditions, unsupported context keys or values, and mixed semantic
-dimensions. The library content and every individual role definition receive a
-canonical SHA-256 hash.
+Hard requirements decide legality. Affinity is a soft preference only.
+Archetype and form definitions receive separate canonical SHA-256 hashes, and
+the complete library receives a content hash.
 
-## RegionTypeProfile v3
+Gameplay affordances describe supported player actions. Narrative affordances
+describe what a future narrative system may place there. They are passive,
+controlled metadata in v67.8: they do not influence selection and do not create
+quests or events.
 
-`RegionTypeProfile` no longer contains:
+## Controlled Vocabulary
+
+The vocabulary keeps these dimensions separate:
 
 ```text
-role_definitions
-role_weights
-allowed_role_types
-role_weight_overrides
+region needs / archetype capabilities
+role properties
+environment affinities
+role categories
+gameplay affordances
+narrative affordances
+region traits
+region facts
+coarse-context keys and values
 ```
 
-Those fields fail validation instead of being translated.
+Unknown values fail. A valid token in one dimension is invalid in another.
+`role_tags` remains a non-planning annotation channel for explicit forced
+instances.
 
-The profile keeps:
+## Region Contracts
+
+`RegionInput.schema_version` is `3`. A forced role specification uses:
 
 ```text
-required_needs
-optional_needs
-scale_optional_counts
-allowed_categories
-allowed_satisfies_domains
-required_properties
-allowed_properties
-excluded_role_types
-context_semantic_modifiers
+archetype_id
+form_id          # optional
+role_slug
+role_tags        # optional
 ```
 
-Candidate scope is semantic:
+If `form_id` is omitted, the expander chooses a legal form of the requested
+archetype. If it is supplied, it must belong to the archetype and satisfy the
+region's hard conditions. The old `role_type` forced-input field fails.
 
-- the role category must be allowed;
-- every capability domain declared by the role must be allowed;
-- every role property must be inside the profile property range;
-- every required profile property must be present on the role;
-- a role in `excluded_role_types` is rejected.
+`RegionTypeProfile.schema_version` is `4`. It declares typed semantic scope and
+may explicitly exclude a small number of forms through `excluded_form_ids`. It
+does not contain `allowed_form_ids`, concrete weights, or a concrete candidate
+pool.
 
-`excluded_role_types` is an exception mechanism for a small number of explicit
-prohibitions. It is not a source of candidates. The current profiles do not need
-concrete exclusions.
+## Lightweight Selection Boundary
 
-Context modifiers may target only `satisfies`, `properties`, `affinity`, or
-`category`. Every multiplier must be positive, so a soft preference cannot
-silently become a hard eligibility rule. There is no concrete-role base weight
-or concrete-role override.
-
-## Selection Boundary
-
-`SemanticRoleExpander` loads the region profile and the global role library,
-then filters library roles by:
+The current expander performs:
 
 ```text
-selection source
--> typed RegionTypeProfile scope
--> role hard conditions against RegionInput
--> requested need coverage
+effective region needs
+-> legal archetypes and forms
+-> hard-condition filtering
+-> semantic context weighting
+-> one concrete form per selected archetype
 ```
 
-Required needs still use deterministic best-candidate selection. Optional roles
-still use the existing seed-stable weighted selection among legal candidates.
-The weights come only from semantic context modifiers.
+Forced roles are resolved first so a forced concrete form can satisfy a required
+need instead of being duplicated by a default form. Required needs then use the
+existing deterministic best-candidate rule. Optional roles retain seed-stable
+weighted selection.
 
-v67.8 does not implement combination search, dependency solving, exclusion-set
-planning, economy chains, trade networks, factions, quests, or ecology. Those
-are outside this ownership correction; combination planning belongs to v67.9.
+This is deliberately not the v67.9 combination planner. v67.8 establishes valid
+candidate meaning and provenance; it does not claim globally optimal role sets.
 
-## Provenance
+## Result and Downstream Closure
 
-`SemanticRoleResult.schema_version` is `2`. The result records:
+`SemanticRoleResult.schema_version` is `3`. Every selected role records:
 
 ```text
-role_library_id
-role_library_path
-role_library_content_hash
+role_id
+role_type               # compatibility identity, equal to form_id
+archetype_id
+form_id
+archetype_definition_id / archetype_definition_hash
+form_definition_id / form_definition_hash
+satisfies / matched_need_ids
+properties / affinity / category
+gameplay_affordances / narrative_affordances
+role-library identity, path, and content hash
 ```
 
-Every selected role also records:
+`LocationNodeProfile.schema_version` is `2` and maps
+`form_to_location_rules`. A form, not an abstract archetype, expands to the real
+location node.
+
+`LocationNodeResult.schema_version` is `3`. Nodes preserve:
 
 ```text
-role_definition_id
-role_definition_hash
-role_library_id
-role_library_path
-role_library_content_hash
+source_role_id
+source_archetype_id
+source_form_id
+gameplay_affordances
+narrative_affordances
 ```
 
-`SemanticRoleResultValidator` reloads the declared library during compilation
-and compares its identity, full content hash, each selected definition id and
-hash, and the selected role's typed semantic fields. A syntactically valid but
-forged hash is rejected.
+Required-need coverage is also represented as stable node tags for edge rules.
+The edge profile now connects actual places such as a gathering place, road
+gate, farmland, forest trailhead, foraging ground, and hunting ground. It no
+longer relies on `town_center`, `settlement_support`, `common_woods`, or
+`deep_forest` placeholder nodes.
 
-`LocationNodeResult.schema_version` is `2` and carries the role-library source
-forward without changing node semantics. Its `compiler_version` is `v67.8`;
-`stage: location_nodes` identifies the older pipeline stage without using a
-stale compiler label.
-
-`LocationGraphSnapshot.schema_version` is `2`. Its `rule_manifest` contains
-exactly one `semantic_role_library` row in addition to the participating region,
-location-node, and edge profiles. Snapshot building reloads the library, checks
-that its identity and actual content hash match the upstream declaration, and
-fails on disagreement. Snapshot loading remains self-contained and does not
-reload the current library. Snapshot Builder and Validator both require
-`compiler_version: v67.8`.
-
-## Downstream Boundary
-
-v67.8 does not add node-profile keys, edge-rule ids, scene paths, spawn ids, or
-runtime fields to the role library. Existing concrete roles continue through:
-
-```text
-SemanticRoleResult
--> LocationNodeResult
--> EdgeContractResult
--> LocationGraphSnapshot
--> Snapshot Runtime Adapter
-```
-
-Every role in the current global library has an existing LocationNodeProfile
-mapping, and every resulting location type appears in the current edge-contract
-selector vocabulary. Runtime remains generic and does not branch on role names.
+`LocationGraphSnapshot.schema_version` is `3`. It carries both semantic
+identities and both affordance sets, while its rule manifest continues to record
+the role-library path and content hash. Runtime reads those fields but never
+writes state back to the Snapshot.
 
 ## Verification
 
-The carrier-free test script is:
+The carrier-free test is:
 
 ```text
 scripts/tests/v67_8_semantic_role_library_test.gd
 ```
 
-It verifies ownership, rejection of old concrete-role fields, strict typed
-vocabulary, hard context and profile-scope filtering, deterministic source
-provenance, role-library content hashes, Snapshot rule-manifest inclusion, and
-current downstream coverage.
+It rejects flat roles, structural placeholders, circular region facts,
+form-owned planning capabilities, concrete candidate pools, forged archetype or
+form hashes, missing form-to-node mappings, and loss of either semantic identity
+between roles, nodes, Snapshots, and Runtime.

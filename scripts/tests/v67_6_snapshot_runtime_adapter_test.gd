@@ -81,6 +81,10 @@ func _assert_view_and_travel(snapshot: Dictionary) -> bool:
 	var view: Dictionary = view_result.get("view", {}) as Dictionary
 	if str(view.get("current_location_id", "")) != initial_location_id:
 		return _fail("v67.6 current location view has the wrong location")
+	if str(view.get("current_source_archetype_id", "")).is_empty() or str(view.get("current_source_form_id", "")).is_empty():
+		return _fail("v67.8 runtime view dropped archetype/form identity")
+	if not (view.get("current_gameplay_affordances", null) is Array) or not (view.get("current_narrative_affordances", null) is Array):
+		return _fail("v67.8 runtime view dropped location affordances")
 	var neighbors: Array = view.get("neighbors", []) as Array
 	if neighbors.is_empty():
 		return _fail("v67.6 initial location has no indexed neighbors")

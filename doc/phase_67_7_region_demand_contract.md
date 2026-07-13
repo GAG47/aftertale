@@ -1,9 +1,9 @@
 # Phase 67.7 Region Demand Contract
 
-Note: v67.8 moves the role definitions described in this historical v67.7
-record out of `RegionTypeProfile` and into the global `SemanticRoleLibrary`.
-The v67.7 demand contract remains current; only role-definition ownership and
-typed role semantics are superseded.
+Note: the corrected v67.8 contract supersedes the concrete-role examples and
+schema numbers in this historical record. Current inputs use schema 3 and
+express needs; the global library resolves those needs through location
+archetypes and concrete forms. See `phase_67_8_semantic_role_library.md`.
 
 v67.7 is a foundation correction for the v67 Region-to-Location-Graph compiler.
 It does not add world simulation and does not expand the map domain beyond the
@@ -31,9 +31,12 @@ v67 turns given region facts, region needs, and coarse context into a legal,
 traceable, downstream-expandable set of real semantic roles.
 ```
 
-## RegionInput v2
+## Historical v67.7 Input Contract
 
-`RegionInput.schema_version` is now `2`.
+v67.7 originally introduced `RegionInput.schema_version = 2`. The active v67.8
+contract is schema `3`; it keeps the demand fields below and changes forced-role
+identity from a concrete `role_type` to `archetype_id` plus an optional
+`form_id`.
 
 The main input fields are:
 
@@ -50,8 +53,9 @@ forced_role_specs
 schema. If either field appears in a schema v2 input, validation fails.
 
 `RegionInput` still accepts `forced_role_specs`, but forced roles remain explicit
-input facts. They must not provide compiler-owned `role_id`, and they must still
-be supported by the region type profile.
+input facts. They must not provide compiler-owned `role_id`. Under v67.8 they
+must reference a valid library archetype and, when specified, one of that
+archetype's concrete forms.
 
 ## Limited Vocabulary
 
@@ -74,7 +78,8 @@ dynamic ecology.
 
 ## Region Type Profiles
 
-`RegionTypeProfile.schema_version` is now `2`.
+v67.7 originally used `RegionTypeProfile.schema_version = 2`. The active v67.8
+profile schema is `4`.
 
 Profiles now define default needs:
 
@@ -83,7 +88,8 @@ required_needs
 optional_needs
 ```
 
-Role definitions now declare what they can satisfy:
+In the historical v67.7 contract, role definitions declared what they could
+satisfy:
 
 ```text
 satisfies
@@ -114,7 +120,7 @@ They must not target concrete `role_type` ids. The old
 `context_weight_modifiers` field is rejected because it encoded
 `coarse_context -> role_type` coupling.
 
-The role type names are still the existing downstream role types, such as:
+That first correction still reused mixed-level downstream role names such as:
 
 ```text
 settlement_core
@@ -127,8 +133,10 @@ stream
 hidden_grove
 ```
 
-v67.7 does not introduce abstract external connection roles or placeholder
-boundary roles.
+These names are not the active v67.8 role model. v67.8 removes structural
+placeholders such as `settlement_core`, separates stable location archetypes
+from concrete forms, and keeps external connections as edges between real
+locations rather than as placeholder roles or nodes.
 
 ## Semantic Role Selection
 

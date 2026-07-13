@@ -1,54 +1,67 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "region_type": "town_region",
-  "role_to_location_rules": {
-    "settlement_core": {
-      "location_type": "town_center",
-      "node_tags": ["core", "settlement", "public"],
+  "form_to_location_rules": {
+    "village_square": {
+      "location_type": "village_square",
+      "node_tags": ["civic", "gathering", "public"],
       "count": 1
     },
-    "main_exit": {
-      "location_type": "road_gate",
-      "node_tags": ["boundary", "travel", "public"],
-      "count": 1,
-      "boundary": true
+    "market_square": {
+      "location_type": "market_square",
+      "node_tags": ["commerce", "gathering", "public", "trade"],
+      "count": 1
     },
-    "support_area": {
-      "location_type": "settlement_support",
-      "node_tags": ["support", "settlement"],
+    "caravan_stop": {
+      "location_type": "caravan_stop",
+      "node_tags": ["commerce", "trade", "travel"],
+      "count": 1
+    },
+    "roadside_inn": {
+      "location_type": "roadside_inn",
+      "node_tags": ["lodging", "public", "shelter"],
       "count": 1
     },
     "farmland": {
       "location_type": "farmland",
-      "node_tags": ["resource", "food"],
+      "node_tags": ["food", "production"],
       "count": 1
     },
-    "landmark": {
-      "location_type": "landmark_site",
-      "node_tags": ["landmark", "memory"],
+    "orchard": {
+      "location_type": "orchard",
+      "node_tags": ["food", "production"],
       "count": 1
     },
-    "market": {
-      "location_type": "market_square",
-      "node_tags": ["commerce", "social"],
+    "workshop": {
+      "location_type": "workshop",
+      "node_tags": ["crafting", "production"],
       "count": 1
     },
-    "shrine": {
-      "location_type": "shrine_site",
-      "node_tags": ["ritual", "landmark"],
+    "town_well": {
+      "location_type": "town_well",
+      "node_tags": ["public", "resource", "water"],
       "count": 1
     },
-    "forest_boundary": {
-      "location_type": "forest_edge",
-      "node_tags": ["boundary", "forest", "transition"],
+    "road_gate": {
+      "location_type": "road_gate",
+      "node_tags": ["access", "public", "travel"],
       "count": 1,
       "boundary": true
     },
-    "river_edge": {
-      "location_type": "riverbank",
-      "node_tags": ["boundary", "water", "resource"],
-      "count": 1,
-      "boundary": true
+    "ford": {
+      "location_type": "ford",
+      "node_tags": ["crossing", "travel", "water"],
+      "count": 1
+    },
+    "roadside_shrine": {
+      "location_type": "roadside_shrine",
+      "node_tags": ["public", "ritual", "sacred", "settlement"],
+      "count": 1
+    },
+    "old_ruins": {
+      "location_type": "old_ruins",
+      "node_tags": ["historic", "investigation", "landmark", "settlement"],
+      "count": 1
     }
   }
 }

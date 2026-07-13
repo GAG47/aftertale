@@ -2,8 +2,9 @@ class_name LocationNodeResultValidator
 extends RefCounted
 
 const CanonicalDataSerializerScript := preload("res://scripts/systems/regions/canonical_data_serializer.gd")
+const RegionSemanticVocabularyScript := preload("res://scripts/systems/regions/region_semantic_vocabulary.gd")
 
-const SCHEMA_VERSION := 2
+const SCHEMA_VERSION := 3
 const COMPILER_VERSION := "v67.8"
 const FORBIDDEN_NEXT_STAGE_KEYS := {
 	"edge_id": true,
@@ -68,7 +69,9 @@ func validate(result: Dictionary, semantic_role_result: Dictionary = {}, profile
 	var roles_by_id := _roles_by_id(semantic_role_result, errors)
 	_validate_semantic_role_library_source(result, semantic_role_result, errors)
 	var nodes: Array = result.get("location_nodes", []) as Array
-	var nodes_by_id := _validate_nodes(nodes, roles_by_id, profile, result, errors)
+	var demand_contract: Dictionary = semantic_role_result.get("demand_contract", {}) as Dictionary
+	var required_needs: Array = demand_contract.get("required_needs", []) as Array
+	var nodes_by_id := _validate_nodes(nodes, roles_by_id, profile, result, required_needs, errors)
 	_validate_role_node_bindings(result, roles_by_id, nodes_by_id, errors)
 	return errors
 
@@ -103,7 +106,7 @@ func _roles_by_id(semantic_role_result: Dictionary, errors: Array[String]) -> Di
 	return roles_by_id
 
 
-func _validate_nodes(nodes: Array, roles_by_id: Dictionary, profile: RefCounted, result: Dictionary, errors: Array[String]) -> Dictionary:
+func _validate_nodes(nodes: Array, roles_by_id: Dictionary, profile: RefCounted, result: Dictionary, required_needs: Array, errors: Array[String]) -> Dictionary:
 	var nodes_by_id: Dictionary = {}
 	var node_slugs: Dictionary = {}
 	var node_counts_by_role: Dictionary = {}
@@ -114,7 +117,7 @@ func _validate_nodes(nodes: Array, roles_by_id: Dictionary, profile: RefCounted,
 			errors.append("LocationNodeResult.location_nodes[%d] must be an object" % index)
 			continue
 		var node: Dictionary = nodes[index] as Dictionary
-		_validate_node(index, node, roles_by_id, profile, result, nodes_by_id, node_slugs, node_counts_by_role, errors)
+		_validate_node(index, node, roles_by_id, profile, result, required_needs, nodes_by_id, node_slugs, node_counts_by_role, errors)
 	for role_id_value in roles_by_id.keys():
 		var role_id := str(role_id_value)
 		var count := int(node_counts_by_role.get(role_id, 0))
@@ -123,14 +126,16 @@ func _validate_nodes(nodes: Array, roles_by_id: Dictionary, profile: RefCounted,
 	return nodes_by_id
 
 
-func _validate_node(index: int, node: Dictionary, roles_by_id: Dictionary, profile: RefCounted, result: Dictionary, nodes_by_id: Dictionary, node_slugs: Dictionary, node_counts_by_role: Dictionary, errors: Array[String]) -> void:
-	for key in ["location_id", "location_type", "node_slug", "source_role_id", "source_role_type", "source_role_slug", "node_source", "node_tags", "is_boundary", "is_hidden", "is_required"]:
+func _validate_node(index: int, node: Dictionary, roles_by_id: Dictionary, profile: RefCounted, result: Dictionary, required_needs: Array, nodes_by_id: Dictionary, node_slugs: Dictionary, node_counts_by_role: Dictionary, errors: Array[String]) -> void:
+	for key in ["location_id", "location_type", "node_slug", "source_role_id", "source_role_type", "source_archetype_id", "source_form_id", "source_role_slug", "node_source", "node_tags", "gameplay_affordances", "narrative_affordances", "is_boundary", "is_hidden", "is_required"]:
 		if not node.has(key):
 			errors.append("LocationNodeResult.location_nodes[%d].%s is missing" % [index, key])
 	var location_id := str(node.get("location_id", ""))
 	var node_slug := str(node.get("node_slug", ""))
 	var source_role_id := str(node.get("source_role_id", ""))
 	var source_role_type := str(node.get("source_role_type", ""))
+	var source_archetype_id := str(node.get("source_archetype_id", ""))
+	var source_form_id := str(node.get("source_form_id", ""))
 	var source_role_slug := str(node.get("source_role_slug", ""))
 	var location_type := str(node.get("location_type", ""))
 	if location_id.is_empty() or not _is_location_id(location_id, str(result.get("region_type", "")), str(result.get("region_slug", "")), node_slug):
@@ -149,6 +154,8 @@ func _validate_node(index: int, node: Dictionary, roles_by_id: Dictionary, profi
 		errors.append("LocationNodeResult.location_nodes[%d].node_tags must be an array" % index)
 	elif not _string_array_is_valid(node.get("node_tags")):
 		errors.append("LocationNodeResult.location_nodes[%d].node_tags must contain lowercase system tokens" % index)
+	_validate_affordance_array(node.get("gameplay_affordances"), "gameplay", index, errors)
+	_validate_affordance_array(node.get("narrative_affordances"), "narrative", index, errors)
 	for boolean_key in ["is_boundary", "is_hidden", "is_required"]:
 		if not (node.get(boolean_key, null) is bool):
 			errors.append("LocationNodeResult.location_nodes[%d].%s must be a boolean" % [index, boolean_key])
@@ -159,6 +166,13 @@ func _validate_node(index: int, node: Dictionary, roles_by_id: Dictionary, profi
 	var role: Dictionary = roles_by_id.get(source_role_id, {}) as Dictionary
 	if source_role_type != str(role.get("role_type", "")):
 		errors.append("LocationNodeResult.location_nodes[%d].source_role_type does not match role: %s" % [index, source_role_type])
+	if source_archetype_id != str(role.get("archetype_id", "")):
+		errors.append("LocationNodeResult.location_nodes[%d].source_archetype_id does not match role: %s" % [index, source_archetype_id])
+	if source_form_id != str(role.get("form_id", "")) or source_role_type != source_form_id:
+		errors.append("LocationNodeResult.location_nodes[%d].source_form_id does not match concrete role: %s" % [index, source_form_id])
+	for affordance_key in ["gameplay_affordances", "narrative_affordances"]:
+		if CanonicalDataSerializerScript.serialize(node.get(affordance_key, [])) != CanonicalDataSerializerScript.serialize(role.get(affordance_key, [])):
+			errors.append("LocationNodeResult.location_nodes[%d].%s does not match source role" % [index, affordance_key])
 	if source_role_slug != str(role.get("role_slug", "")):
 		errors.append("LocationNodeResult.location_nodes[%d].source_role_slug does not match role: %s" % [index, source_role_slug])
 	if source_role_slug.is_empty() and node_slug != source_role_type:
@@ -166,17 +180,37 @@ func _validate_node(index: int, node: Dictionary, roles_by_id: Dictionary, profi
 	elif not source_role_slug.is_empty() and node_slug != source_role_slug:
 		errors.append("LocationNodeResult.location_nodes[%d].node_slug must use source_role_slug" % index)
 	if profile != null:
-		var rule: Dictionary = profile.role_rule(source_role_type)
+		var rule: Dictionary = profile.form_rule(source_form_id)
 		if rule.is_empty():
-			errors.append("LocationNodeProfile has no location rule for role_type: %s" % source_role_type)
+			errors.append("LocationNodeProfile has no location rule for form_id: %s" % source_form_id)
 		elif location_type != str(rule.get("location_type", "")):
-			errors.append("LocationNodeResult.location_nodes[%d].location_type does not match LocationNodeProfile rule for %s" % [index, source_role_type])
+			errors.append("LocationNodeResult.location_nodes[%d].location_type does not match LocationNodeProfile rule for %s" % [index, source_form_id])
 		elif not profile.supports_location_type(location_type):
 			errors.append("LocationNodeResult.location_nodes[%d].location_type is unsupported: %s" % [index, location_type])
 		if bool(node.get("is_boundary", false)) != bool(rule.get("boundary", false)):
-			errors.append("LocationNodeResult.location_nodes[%d].is_boundary does not match LocationNodeProfile rule for %s" % [index, source_role_type])
-	if bool(node.get("is_required", false)) != (str(role.get("role_source", "")) == "required"):
+			errors.append("LocationNodeResult.location_nodes[%d].is_boundary does not match LocationNodeProfile rule for %s" % [index, source_form_id])
+	var covers_required := false
+	for need_id in (role.get("matched_need_ids", []) as Array):
+		if required_needs.has(need_id):
+			covers_required = true
+			break
+	if bool(node.get("is_required", false)) != covers_required:
 		errors.append("LocationNodeResult.location_nodes[%d].is_required does not match source role" % index)
+
+
+func _validate_affordance_array(value: Variant, dimension: String, index: int, errors: Array[String]) -> void:
+	if not (value is Array):
+		errors.append("LocationNodeResult.location_nodes[%d].%s_affordances must be an array" % [index, dimension])
+		return
+	var seen: Dictionary = {}
+	for item in (value as Array):
+		var token := str(item)
+		if seen.has(token):
+			errors.append("LocationNodeResult.location_nodes[%d].%s_affordances contains duplicate token: %s" % [index, dimension, token])
+		seen[token] = true
+		var valid := RegionSemanticVocabularyScript.is_gameplay_affordance(token) if dimension == "gameplay" else RegionSemanticVocabularyScript.is_narrative_affordance(token)
+		if not valid:
+			errors.append("LocationNodeResult.location_nodes[%d].%s_affordances contains unsupported token: %s" % [index, dimension, token])
 
 
 func _validate_role_node_bindings(result: Dictionary, roles_by_id: Dictionary, nodes_by_id: Dictionary, errors: Array[String]) -> void:

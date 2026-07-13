@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "region_id": "region.frontier.forest_region.glimmerwood.rg_0002",
   "region_slug": "glimmerwood",
   "display_name": "Glimmerwood",
@@ -24,16 +24,17 @@
     "resource_site"
   ],
   "required_needs": [
-    "wilderness.core",
     "travel.access",
-    "wilderness.inner"
+    "production.material",
+    "danger.local"
   ],
   "optional_needs": [
     "landmark.memorable",
+    "investigation.discovery",
     "resource.water",
-    "danger.local",
     "shelter.local",
-    "ritual.place"
+    "ritual.place",
+    "safety.watch"
   ],
   "forced_role_specs": []
 }

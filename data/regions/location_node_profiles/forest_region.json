@@ -1,51 +1,58 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "region_type": "forest_region",
-  "role_to_location_rules": {
-    "entrance": {
-      "location_type": "forest_entrance",
-      "node_tags": ["boundary", "forest", "travel"],
+  "form_to_location_rules": {
+    "forest_trailhead": {
+      "location_type": "forest_trailhead",
+      "node_tags": ["access", "forest", "travel"],
       "count": 1,
       "boundary": true
     },
-    "common_woods": {
-      "location_type": "common_woods",
-      "node_tags": ["common", "forest"],
+    "woodland_foraging_ground": {
+      "location_type": "woodland_foraging_ground",
+      "node_tags": ["forest", "production", "resource"],
       "count": 1
     },
-    "inner_area": {
-      "location_type": "deep_forest",
-      "node_tags": ["inner", "forest"],
+    "woodland_spring": {
+      "location_type": "woodland_spring",
+      "node_tags": ["forest", "resource", "water"],
       "count": 1
     },
-    "clearing": {
-      "location_type": "forest_clearing",
-      "node_tags": ["landmark", "open_area"],
+    "watchtower": {
+      "location_type": "watchtower",
+      "node_tags": ["defense", "observation"],
       "count": 1
     },
-    "hut": {
-      "location_type": "hut_site",
-      "node_tags": ["shelter", "npc_candidate"],
+    "roadside_shrine": {
+      "location_type": "roadside_shrine",
+      "node_tags": ["forest", "public", "ritual", "sacred"],
       "count": 1
     },
-    "ruin": {
-      "location_type": "ruin_site",
-      "node_tags": ["landmark", "history", "danger_candidate"],
+    "sacred_grove": {
+      "location_type": "sacred_grove",
+      "node_tags": ["forest", "hidden", "ritual", "sacred"],
+      "count": 1,
+      "hidden": true
+    },
+    "hunter_camp": {
+      "location_type": "hunter_camp",
+      "node_tags": ["forest", "hidden", "shelter"],
+      "count": 1,
+      "hidden": true
+    },
+    "predator_hunting_ground": {
+      "location_type": "predator_hunting_ground",
+      "node_tags": ["danger", "forest", "hunting"],
       "count": 1
     },
-    "stream": {
-      "location_type": "forest_stream",
-      "node_tags": ["water", "resource"],
+    "old_ruins": {
+      "location_type": "old_ruins",
+      "node_tags": ["forest", "historic", "investigation", "landmark"],
       "count": 1
     },
-    "hidden_grove": {
-      "location_type": "hidden_grove",
-      "node_tags": ["hidden", "landmark"],
-      "count": 1
-    },
-    "forest_shrine": {
-      "location_type": "forest_shrine_site",
-      "node_tags": ["ritual", "landmark"],
+    "ancient_tree": {
+      "location_type": "ancient_tree",
+      "node_tags": ["forest", "landmark", "natural"],
       "count": 1
     }
   }

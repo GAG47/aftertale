@@ -1,7 +1,7 @@
 class_name LocationNodeProfile
 extends RefCounted
 
-const SCHEMA_VERSION := 1
+const SCHEMA_VERSION := 2
 const PROFILE_PATH_PATTERN := "res://data/regions/location_node_profiles/%s.json"
 const FORBIDDEN_EDGE_KEYS := {
 	"edge_id": true,
@@ -39,14 +39,16 @@ func validate() -> Array[String]:
 		errors.append("LocationNodeProfile.region_type is missing")
 	elif not _is_system_token(region_type) or not region_type.ends_with("_region"):
 		errors.append("LocationNodeProfile.region_type must be a lowercase *_region token: %s" % region_type)
-	if not (source_data.get("role_to_location_rules", null) is Dictionary):
-		errors.append("LocationNodeProfile.role_to_location_rules must be an object")
+	if source_data.has("role_to_location_rules"):
+		errors.append("LocationNodeProfile.role_to_location_rules is not supported in schema v2; use form_to_location_rules")
+	if not (source_data.get("form_to_location_rules", null) is Dictionary):
+		errors.append("LocationNodeProfile.form_to_location_rules must be an object")
 		return errors
-	var rules: Dictionary = source_data.get("role_to_location_rules", {}) as Dictionary
+	var rules: Dictionary = source_data.get("form_to_location_rules", {}) as Dictionary
 	if rules.is_empty():
-		errors.append("LocationNodeProfile.role_to_location_rules is empty")
-	for role_type_value in rules.keys():
-		_validate_rule(str(role_type_value), rules.get(role_type_value), errors)
+		errors.append("LocationNodeProfile.form_to_location_rules is empty")
+	for form_id_value in rules.keys():
+		_validate_rule(str(form_id_value), rules.get(form_id_value), errors)
 	return errors
 
 
@@ -58,36 +60,36 @@ func region_type() -> String:
 	return str(source_data.get("region_type", ""))
 
 
-func role_rule(role_type: String) -> Dictionary:
-	var rules: Dictionary = source_data.get("role_to_location_rules", {}) as Dictionary
-	return (rules.get(role_type, {}) as Dictionary).duplicate(true)
+func form_rule(form_id: String) -> Dictionary:
+	var rules: Dictionary = source_data.get("form_to_location_rules", {}) as Dictionary
+	return (rules.get(form_id, {}) as Dictionary).duplicate(true)
 
 
-func has_role_rule(role_type: String) -> bool:
-	var rules: Dictionary = source_data.get("role_to_location_rules", {}) as Dictionary
-	return rules.has(role_type)
+func has_form_rule(form_id: String) -> bool:
+	var rules: Dictionary = source_data.get("form_to_location_rules", {}) as Dictionary
+	return rules.has(form_id)
 
 
-func location_type_for_role(role_type: String) -> String:
-	return str(role_rule(role_type).get("location_type", ""))
+func location_type_for_form(form_id: String) -> String:
+	return str(form_rule(form_id).get("location_type", ""))
 
 
-func node_tags_for_role(role_type: String) -> Array[String]:
-	return _string_array(role_rule(role_type).get("node_tags", []) as Array)
+func node_tags_for_form(form_id: String) -> Array[String]:
+	return _string_array(form_rule(form_id).get("node_tags", []) as Array)
 
 
-func is_boundary_role(role_type: String) -> bool:
-	return bool(role_rule(role_type).get("boundary", false))
+func is_boundary_form(form_id: String) -> bool:
+	return bool(form_rule(form_id).get("boundary", false))
 
 
-func is_hidden_role(role_type: String) -> bool:
-	return bool(role_rule(role_type).get("hidden", false))
+func is_hidden_form(form_id: String) -> bool:
+	return bool(form_rule(form_id).get("hidden", false))
 
 
 func supports_location_type(location_type: String) -> bool:
-	var rules: Dictionary = source_data.get("role_to_location_rules", {}) as Dictionary
-	for role_type_value in rules.keys():
-		var rule: Dictionary = rules.get(role_type_value, {}) as Dictionary
+	var rules: Dictionary = source_data.get("form_to_location_rules", {}) as Dictionary
+	for form_id_value in rules.keys():
+		var rule: Dictionary = rules.get(form_id_value, {}) as Dictionary
 		if str(rule.get("location_type", "")) == location_type:
 			return true
 	return false
@@ -118,33 +120,33 @@ func load_profile_result(region_type: String) -> Dictionary:
 	}
 
 
-func _validate_rule(role_type: String, value: Variant, errors: Array[String]) -> void:
-	if role_type.is_empty() or not _is_system_token(role_type):
-		errors.append("LocationNodeProfile role type must be a lowercase system token: %s" % role_type)
+func _validate_rule(form_id: String, value: Variant, errors: Array[String]) -> void:
+	if form_id.is_empty() or not _is_system_token(form_id):
+		errors.append("LocationNodeProfile form id must be a lowercase system token: %s" % form_id)
 		return
-	if role_type == "external_connection":
+	if form_id == "external_connection":
 		errors.append("LocationNodeProfile external_connection role rules are not supported")
 		return
 	if not (value is Dictionary):
-		errors.append("LocationNodeProfile role rule must be an object: %s" % role_type)
+		errors.append("LocationNodeProfile form rule must be an object: %s" % form_id)
 		return
 	var rule: Dictionary = value as Dictionary
 	if str(rule.get("location_type", "")).is_empty():
-		errors.append("LocationNodeProfile role rule location_type is missing: %s" % role_type)
+		errors.append("LocationNodeProfile form rule location_type is missing: %s" % form_id)
 	elif not _is_system_token(str(rule.get("location_type", ""))):
-		errors.append("LocationNodeProfile role rule location_type must be a lowercase system token: %s" % role_type)
+		errors.append("LocationNodeProfile form rule location_type must be a lowercase system token: %s" % form_id)
 	if not (rule.get("node_tags", null) is Array):
-		errors.append("LocationNodeProfile role rule node_tags must be an array: %s" % role_type)
+		errors.append("LocationNodeProfile form rule node_tags must be an array: %s" % form_id)
 	elif not _string_array_is_valid(rule.get("node_tags")):
-		errors.append("LocationNodeProfile role rule node_tags must contain lowercase system tokens: %s" % role_type)
+		errors.append("LocationNodeProfile form rule node_tags must contain lowercase system tokens: %s" % form_id)
 	if not rule.has("count"):
-		errors.append("LocationNodeProfile role rule count is missing: %s" % role_type)
+		errors.append("LocationNodeProfile form rule count is missing: %s" % form_id)
 	elif not _is_integer_like(rule.get("count")) or int(rule.get("count")) != 1:
-		errors.append("LocationNodeProfile role rule count must be exactly 1 in v67.3: %s" % role_type)
+		errors.append("LocationNodeProfile form rule count must be exactly 1 in v67.3: %s" % form_id)
 	if rule.has("boundary") and not (rule.get("boundary") is bool):
-		errors.append("LocationNodeProfile role rule boundary must be a boolean: %s" % role_type)
+		errors.append("LocationNodeProfile form rule boundary must be a boolean: %s" % form_id)
 	if rule.has("hidden") and not (rule.get("hidden") is bool):
-		errors.append("LocationNodeProfile role rule hidden must be a boolean: %s" % role_type)
+		errors.append("LocationNodeProfile form rule hidden must be a boolean: %s" % form_id)
 
 
 func _scan_for_forbidden_keys(value: Variant, path: String, errors: Array[String]) -> void:

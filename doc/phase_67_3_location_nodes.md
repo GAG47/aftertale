@@ -28,15 +28,16 @@ The method does not generate Edge Contracts or later-stage products.
 
 ## LocationNodeProfile
 
-Role-to-location mapping is data-driven through:
+Concrete-form-to-location mapping is data-driven through:
 
 ```text
 data/regions/location_node_profiles/town_region.json
 data/regions/location_node_profiles/forest_region.json
 ```
 
-Each rule maps one semantic `role_type` to one `location_type`, node tags, and a
-boundary flag. v67.3 only supports:
+Each rule maps one semantic `form_id` to one `location_type`, node tags, and a
+boundary flag. The corrected profile uses `form_to_location_rules`. v67.3 only
+supports:
 
 ```text
 count: 1
@@ -81,9 +82,13 @@ location_type
 node_slug
 source_role_id
 source_role_type
+source_archetype_id
+source_form_id
 source_role_slug
 node_source
 node_tags
+gameplay_affordances
+narrative_affordances
 is_boundary
 is_hidden
 is_required
@@ -100,7 +105,7 @@ loc.<scope>.<region_type>.<region_slug>.<node_slug>.ln_####
 
 ```text
 role_slug exists -> use role_slug
-otherwise -> use role_type
+otherwise -> use form_id
 duplicate node_slug -> fail
 ```
 

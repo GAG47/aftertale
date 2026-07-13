@@ -3,7 +3,7 @@ extends RefCounted
 
 const CanonicalDataSerializerScript := preload("res://scripts/systems/regions/canonical_data_serializer.gd")
 
-const SCHEMA_VERSION := 2
+const SCHEMA_VERSION := 3
 const COMPILER_VERSION := "v67.8"
 const SNAPSHOT_KEYS := {
 	"schema_version": true,
@@ -24,9 +24,13 @@ const NODE_KEYS := {
 	"node_slug": true,
 	"source_role_id": true,
 	"source_role_type": true,
+	"source_archetype_id": true,
+	"source_form_id": true,
 	"source_role_slug": true,
 	"node_source": true,
 	"node_tags": true,
+	"gameplay_affordances": true,
+	"narrative_affordances": true,
 	"is_boundary": true,
 	"is_hidden": true,
 	"is_required": true,
@@ -120,7 +124,7 @@ func _validate_nodes(nodes: Array, errors: Array[String]) -> Dictionary:
 			continue
 		var node: Dictionary = nodes[index] as Dictionary
 		_validate_known_keys(node, NODE_KEYS, path, errors)
-		for key in ["location_id", "location_type", "node_slug", "source_role_id", "source_role_type", "node_source"]:
+		for key in ["location_id", "location_type", "node_slug", "source_role_id", "source_role_type", "source_archetype_id", "source_form_id", "node_source"]:
 			if str(node.get(key, "")).is_empty():
 				errors.append("%s.%s is missing" % [path, key])
 		var location_id := str(node.get("location_id", ""))
@@ -128,6 +132,10 @@ func _validate_nodes(nodes: Array, errors: Array[String]) -> Dictionary:
 			errors.append("LocationGraphSnapshot contains duplicate location_id: %s" % location_id)
 		nodes_by_id[location_id] = node
 		_validate_string_array(node.get("node_tags"), "%s.node_tags" % path, errors)
+		_validate_string_array(node.get("gameplay_affordances"), "%s.gameplay_affordances" % path, errors)
+		_validate_string_array(node.get("narrative_affordances"), "%s.narrative_affordances" % path, errors)
+		if str(node.get("source_role_type", "")) != str(node.get("source_form_id", "")):
+			errors.append("%s.source_role_type must equal source_form_id" % path)
 		for key in ["is_boundary", "is_hidden", "is_required"]:
 			if not (node.get(key, null) is bool):
 				errors.append("%s.%s must be a boolean" % [path, key])

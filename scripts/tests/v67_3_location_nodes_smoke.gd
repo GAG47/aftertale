@@ -78,7 +78,8 @@ func _assert_forced_role_slug_controls_node_slug() -> bool:
 	var input := _load_json(TOWN_REGION_INPUT_PATH)
 	input["forced_role_specs"] = [
 		{
-			"role_type": "landmark",
+			"archetype_id": "historical_site",
+			"form_id": "old_ruins",
 			"role_slug": "old_tree",
 			"role_tags": ["ancient"]
 		}
@@ -94,8 +95,8 @@ func _assert_forced_role_slug_controls_node_slug() -> bool:
 			if str(node.get("node_slug", "")) != "old_tree":
 				_fail("v67.3 forced role_slug did not control node_slug")
 				return false
-			if str(node.get("location_type", "")) != "landmark_site":
-				_fail("v67.3 forced landmark did not use the landmark_site location type")
+			if str(node.get("location_type", "")) != "old_ruins":
+				_fail("v67.8 forced concrete form did not use the old_ruins location type")
 				return false
 			if not str(node.get("location_id", "")).contains(".old_tree."):
 				_fail("v67.3 forced node location_id did not include the forced slug")
@@ -127,11 +128,11 @@ func _assert_no_external_connection_artifacts() -> bool:
 
 func _assert_invalid_profile_and_mapping_fail() -> bool:
 	var profile_data := _load_json(TOWN_LOCATION_PROFILE_PATH)
-	var rules: Dictionary = profile_data.get("role_to_location_rules", {}) as Dictionary
-	var settlement_rule: Dictionary = rules.get("settlement_core", {}) as Dictionary
-	settlement_rule["count"] = 2
-	rules["settlement_core"] = settlement_rule
-	profile_data["role_to_location_rules"] = rules
+	var rules: Dictionary = profile_data.get("form_to_location_rules", {}) as Dictionary
+	var square_rule: Dictionary = rules.get("village_square", {}) as Dictionary
+	square_rule["count"] = 2
+	rules["village_square"] = square_rule
+	profile_data["form_to_location_rules"] = rules
 	var profile: RefCounted = LocationNodeProfileScript.new()
 	var profile_errors: Array[String] = profile.configure(profile_data)
 	if not str(profile_errors).contains("count must be exactly 1"):
@@ -157,16 +158,24 @@ func _assert_invalid_profile_and_mapping_fail() -> bool:
 	var library_result: Dictionary = SemanticRoleLibraryScript.new().load_library_result()
 	var library: RefCounted = library_result.get("library") as RefCounted
 	var travel_role: Dictionary = roles[travel_role_index] as Dictionary
-	travel_role["role_type"] = "entrance"
-	travel_role["role_slug"] = "entrance"
+	var form_id := "forest_trailhead"
+	var archetype_id := str(library.form_archetype_id(form_id))
+	travel_role["role_type"] = form_id
+	travel_role["archetype_id"] = archetype_id
+	travel_role["form_id"] = form_id
+	travel_role["role_slug"] = form_id
 	travel_role["role_tags"] = []
-	travel_role["satisfies"] = library.role_satisfies("entrance")
-	travel_role["properties"] = library.role_properties("entrance")
-	travel_role["affinity"] = library.role_affinity("entrance")
-	travel_role["category"] = library.role_category("entrance")
+	travel_role["satisfies"] = library.form_satisfies(form_id)
+	travel_role["properties"] = library.form_properties(form_id)
+	travel_role["affinity"] = library.form_affinity(form_id)
+	travel_role["gameplay_affordances"] = library.form_gameplay_affordances(form_id)
+	travel_role["narrative_affordances"] = library.form_narrative_affordances(form_id)
+	travel_role["category"] = library.form_category(form_id)
 	travel_role["matched_need_ids"] = ["travel.access"]
-	travel_role["role_definition_id"] = library.role_definition_id("entrance")
-	travel_role["role_definition_hash"] = library.role_definition_hash("entrance")
+	travel_role["archetype_definition_id"] = library.archetype_definition_id(archetype_id)
+	travel_role["archetype_definition_hash"] = library.archetype_definition_hash(archetype_id)
+	travel_role["form_definition_id"] = library.form_definition_id(form_id)
+	travel_role["form_definition_hash"] = library.form_definition_hash(form_id)
 	roles[travel_role_index] = travel_role
 	semantic_roles["selected_roles"] = roles
 	var expander: RefCounted = LocationNodeExpanderScript.new()

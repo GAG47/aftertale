@@ -7,7 +7,7 @@ const RegionTypeProfileScript := preload("res://scripts/systems/regions/region_t
 const SemanticRoleLibraryScript := preload("res://scripts/systems/regions/semantic_role_library.gd")
 const SemanticRoleResultValidatorScript := preload("res://scripts/systems/regions/semantic_role_result_validator.gd")
 
-const SCHEMA_VERSION := 2
+const SCHEMA_VERSION := 3
 const COMPILER_VERSION := "v67.8"
 
 var _rng := RandomNumberGenerator.new()
@@ -91,28 +91,32 @@ func expand_roles_result(input: Dictionary) -> Dictionary:
 
 func _validate_input_against_profile(region_data: Dictionary, profile: RefCounted, library: RefCounted) -> Array[String]:
 	var errors: Array[String] = []
-	for excluded_role_type in profile.excluded_role_types():
-		if library.role_definition(excluded_role_type).is_empty():
-			errors.append("RegionTypeProfile.excluded_role_types references an unknown library role: %s" % excluded_role_type)
+	for excluded_form_id in profile.excluded_form_ids():
+		if library.form_definition(excluded_form_id).is_empty():
+			errors.append("RegionTypeProfile.excluded_form_ids references an unknown library form: %s" % excluded_form_id)
 	var demand_contract := _demand_contract(region_data, profile)
 	for need_id in (demand_contract.get("required_needs", []) as Array):
-		if _role_types_for_need(str(need_id), "required", region_data, profile, library).is_empty():
-			errors.append("RegionInput.required_needs has no required role candidate for %s: %s" % [profile.region_type(), str(need_id)])
+		if _form_ids_for_need(str(need_id), "required", region_data, profile, library).is_empty():
+			errors.append("RegionInput.required_needs has no required concrete form candidate for %s: %s" % [profile.region_type(), str(need_id)])
 	for need_id in (demand_contract.get("optional_needs", []) as Array):
-		if _role_types_for_need(str(need_id), "optional", region_data, profile, library).is_empty():
-			errors.append("RegionInput.optional_needs has no optional role candidate for %s: %s" % [profile.region_type(), str(need_id)])
+		if _form_ids_for_need(str(need_id), "optional", region_data, profile, library).is_empty():
+			errors.append("RegionInput.optional_needs has no optional concrete form candidate for %s: %s" % [profile.region_type(), str(need_id)])
 	for forced_value in (region_data.get("forced_role_specs", []) as Array):
 		var forced: Dictionary = forced_value as Dictionary
-		var role_type := str(forced.get("role_type", ""))
-		var definition: Dictionary = library.role_definition(role_type)
-		if definition.is_empty():
-			errors.append("RegionInput.forced_role_specs contains unsupported role_type in SemanticRoleLibrary: %s" % role_type)
-		elif not library.allows_source(role_type, "forced"):
-			errors.append("RegionInput.forced_role_specs role_type does not allow forced source: %s" % role_type)
-		elif not profile.allows_role_definition(role_type, definition):
-			errors.append("RegionInput.forced_role_specs role_type is outside RegionTypeProfile semantic scope: %s" % role_type)
-		elif not library.conditions_match(role_type, region_data):
-			errors.append("RegionInput.forced_role_specs role_type does not satisfy its region conditions: %s" % role_type)
+		var archetype_id := str(forced.get("archetype_id", ""))
+		var requested_form_id := str(forced.get("form_id", ""))
+		if library.archetype_definition(archetype_id).is_empty():
+			errors.append("RegionInput.forced_role_specs contains unsupported archetype_id in SemanticRoleLibrary: %s" % archetype_id)
+			continue
+		if not requested_form_id.is_empty():
+			if library.form_definition(requested_form_id).is_empty():
+				errors.append("RegionInput.forced_role_specs contains unsupported form_id in SemanticRoleLibrary: %s" % requested_form_id)
+			elif library.form_archetype_id(requested_form_id) != archetype_id:
+				errors.append("RegionInput.forced_role_specs form_id does not belong to archetype_id: %s / %s" % [archetype_id, requested_form_id])
+			elif not _form_is_candidate(requested_form_id, "forced", region_data, profile, library):
+				errors.append("RegionInput.forced_role_specs form is outside profile scope or does not satisfy region conditions: %s" % requested_form_id)
+		elif _form_ids_for_archetype(archetype_id, "forced", region_data, profile, library).is_empty():
+			errors.append("RegionInput.forced_role_specs archetype has no valid concrete form in this region: %s" % archetype_id)
 	var scale := str((region_data.get("coarse_context", {}) as Dictionary).get("scale", ""))
 	if profile.optional_count_range(scale).is_empty():
 		errors.append("RegionTypeProfile has no optional role count range for scale: %s" % scale)
@@ -122,57 +126,60 @@ func _validate_input_against_profile(region_data: Dictionary, profile: RefCounte
 func _generate_roles(region_data: Dictionary, profile: RefCounted, library: RefCounted) -> Dictionary:
 	var demand_contract := _demand_contract(region_data, profile)
 	var selected_roles: Array = []
-	var selected_by_type: Dictionary = {}
-	for need_id in (demand_contract.get("required_needs", []) as Array):
-		if _need_is_covered(selected_roles, str(need_id)):
-			continue
-		var required_role := _best_role_for_need(str(need_id), "required", region_data, profile, library, selected_by_type)
-		if required_role.is_empty():
-			return _failure("expand_semantic_roles", ["No semantic role can satisfy required need: %s" % str(need_id)], {})
-		_add_role(
-			selected_roles,
-			selected_by_type,
-			library,
-			str(required_role.get("role_type", "")),
-			str(required_role.get("role_type", "")),
-			"required",
-			[],
-			[str(need_id)]
-		)
-
+	var selected_by_archetype: Dictionary = {}
 	for forced_value in (region_data.get("forced_role_specs", []) as Array):
 		var forced: Dictionary = forced_value as Dictionary
-		var role_type := str(forced.get("role_type", ""))
+		var archetype_id := str(forced.get("archetype_id", ""))
+		var form_id := str(forced.get("form_id", ""))
+		if form_id.is_empty():
+			form_id = _best_form_for_archetype(archetype_id, "forced", region_data, profile, library)
 		var role_slug := str(forced.get("role_slug", ""))
 		var tags := _string_array(forced.get("role_tags", []) as Array)
-		if selected_by_type.has(role_type) and not library.allows_multiple(role_type):
-			return _failure("expand_semantic_roles", ["forced role_type duplicates a non-multiple role_type: %s" % role_type], {})
+		if selected_by_archetype.has(archetype_id) and not library.allows_multiple(form_id):
+			return _failure("expand_semantic_roles", ["forced archetype duplicates a non-multiple archetype: %s" % archetype_id], {})
 		_add_role(
 			selected_roles,
-			selected_by_type,
+			selected_by_archetype,
 			library,
-			role_type,
+			form_id,
 			role_slug,
 			"forced",
 			tags,
-			_matched_needs_for_role(library, role_type, demand_contract)
+			_matched_needs_for_form(library, form_id, demand_contract)
+		)
+	for need_id in (demand_contract.get("required_needs", []) as Array):
+		if _need_is_covered(selected_roles, str(need_id)):
+			continue
+		var required_form := _best_form_for_need(str(need_id), "required", region_data, profile, library, selected_by_archetype)
+		if required_form.is_empty():
+			return _failure("expand_semantic_roles", ["No concrete semantic form can satisfy required need: %s" % str(need_id)], {})
+		_add_role(
+			selected_roles,
+			selected_by_archetype,
+			library,
+			str(required_form.get("form_id", "")),
+			str(required_form.get("form_id", "")),
+			"required",
+			[],
+			[str(need_id)]
 		)
 
 	var uncovered := _uncovered_required_needs(selected_roles, demand_contract)
 	if not uncovered.is_empty():
 		return _failure("expand_semantic_roles", ["Required semantic needs are not covered: %s" % ",".join(uncovered)], {})
 
-	var optional_result := _select_optional_roles(region_data, profile, library, selected_by_type, demand_contract)
+	var optional_result := _select_optional_roles(region_data, profile, library, selected_by_archetype, demand_contract)
 	if not bool(optional_result.get("success", false)):
 		return optional_result
 	for optional_value in (optional_result.get("roles", []) as Array):
 		var optional: Dictionary = optional_value as Dictionary
+		var form_id := str(optional.get("form_id", ""))
 		_add_role(
 			selected_roles,
-			selected_by_type,
+			selected_by_archetype,
 			library,
-			str(optional.get("role_type", "")),
-			str(optional.get("role_type", "")),
+			form_id,
+			form_id,
 			"optional",
 			[],
 			optional.get("matched_need_ids", []) as Array
@@ -205,49 +212,70 @@ func _demand_contract(region_data: Dictionary, profile: RefCounted) -> Dictionar
 	}
 
 
-func _candidate_role_types(source: String, region_data: Dictionary, profile: RefCounted, library: RefCounted) -> Array[String]:
+func _candidate_form_ids(source: String, region_data: Dictionary, profile: RefCounted, library: RefCounted) -> Array[String]:
 	var result: Array[String] = []
-	for role_type in library.role_types():
-		var definition: Dictionary = library.role_definition(role_type)
-		if not library.allows_source(role_type, source):
-			continue
-		if not profile.allows_role_definition(role_type, definition):
-			continue
-		if not library.conditions_match(role_type, region_data):
-			continue
-		result.append(role_type)
+	for form_id in library.form_ids():
+		if _form_is_candidate(form_id, source, region_data, profile, library):
+			result.append(form_id)
 	return result
 
 
-func _role_types_for_need(need_id: String, source: String, region_data: Dictionary, profile: RefCounted, library: RefCounted) -> Array[String]:
+func _form_is_candidate(form_id: String, source: String, region_data: Dictionary, profile: RefCounted, library: RefCounted) -> bool:
+	if not library.allows_source(form_id, source):
+		return false
+	if not profile.allows_form_definition(form_id, library.composed_definition(form_id)):
+		return false
+	return library.conditions_match(form_id, region_data)
+
+
+func _form_ids_for_need(need_id: String, source: String, region_data: Dictionary, profile: RefCounted, library: RefCounted) -> Array[String]:
 	var result: Array[String] = []
-	for role_type in _candidate_role_types(source, region_data, profile, library):
-		if library.role_satisfies(role_type).has(need_id):
-			result.append(role_type)
+	for form_id in _candidate_form_ids(source, region_data, profile, library):
+		if library.form_satisfies(form_id).has(need_id):
+			result.append(form_id)
 	return result
 
 
-func _best_role_for_need(need_id: String, source: String, region_data: Dictionary, profile: RefCounted, library: RefCounted, selected_by_type: Dictionary) -> Dictionary:
-	var candidates := _role_types_for_need(need_id, source, region_data, profile, library)
+func _form_ids_for_archetype(archetype_id: String, source: String, region_data: Dictionary, profile: RefCounted, library: RefCounted) -> Array[String]:
+	var result: Array[String] = []
+	for form_id in library.forms_for_archetype(archetype_id):
+		if _form_is_candidate(form_id, source, region_data, profile, library):
+			result.append(form_id)
+	return result
+
+
+func _best_form_for_need(need_id: String, source: String, region_data: Dictionary, profile: RefCounted, library: RefCounted, selected_by_archetype: Dictionary) -> Dictionary:
+	var candidates := _form_ids_for_need(need_id, source, region_data, profile, library)
 	candidates.sort()
-	var best_role_type := ""
+	var best_form_id := ""
 	var best_score := -1.0
-	for role_type in candidates:
-		if selected_by_type.has(role_type) and not library.allows_multiple(role_type):
+	for form_id in candidates:
+		var archetype_id := str(library.form_archetype_id(form_id))
+		if selected_by_archetype.has(archetype_id) and not library.allows_multiple(form_id):
 			continue
-		var score := _role_score(region_data, profile, library, role_type)
+		var score := _form_score(region_data, profile, library, form_id)
 		if score > best_score:
 			best_score = score
-			best_role_type = role_type
-	if best_role_type.is_empty():
+			best_form_id = form_id
+	if best_form_id.is_empty():
 		return {}
-	return {
-		"role_type": best_role_type,
-		"score": best_score,
-	}
+	return {"form_id": best_form_id, "score": best_score}
 
 
-func _select_optional_roles(region_data: Dictionary, profile: RefCounted, library: RefCounted, selected_by_type: Dictionary, demand_contract: Dictionary) -> Dictionary:
+func _best_form_for_archetype(archetype_id: String, source: String, region_data: Dictionary, profile: RefCounted, library: RefCounted) -> String:
+	var candidates := _form_ids_for_archetype(archetype_id, source, region_data, profile, library)
+	candidates.sort()
+	var best_form_id := ""
+	var best_score := -1.0
+	for form_id in candidates:
+		var score := _form_score(region_data, profile, library, form_id)
+		if score > best_score:
+			best_score = score
+			best_form_id = form_id
+	return best_form_id
+
+
+func _select_optional_roles(region_data: Dictionary, profile: RefCounted, library: RefCounted, selected_by_archetype: Dictionary, demand_contract: Dictionary) -> Dictionary:
 	var coarse_context: Dictionary = region_data.get("coarse_context", {}) as Dictionary
 	var scale := str(coarse_context.get("scale", ""))
 	var count_range: Array[int] = profile.optional_count_range(scale)
@@ -255,46 +283,49 @@ func _select_optional_roles(region_data: Dictionary, profile: RefCounted, librar
 		return _failure("select_optional_roles", ["RegionTypeProfile has no optional role count range for scale: %s" % scale], {})
 	var desired_count := _rng.randi_range(count_range[0], count_range[1])
 	var candidates: Array[Dictionary] = []
-	for role_type in _candidate_role_types("optional", region_data, profile, library):
-		if selected_by_type.has(role_type) and not library.allows_multiple(role_type):
+	for form_id in _candidate_form_ids("optional", region_data, profile, library):
+		var archetype_id := str(library.form_archetype_id(form_id))
+		if selected_by_archetype.has(archetype_id) and not library.allows_multiple(form_id):
 			continue
-		var matched_need_ids: Array[String] = _matched_optional_needs(library, role_type, demand_contract)
+		var matched_need_ids: Array[String] = _matched_optional_needs(library, form_id, demand_contract)
 		if matched_need_ids.is_empty():
 			continue
-		var weight := _role_score(region_data, profile, library, role_type)
+		var weight := _form_score(region_data, profile, library, form_id)
 		if weight <= 0.0:
 			continue
 		candidates.append({
-			"role_type": role_type,
+			"form_id": form_id,
+			"archetype_id": archetype_id,
 			"weight": weight,
 			"matched_need_ids": matched_need_ids,
 		})
 	if desired_count > candidates.size():
 		return _failure("select_optional_roles", [
-			"not enough optional role candidates for %s scale %s: requested %d, available %d" % [
-				str(region_data.get("region_type", "")),
-				scale,
-				desired_count,
-				candidates.size(),
+			"not enough optional concrete form candidates for %s scale %s: requested %d, available %d" % [
+				str(region_data.get("region_type", "")), scale, desired_count, candidates.size(),
 			],
 		], {})
 	var selected: Array[Dictionary] = []
+	var selected_optional_archetypes: Dictionary = {}
 	while selected.size() < desired_count:
-		var index := _pick_weighted_candidate_index(candidates)
+		var available: Array[Dictionary] = []
+		for candidate in candidates:
+			var archetype_id := str(candidate.get("archetype_id", ""))
+			if selected_optional_archetypes.has(archetype_id):
+				continue
+			available.append(candidate)
+		var index := _pick_weighted_candidate_index(available)
 		if index < 0:
-			return _failure("select_optional_roles", ["optional role weighted selection failed"], {})
-		selected.append((candidates[index] as Dictionary).duplicate(true))
-		candidates.remove_at(index)
-	return {
-		"success": true,
-		"errors": [],
-		"roles": selected,
-	}
+			return _failure("select_optional_roles", ["optional concrete form weighted selection failed"], {})
+		var chosen: Dictionary = available[index]
+		selected.append(chosen.duplicate(true))
+		selected_optional_archetypes[str(chosen.get("archetype_id", ""))] = true
+	return {"success": true, "errors": [], "roles": selected}
 
 
-func _role_score(region_data: Dictionary, profile: RefCounted, library: RefCounted, role_type: String) -> float:
+func _form_score(region_data: Dictionary, profile: RefCounted, library: RefCounted, form_id: String) -> float:
 	var coarse_context: Dictionary = region_data.get("coarse_context", {}) as Dictionary
-	return profile.context_weight_multiplier(coarse_context, library.role_definition(role_type))
+	return profile.context_weight_multiplier(coarse_context, library.composed_definition(form_id))
 
 
 func _pick_weighted_candidate_index(candidates: Array[Dictionary]) -> int:
@@ -306,32 +337,39 @@ func _pick_weighted_candidate_index(candidates: Array[Dictionary]) -> int:
 	var roll := _rng.randf() * total
 	var cursor := 0.0
 	for index in range(candidates.size()):
-		var candidate: Dictionary = candidates[index] as Dictionary
-		cursor += maxf(0.0, float(candidate.get("weight", 0.0)))
+		cursor += maxf(0.0, float(candidates[index].get("weight", 0.0)))
 		if roll <= cursor:
 			return index
 	return candidates.size() - 1
 
 
-func _add_role(selected_roles: Array, selected_by_type: Dictionary, library: RefCounted, role_type: String, role_slug: String, role_source: String, extra_tags: Array[String], matched_need_ids: Array) -> void:
-	selected_roles.append(_role_template(library, role_type, role_slug, role_source, extra_tags, matched_need_ids))
-	selected_by_type[role_type] = int(selected_by_type.get(role_type, 0)) + 1
+func _add_role(selected_roles: Array, selected_by_archetype: Dictionary, library: RefCounted, form_id: String, role_slug: String, role_source: String, extra_tags: Array[String], matched_need_ids: Array) -> void:
+	selected_roles.append(_role_template(library, form_id, role_slug, role_source, extra_tags, matched_need_ids))
+	var archetype_id := str(library.form_archetype_id(form_id))
+	selected_by_archetype[archetype_id] = int(selected_by_archetype.get(archetype_id, 0)) + 1
 
 
-func _role_template(library: RefCounted, role_type: String, role_slug: String, role_source: String, extra_tags: Array[String], matched_need_ids: Array) -> Dictionary:
+func _role_template(library: RefCounted, form_id: String, role_slug: String, role_source: String, extra_tags: Array[String], matched_need_ids: Array) -> Dictionary:
+	var archetype_id := str(library.form_archetype_id(form_id))
 	return {
 		"role_id": "",
-		"role_type": role_type,
+		"role_type": form_id,
+		"archetype_id": archetype_id,
+		"form_id": form_id,
 		"role_slug": role_slug,
 		"role_source": role_source,
 		"role_tags": _unique_tags([], extra_tags),
-		"satisfies": library.role_satisfies(role_type),
-		"properties": library.role_properties(role_type),
-		"affinity": library.role_affinity(role_type),
-		"category": library.role_category(role_type),
+		"satisfies": library.form_satisfies(form_id),
+		"properties": library.form_properties(form_id),
+		"affinity": library.form_affinity(form_id),
+		"gameplay_affordances": library.form_gameplay_affordances(form_id),
+		"narrative_affordances": library.form_narrative_affordances(form_id),
+		"category": library.form_category(form_id),
 		"matched_need_ids": RegionSemanticVocabularyScript.unique_strings(matched_need_ids),
-		"role_definition_id": library.role_definition_id(role_type),
-		"role_definition_hash": library.role_definition_hash(role_type),
+		"archetype_definition_id": library.archetype_definition_id(archetype_id),
+		"archetype_definition_hash": library.archetype_definition_hash(archetype_id),
+		"form_definition_id": library.form_definition_id(form_id),
+		"form_definition_hash": library.form_definition_hash(form_id),
 		"role_library_id": library.library_id(),
 		"role_library_path": library.library_path(),
 		"role_library_content_hash": library.library_content_hash(),
@@ -346,11 +384,7 @@ func _assign_role_ids(selected_roles: Array, region_data: Dictionary) -> void:
 	for index in range(selected_roles.size()):
 		var role: Dictionary = selected_roles[index] as Dictionary
 		role["role_id"] = "role.%s.%s.%s.%s.rr_%04d" % [
-			scope,
-			region_type,
-			region_slug,
-			str(role.get("role_slug", "")),
-			index + 1,
+			scope, region_type, region_slug, str(role.get("role_slug", "")), index + 1,
 		]
 		selected_roles[index] = role
 
@@ -365,18 +399,13 @@ func _need_coverage(selected_roles: Array, demand_contract: Dictionary) -> Array
 			var role: Dictionary = role_value as Dictionary
 			if (role.get("satisfies", []) as Array).has(need_id):
 				role_ids.append(str(role.get("role_id", "")))
-		coverage.append({
-			"need_id": str(need_id),
-			"required": required_needs.has(need_id),
-			"role_ids": role_ids,
-		})
+		coverage.append({"need_id": str(need_id), "required": required_needs.has(need_id), "role_ids": role_ids})
 	return coverage
 
 
 func _need_is_covered(selected_roles: Array, need_id: String) -> bool:
 	for role_value in selected_roles:
-		var role: Dictionary = role_value as Dictionary
-		if (role.get("satisfies", []) as Array).has(need_id):
+		if ((role_value as Dictionary).get("satisfies", []) as Array).has(need_id):
 			return true
 	return false
 
@@ -389,18 +418,18 @@ func _uncovered_required_needs(selected_roles: Array, demand_contract: Dictionar
 	return uncovered
 
 
-func _matched_needs_for_role(library: RefCounted, role_type: String, demand_contract: Dictionary) -> Array[String]:
+func _matched_needs_for_form(library: RefCounted, form_id: String, demand_contract: Dictionary) -> Array[String]:
 	var result: Array[String] = []
-	var satisfies: Array[String] = library.role_satisfies(role_type)
+	var satisfies: Array[String] = library.form_satisfies(form_id)
 	for need_id in (demand_contract.get("required_needs", []) as Array) + (demand_contract.get("optional_needs", []) as Array):
 		if satisfies.has(str(need_id)):
 			result.append(str(need_id))
 	return result
 
 
-func _matched_optional_needs(library: RefCounted, role_type: String, demand_contract: Dictionary) -> Array[String]:
+func _matched_optional_needs(library: RefCounted, form_id: String, demand_contract: Dictionary) -> Array[String]:
 	var result: Array[String] = []
-	var satisfies: Array[String] = library.role_satisfies(role_type)
+	var satisfies: Array[String] = library.form_satisfies(form_id)
 	for need_id in (demand_contract.get("optional_needs", []) as Array):
 		if satisfies.has(str(need_id)):
 			result.append(str(need_id))
@@ -409,17 +438,21 @@ func _matched_optional_needs(library: RefCounted, role_type: String, demand_cont
 
 func _debug_summary(selected_roles: Array) -> Dictionary:
 	var source_counts: Dictionary = {}
-	var role_types: Array[String] = []
+	var archetype_ids: Array[String] = []
+	var form_ids: Array[String] = []
 	for role_value in selected_roles:
 		var role: Dictionary = role_value as Dictionary
 		var source := str(role.get("role_source", ""))
 		source_counts[source] = int(source_counts.get(source, 0)) + 1
-		role_types.append(str(role.get("role_type", "")))
-	role_types.sort()
+		archetype_ids.append(str(role.get("archetype_id", "")))
+		form_ids.append(str(role.get("form_id", "")))
+	archetype_ids.sort()
+	form_ids.sort()
 	return {
 		"role_count": selected_roles.size(),
 		"source_counts": source_counts,
-		"role_types": role_types,
+		"archetype_ids": archetype_ids,
+		"form_ids": form_ids,
 	}
 
 

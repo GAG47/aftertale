@@ -17,6 +17,9 @@ static func normalize_location_node_result(result: Dictionary) -> Dictionary:
 		var node: Dictionary = (nodes[index] as Dictionary).duplicate(true)
 		if node.get("node_tags", null) is Array:
 			node["node_tags"] = _normalize_string_set(node.get("node_tags", []) as Array)
+		for affordance_key in ["gameplay_affordances", "narrative_affordances"]:
+			if node.get(affordance_key, null) is Array:
+				node[affordance_key] = _normalize_string_set(node.get(affordance_key, []) as Array)
 		nodes[index] = node
 	normalized["location_nodes"] = _sort_dictionary_array(nodes, ["location_id"])
 	if normalized.get("role_node_bindings", null) is Array:
@@ -71,6 +74,9 @@ static func normalize_snapshot(snapshot: Dictionary) -> Dictionary:
 		var node: Dictionary = (nodes[index] as Dictionary).duplicate(true)
 		if node.get("node_tags", null) is Array:
 			node["node_tags"] = _normalize_string_set(node.get("node_tags", []) as Array)
+		for affordance_key in ["gameplay_affordances", "narrative_affordances"]:
+			if node.get(affordance_key, null) is Array:
+				node[affordance_key] = _normalize_string_set(node.get(affordance_key, []) as Array)
 		nodes[index] = node
 	normalized["location_nodes"] = _sort_dictionary_array(nodes, ["location_id"])
 	var edges: Array = normalized.get("edge_contracts", []) as Array
@@ -156,6 +162,9 @@ static func snapshot_collections_are_canonical(snapshot: Dictionary) -> bool:
 			continue
 		if not _string_set_is_canonical((node_value as Dictionary).get("node_tags", []) as Array):
 			return false
+		for affordance_key in ["gameplay_affordances", "narrative_affordances"]:
+			if not _string_set_is_canonical((node_value as Dictionary).get(affordance_key, []) as Array):
+				return false
 	for edge_value in (snapshot.get("edge_contracts", []) as Array):
 		if not (edge_value is Dictionary):
 			continue
