@@ -215,6 +215,11 @@ func _assert_validator_rejects_invalid_results() -> bool:
 	if not str(validator.validate(external_field, semantic_roles, profile)).contains("v67.4 edge/scene/runtime field"):
 		_fail("v67.3 validator accepted external_connection_bindings in LocationNodeResult")
 		return false
+	var stale_compiler: Dictionary = (location_result.get("location_node_result", {}) as Dictionary).duplicate(true)
+	stale_compiler["compiler_version"] = "v67.3"
+	if not str(validator.validate(stale_compiler, semantic_roles, profile)).contains("compiler_version is incompatible"):
+		_fail("v67.8 LocationNodeResultValidator accepted the stale v67.3 compiler label")
+		return false
 	return true
 
 
@@ -233,6 +238,9 @@ func _assert_location_graph_boundary() -> bool:
 func _assert_location_node_only(result: Dictionary) -> bool:
 	if str(result.get("stage", "")) != "location_nodes":
 		_fail("v67.3 result has wrong stage: %s" % str(result.get("stage", "")))
+		return false
+	if str(result.get("compiler_version", "")) != "v67.8":
+		_fail("v67.8 LocationNodeResult has stale compiler_version: %s" % str(result.get("compiler_version", "")))
 		return false
 	if not result.has("location_nodes") or result.has("locations"):
 		_fail("v67.3 result must expose location_nodes and not locations")

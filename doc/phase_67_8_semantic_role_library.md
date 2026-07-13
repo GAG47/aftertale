@@ -185,14 +185,17 @@ hash, and the selected role's typed semantic fields. A syntactically valid but
 forged hash is rejected.
 
 `LocationNodeResult.schema_version` is `2` and carries the role-library source
-forward without changing node semantics.
+forward without changing node semantics. Its `compiler_version` is `v67.8`;
+`stage: location_nodes` identifies the older pipeline stage without using a
+stale compiler label.
 
 `LocationGraphSnapshot.schema_version` is `2`. Its `rule_manifest` contains
 exactly one `semantic_role_library` row in addition to the participating region,
 location-node, and edge profiles. Snapshot building reloads the library, checks
 that its identity and actual content hash match the upstream declaration, and
 fails on disagreement. Snapshot loading remains self-contained and does not
-reload the current library.
+reload the current library. Snapshot Builder and Validator both require
+`compiler_version: v67.8`.
 
 ## Downstream Boundary
 

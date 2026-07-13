@@ -7,7 +7,7 @@ const SemanticRoleResultValidatorScript := preload("res://scripts/systems/region
 const CanonicalDataSerializerScript := preload("res://scripts/systems/regions/canonical_data_serializer.gd")
 
 const SCHEMA_VERSION := 2
-const COMPILER_VERSION := "v67.3"
+const COMPILER_VERSION := "v67.8"
 
 
 func expand_locations_result(semantic_role_result: Dictionary) -> Dictionary:

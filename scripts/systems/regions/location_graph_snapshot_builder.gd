@@ -10,7 +10,7 @@ const RegionTypeProfileScript := preload("res://scripts/systems/regions/region_t
 const SemanticRoleLibraryScript := preload("res://scripts/systems/regions/semantic_role_library.gd")
 
 const SCHEMA_VERSION := 2
-const COMPILER_VERSION := "v67.5"
+const COMPILER_VERSION := "v67.8"
 
 
 func build_snapshot_result(graph_id: String, location_node_results: Array, edge_contract_result: Dictionary) -> Dictionary:

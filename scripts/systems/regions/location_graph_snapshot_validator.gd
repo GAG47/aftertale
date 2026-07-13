@@ -4,7 +4,7 @@ extends RefCounted
 const CanonicalDataSerializerScript := preload("res://scripts/systems/regions/canonical_data_serializer.gd")
 
 const SCHEMA_VERSION := 2
-const COMPILER_VERSION := "v67.5"
+const COMPILER_VERSION := "v67.8"
 const SNAPSHOT_KEYS := {
 	"schema_version": true,
 	"compiler_version": true,

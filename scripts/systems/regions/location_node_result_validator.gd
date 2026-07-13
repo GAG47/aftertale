@@ -4,6 +4,7 @@ extends RefCounted
 const CanonicalDataSerializerScript := preload("res://scripts/systems/regions/canonical_data_serializer.gd")
 
 const SCHEMA_VERSION := 2
+const COMPILER_VERSION := "v67.8"
 const FORBIDDEN_NEXT_STAGE_KEYS := {
 	"edge_id": true,
 	"edges": true,
@@ -44,7 +45,9 @@ func validate(result: Dictionary, semantic_role_result: Dictionary = {}, profile
 		errors.append("LocationNodeResult.schema_version is unsupported: %s" % str(result.get("schema_version", "")))
 	if str(result.get("stage", "")) != "location_nodes":
 		errors.append("LocationNodeResult.stage must be location_nodes")
-	for key in ["compiler_version", "region_id", "region_type", "region_slug", "source_hash", "semantic_role_source_hash", "semantic_role_library_id", "semantic_role_library_path", "result_hash"]:
+	if str(result.get("compiler_version", "")) != COMPILER_VERSION:
+		errors.append("LocationNodeResult.compiler_version is incompatible: %s" % str(result.get("compiler_version", "")))
+	for key in ["region_id", "region_type", "region_slug", "source_hash", "semantic_role_source_hash", "semantic_role_library_id", "semantic_role_library_path", "result_hash"]:
 		if str(result.get(key, "")).is_empty():
 			errors.append("LocationNodeResult.%s is missing" % key)
 	if not CanonicalDataSerializerScript.is_sha256_hash(str(result.get("semantic_role_library_content_hash", ""))):

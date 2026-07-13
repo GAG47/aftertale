@@ -46,6 +46,8 @@ func _assert_snapshot_builds_without_runtime_fields() -> bool:
 	var snapshot: Dictionary = result.get("location_graph_snapshot", {}) as Dictionary
 	if str(snapshot.get("stage", "")) != "location_graph_snapshot":
 		return _fail("v67.5 snapshot has wrong stage")
+	if str(snapshot.get("compiler_version", "")) != "v67.8":
+		return _fail("v67.8 LocationGraphSnapshot has stale compiler_version: %s" % str(snapshot.get("compiler_version", "")))
 	if not CanonicalDataSerializerScript.is_sha256_hash(str(snapshot.get("content_hash", ""))):
 		return _fail("v67.5 snapshot has no valid content_hash")
 	if str(snapshot.get("snapshot_id", "")) != CanonicalDataSerializerScript.snapshot_id(
@@ -182,6 +184,10 @@ func _assert_tampering_fails_on_load() -> bool:
 	var incompatible_schema := snapshot.duplicate(true)
 	incompatible_schema["schema_version"] = 999
 	if not _assert_load_rejects(incompatible_schema, "unsupported"):
+		return false
+	var stale_compiler := snapshot.duplicate(true)
+	stale_compiler["compiler_version"] = "v67.5"
+	if not _assert_load_rejects(stale_compiler, "compiler_version is incompatible"):
 		return false
 	return true
 

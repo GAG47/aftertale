@@ -181,6 +181,8 @@ func _assert_snapshot_records_role_library() -> bool:
 	var snapshot: Dictionary = result.get("location_graph_snapshot", {}) as Dictionary
 	if int(snapshot.get("schema_version", 0)) != 2:
 		return _fail("v67.8 LocationGraphSnapshot did not advance to provenance schema 2")
+	if str(snapshot.get("compiler_version", "")) != "v67.8":
+		return _fail("v67.8 LocationGraphSnapshot retains a stale compiler_version")
 	var library_result: Dictionary = SemanticRoleLibraryScript.new().load_library_result(ROLE_LIBRARY_PATH)
 	var library: RefCounted = library_result.get("library") as RefCounted
 	var matching_rows := 0
